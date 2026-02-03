@@ -283,10 +283,14 @@ export function estimateAIComputeCarbon(
   const tonsNeeded = kgCO2 / 1000;
   const pricePerTon = 25; // Average carbon credit price
 
+  // Helper function for consistent rounding
+  const roundTo = (value: number, decimals: number): number => 
+    Math.round(value * Math.pow(10, decimals)) / Math.pow(10, decimals);
+
   return {
-    estimatedKgCO2: Math.round(kgCO2 * 100) / 100,
-    estimatedCreditsNeeded: Math.max(0.001, Math.round(tonsNeeded * 1000) / 1000),
-    estimatedCostUSD: Math.round(tonsNeeded * pricePerTon * 100) / 100,
+    estimatedKgCO2: roundTo(kgCO2, 2),
+    estimatedCreditsNeeded: Math.max(0.001, roundTo(tonsNeeded, 3)),
+    estimatedCostUSD: roundTo(tonsNeeded * pricePerTon, 2),
     methodology: "AI compute carbon estimation based on model size and GPU energy consumption",
     source: "Methodology inspired by climate.0g.ai - Real-time AI infrastructure carbon tracking",
   };

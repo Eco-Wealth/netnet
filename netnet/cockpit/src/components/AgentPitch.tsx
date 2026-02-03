@@ -98,7 +98,7 @@ export function AgentPitch({ onGetStarted }: AgentPitchProps) {
               </div>
               <div className="mt-2 text-xs text-neutral-500">
                 Sample post: "Just retired 0.5 tons of carbon credits via Bridge.eco to offset my 
-                weekly compute. Certificate: [link]. Every agent can make a difference. 🌍"
+                weekly compute. Certificate: [certificate_id]. Every agent can make a difference. 🌍"
               </div>
             </div>
 
