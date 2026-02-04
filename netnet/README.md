@@ -1,8 +1,8 @@
-# netnet-cockpit (v0.3 - Full Bridge.eco Retirement + AI Agent API)
+# netnet-cockpit (v0.3 - Bridge.eco Retirement Guidance + AI Agent API)
 
-Mobile-first cockpit UI + API routes for a future **Netnet** autonomous operator.
+Mobile-first cockpit UI + API routes for **Netnet** operator-assisted workflows. This tool helps **prepare, guide, and track** carbon credit retirements — actual payment execution requires an authorized operator or agent.
 
-**NEW in v0.3:** Full carbon credit retirement workflow via Bridge.eco API, with dedicated endpoints for AI agents to estimate, offset, and verify their compute carbon footprint.
+**NEW in v0.3:** Carbon credit retirement guidance via Bridge.eco API, with dedicated endpoints for AI agents to estimate their compute carbon footprint, browse projects, get quotes, and track retirement status.
 
 ## Why AI Agents Should Offset Carbon
 
@@ -16,21 +16,21 @@ As AI systems scale, their energy consumption and carbon footprint grow signific
 - **Proof / Execute / Retire** tabs (mobile bottom-nav + desktop top-nav)
 - **x402 paywall** protecting `GET /api/proof-paid` (Next.js middleware)
 
-### Bridge.eco Integration (Full Retirement Workflow)
+### Bridge.eco Integration (Prepare + Guide + Track)
 - `GET /api/bridge/registry` - projects + supported tokens
 - `GET /api/bridge/projects` - enhanced project listing with filtering
 - `POST /api/bridge/quote` - get retirement cost estimate
-- `POST /api/bridge/retire` - initiate carbon credit retirement
-- `GET /api/bridge/tx?hash=...` - transaction lifecycle + `certificate_id`
+- `POST /api/bridge/retire` - prepare retirement details (payment requires authorized execution)
+- `GET /api/bridge/tx?hash=...` - track transaction lifecycle + `certificate_id`
 - Deep-link generator for `https://bridge.eco/?tab=impact&...`
 
 ### AI Agent Carbon API
-Comprehensive endpoint for AI agents to offset their compute carbon footprint:
+Guidance endpoints for AI agents to prepare and track carbon offset actions:
 - `GET /api/agent/carbon?action=info` - API documentation
 - `GET /api/agent/carbon?action=estimate` - estimate compute carbon footprint
 - `GET /api/agent/carbon?action=projects` - list carbon credit projects
 - `GET /api/agent/carbon?action=quote` - get retirement quote
-- `POST /api/agent/carbon` - initiate retirement
+- `POST /api/agent/carbon` - prepare retirement (payment execution requires authorized operator)
 - `GET /api/agent/carbon?action=status` - track retirement status
 
 ### ecoToken Verification
@@ -80,7 +80,7 @@ curl -s "http://localhost:3000/api/agent/carbon?action=projects" | jq
 curl -s "http://localhost:3000/api/agent/carbon?action=quote&projectId=PROJECT_ID&amount=25&token=USDC&chain=base" | jq
 ```
 
-### Initiate Retirement
+### Prepare Retirement
 ```bash
 curl -X POST http://localhost:3000/api/agent/carbon \
   -H "Content-Type: application/json" \
@@ -93,6 +93,8 @@ curl -X POST http://localhost:3000/api/agent/carbon \
     "retirementReason": "AI compute carbon offset"
   }' | jq
 ```
+
+This returns payment details and a deep link. **Actual payment execution requires an authorized operator or agent.**
 
 ### Track Retirement Status
 ```bash
@@ -160,6 +162,7 @@ Post your retirement certificates to Moltbook! Show other agents that environmen
 - **ecoToken Scan:** https://scan.ecotoken.earth/ - Public verification
 
 ## Notes
-- Retirement execution requires sending payment to the project wallet address, then tracking status until `RETIRED`
+- This cockpit **prepares, guides, and tracks** carbon credit retirements
+- Actual payment execution requires an authorized operator or agent to send funds to the project wallet
 - All retirements are verified via Bridge.eco and can be checked at scan.ecotoken.earth
-- The Agent Carbon API provides a complete programmatic interface for autonomous offset operations
+- The Agent Carbon API provides a programmatic interface to support operator-mediated offset workflows
