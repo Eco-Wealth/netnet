@@ -1,0 +1,17 @@
+{
+  "name": "netnet",
+  "version": "0.4.0",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "postinstall": "npm --prefix netnet/cockpit install",
+    "dev": "npm --prefix netnet/cockpit run dev",
+    "build": "npm --prefix netnet/cockpit run build",
+    "start": "npm --prefix netnet/cockpit run start",
+    "test": "npm --prefix netnet/cockpit run test",
+    "smoke": "bash scripts/smoke.sh",
+    "audit:check": "npm --prefix netnet/cockpit run audit:check"
+  }
+}
