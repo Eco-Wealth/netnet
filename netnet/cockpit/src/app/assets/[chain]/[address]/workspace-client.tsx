@@ -1,240 +1,135 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Button, Card, Label, Muted, Row, StatusChip } from "@/components/ui";
 
-type Json = any;
+type ScanResp =
+  | { ok: true; kind: "asset" | "tx"; url: string; instructions: string; input?: any }
+  | { ok: false; error: string };
 
-function Section({
-  title,
-  subtitle,
-  children,
-  right,
-}: {
-  title: string;
-  subtitle?: string;
-  children: React.ReactNode;
-  right?: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 md:p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-base font-semibold">{title}</div>
-          {subtitle ? <div className="mt-1 text-sm text-white/60">{subtitle}</div> : null}
-        </div>
-        {right ? <div className="shrink-0">{right}</div> : null}
-      </div>
-      <div className="mt-4">{children}</div>
-    </div>
-  );
-}
-
-function CodeBlock({ value }: { value: any }) {
-  const text = useMemo(() => {
-    try {
-      return JSON.stringify(value, null, 2);
-    } catch {
-      return String(value);
-    }
-  }, [value]);
-  return (
-    <pre className="max-h-[360px] overflow-auto rounded-xl bg-black/30 p-3 text-xs leading-relaxed text-white/80">
-      {text}
-    </pre>
-  );
-}
-
-async function getJSON(url: string): Promise<Json> {
-  const r = await fetch(url, { cache: "no-store" });
-  const ct = r.headers.get("content-type") || "";
-  const body = ct.includes("application/json") ? await r.json() : await r.text();
-  if (!r.ok) {
-    const err: any = new Error(`HTTP ${r.status}`);
-    err.status = r.status;
-    err.body = body;
-    throw err;
+async function getJSON<T>(path: string): Promise<T> {
+  const res = await fetch(path, { cache: "no-store" });
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Non-JSON response (${res.status}): ${text.slice(0, 160)}`);
   }
-  return body;
 }
 
-function pill(status: "idle" | "ok" | "err") {
-  const base = "inline-flex items-center rounded-full px-2 py-1 text-[11px] font-medium border";
-  if (status === "ok")
-    return <span className={`${base} border-emerald-500/30 bg-emerald-500/10 text-emerald-200`}>OK</span>;
-  if (status === "err")
-    return <span className={`${base} border-rose-500/30 bg-rose-500/10 text-rose-200`}>ERR</span>;
-  return <span className={`${base} border-white/10 bg-white/5 text-white/70`}>…</span>;
-}
-
-export default function AssetWorkspaceClient({ chain, address }: { chain: string; address: string }) {
-  const [scan, setScan] = useState<Json | null>(null);
-  const [scanErr, setScanErr] = useState<any>(null);
-  const [health, setHealth] = useState<Json | null>(null);
-  const [healthErr, setHealthErr] = useState<any>(null);
-  const [tradeInfo, setTradeInfo] = useState<Json | null>(null);
-  const [tradeErr, setTradeErr] = useState<any>(null);
-  const [carbonInfo, setCarbonInfo] = useState<Json | null>(null);
-  const [carbonErr, setCarbonErr] = useState<any>(null);
-
-  const [workItem, setWorkItem] = useState<Json | null>(null);
-  const [workErr, setWorkErr] = useState<any>(null);
-
+export default function AssetWorkspaceClient({
+  chain,
+  address,
+}: {
+  chain: string;
+  address: string;
+}) {
   const assetKey = useMemo(() => `${chain}:${address}`, [chain, address]);
 
-  useEffect(() => {
-    getJSON("/api/health").then(setHealth).catch(setHealthErr);
-    getJSON("/api/agent/trade?action=info").then(setTradeInfo).catch(setTradeErr);
-    getJSON("/api/agent/carbon?action=info").then(setCarbonInfo).catch(setCarbonErr);
-  }, []);
+  const [scan, setScan] = useState<ScanResp | null>(null);
+  const [scanLoading, setScanLoading] = useState(false);
+  const [workCreateLoading, setWorkCreateLoading] = useState(false);
+  const [workCreatedId, setWorkCreatedId] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
 
   async function runScan() {
-    setScanErr(null);
-    setScan(null);
+    setErr(null);
+    setScanLoading(true);
     try {
       const q = new URLSearchParams({ chain, address });
-      const data = await getJSON(`/api/ecotoken/scan?${q.toString()}`);
+      const data = await getJSON<ScanResp>(`/api/ecotoken/scan?${q.toString()}`);
       setScan(data);
     } catch (e: any) {
-      setScanErr(e);
+      setErr(e?.message || "Scan failed");
+    } finally {
+      setScanLoading(false);
     }
   }
 
-  async function createWorkItem() {
-    setWorkErr(null);
-    setWorkItem(null);
+  async function createWorkSeed() {
+    setErr(null);
+    setWorkCreateLoading(true);
     try {
-      const r = await fetch("/api/work/items", {
+      const r = await fetch("/api/work", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           title: `Asset workspace: ${assetKey}`,
-          kind: "ASSET",
-          asset: { chain, address },
-          status: "PROPOSED",
-          notes: "Created from Asset Workspace. Operator review required before any execution.",
+          description:
+            "Seeded from Asset Workspace. Operator review required before any execution.",
+          tags: ["asset-workspace", chain],
+          priority: "MEDIUM",
+          owner: "operator",
         }),
       });
-      const ct = r.headers.get("content-type") || "";
-      const body = ct.includes("application/json") ? await r.json() : await r.text();
-      if (!r.ok) {
-        const err: any = new Error(`HTTP ${r.status}`);
-        err.status = r.status;
-        err.body = body;
-        throw err;
-      }
-      setWorkItem(body);
+      const data = await r.json().catch(() => null);
+      if (!r.ok || !data?.ok) throw new Error(data?.error || `Create failed (${r.status})`);
+      setWorkCreatedId(data.id || data.item?.id || null);
     } catch (e: any) {
-      setWorkErr(e);
+      setErr(e?.message || "Create work failed");
+    } finally {
+      setWorkCreateLoading(false);
     }
   }
 
-  const scanStatus: "idle" | "ok" | "err" = scan ? "ok" : scanErr ? "err" : "idle";
-
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-8">
-      <div className="flex flex-col gap-2">
-        <div className="text-xs text-white/60">Asset Workspace</div>
-        <div className="text-2xl font-semibold tracking-tight">{chain}</div>
-        <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 font-mono text-sm text-white/80">
-          {address || "(missing address)"}
-        </div>
-        <div className="mt-1 text-sm text-white/60">
-          Inner loop: scan → propose → approve → execute (optional) → proof + accounting.
-        </div>
-      </div>
+    <div className="grid gap-3">
+      <Card>
+        <Row>
+          <div>
+            <div className="text-sm font-semibold">Asset</div>
+            <Muted>{assetKey}</Muted>
+          </div>
+          <StatusChip tone="neutral">READ-ONLY</StatusChip>
+        </Row>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
-        <Section
-          title="Service health"
-          subtitle="Fast signal that the cockpit is responding"
-          right={pill(health ? "ok" : healthErr ? "err" : "idle")}
-        >
-          {health ? (
-            <CodeBlock value={health} />
-          ) : healthErr ? (
-            <CodeBlock value={{ error: String(healthErr?.message || healthErr), details: healthErr?.body }} />
-          ) : (
-            <div className="text-sm text-white/60">Loading…</div>
-          )}
-        </Section>
-
-        <Section
-          title="ecoToken scan links"
-          subtitle="Generates verification links for a token/contract"
-          right={pill(scanStatus)}
-        >
-          <div className="flex flex-wrap items-center gap-2">
-            <button
+        <div className="mt-3 grid gap-2">
+          <Row>
+            <Button
               onClick={runScan}
-              className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm hover:bg-white/15"
-              title="Fetch /api/ecotoken/scan for this chain + address"
+              disabled={scanLoading}
+              title="Generate an EcoToken Scan link for this chain+address."
             >
-              Run scan
-            </button>
-            <button
-              onClick={createWorkItem}
-              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10"
-              title="Create a proposed work item tied to this asset"
+              {scanLoading ? "Scanning…" : "Run scan"}
+            </Button>
+
+            <Button
+              variant="ghost"
+              onClick={createWorkSeed}
+              disabled={workCreateLoading}
+              title="Create a work item so an operator or agent can track actions on this asset."
             >
-              Create work item
-            </button>
-          </div>
+              {workCreateLoading ? "Creating…" : "Create work item"}
+            </Button>
+          </Row>
 
-          <div className="mt-4">
-            {scan ? (
-              <CodeBlock value={scan} />
-            ) : scanErr ? (
-              <CodeBlock value={{ error: String(scanErr?.message || scanErr), details: scanErr?.body }} />
-            ) : (
-              <div className="text-sm text-white/60">No scan run yet.</div>
-            )}
-          </div>
+          {workCreatedId ? (
+            <Muted>
+              Work created: <span className="font-mono">{workCreatedId}</span>
+            </Muted>
+          ) : null}
 
-          <div className="mt-3">
-            {workItem ? (
-              <CodeBlock value={workItem} />
-            ) : workErr ? (
-              <CodeBlock value={{ error: String(workErr?.message || workErr), details: workErr?.body }} />
-            ) : null}
-          </div>
-        </Section>
+          {scan?.ok ? (
+            <div className="mt-2 grid gap-1">
+              <Label>Scan URL</Label>
+              <a
+                href={scan.url}
+                target="_blank"
+                rel="noreferrer"
+                className="break-all text-sm underline"
+                title="Open EcoToken Scan in a new tab."
+              >
+                {scan.url}
+              </a>
+              <Muted>{scan.instructions}</Muted>
+            </div>
+          ) : scan && !scan.ok ? (
+            <Muted>Scan error: {scan.error}</Muted>
+          ) : null}
 
-        <Section
-          title="Trade policy & planning (read-only)"
-          subtitle="Safe-by-default. Execution remains gated."
-          right={pill(tradeInfo ? "ok" : tradeErr ? "err" : "idle")}
-        >
-          {tradeInfo ? (
-            <CodeBlock value={tradeInfo} />
-          ) : tradeErr ? (
-            <CodeBlock value={{ error: String(tradeErr?.message || tradeErr), details: tradeErr?.body }} />
-          ) : (
-            <div className="text-sm text-white/60">Loading…</div>
-          )}
-        </Section>
-
-        <Section
-          title="Carbon retirement agent surface (read-only)"
-          subtitle="Info + nextAction for an operator-guided flow"
-          right={pill(carbonInfo ? "ok" : carbonErr ? "err" : "idle")}
-        >
-          {carbonInfo ? (
-            <CodeBlock value={carbonInfo} />
-          ) : carbonErr ? (
-            <CodeBlock value={{ error: String(carbonErr?.message || carbonErr), details: carbonErr?.body }} />
-          ) : (
-            <div className="text-sm text-white/60">Loading…</div>
-          )}
-        </Section>
-      </div>
-
-      <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 md:p-5">
-        <div className="text-base font-semibold">Suggested next actions</div>
-        <div className="mt-2 text-sm text-white/70">
-          1) Run scan to generate shareable verification links. 2) Create a work item so the asset is tracked in the queue.
-          3) Use Strategy Presets to propose trades/ops under caps.
+          {err ? <Muted>{err}</Muted> : null}
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

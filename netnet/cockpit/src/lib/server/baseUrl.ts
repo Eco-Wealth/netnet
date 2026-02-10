@@ -1,8 +1,12 @@
-import { NextRequest } from "next/server";
+import { headers } from "next/headers";
 
-export function getBaseUrl(req: NextRequest) {
-  const proto = req.headers.get("x-forwarded-proto") ?? "http";
-  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
-  if (!host) return null;
+/**
+ * Server-safe base URL builder (works behind reverse proxies).
+ * Avoids hardcoding localhost in server components.
+ */
+export function getServerBaseUrl(): string {
+  const h = headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  const proto = h.get("x-forwarded-proto") ?? "http";
   return `${proto}://${host}`;
 }

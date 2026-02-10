@@ -1,48 +1,58 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createWork, listWork, WorkCreateInput } from "@/lib/work";
+import { createWorkItem, listWorkItems } from "@/lib/work/store";
 
-export const runtime = "nodejs";
-
+/**
+ * Work API (canonical)
+ * - GET  /api/work             -> list
+ * - POST /api/work             -> create, returns { ok, id, item }
+ */
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
-  const action = url.searchParams.get("action") || "list";
 
-  if (action !== "list") {
-    return NextResponse.json(
-      { ok: false, error: { code: "BAD_ACTION", message: "Unsupported action" } },
-      { status: 400 }
+  // Optional filters (best-effort; if store doesn't support fields, filtering is harmless)
+  const q = (url.searchParams.get("q") || "").toLowerCase().trim();
+  const status = (url.searchParams.get("status") || "").toUpperCase().trim();
+  const owner = (url.searchParams.get("owner") || "").toLowerCase().trim();
+
+  let items = listWorkItems();
+
+  if (q) {
+    items = items.filter((it: any) =>
+      String((it.title || "") + " " + (it.description || "")).toLowerCase().includes(q)
     );
   }
+  if (status) {
+    items = items.filter((it: any) => String(it.status || "").toUpperCase() === status);
+  }
+  if (owner) {
+    items = items.filter((it: any) => String(it.owner || "").toLowerCase().includes(owner));
+  }
 
-  return NextResponse.json({ ok: true, items: listWork() });
+  return NextResponse.json({ ok: true, items });
 }
 
 export async function POST(req: NextRequest) {
-  let body: Partial<WorkCreateInput> = {};
+  let body: any = {};
   try {
     body = await req.json();
-  } catch {}
-
-  const title = (body.title || "").trim();
-  if (!title) {
-    return NextResponse.json(
-      { ok: false, error: { code: "VALIDATION", message: "title is required" } },
-      { status: 400 }
-    );
+  } catch {
+    body = {};
   }
 
-  const item = createWork({
+  const title = typeof body.title === "string" ? body.title.trim() : "";
+  if (!title) {
+    return NextResponse.json({ ok: false, error: "Missing title" }, { status: 400 });
+  }
+
+  const item = createWorkItem({
     title,
-    description: body.description,
-    owner: body.owner,
-    tags: body.tags,
-    priority: body.priority,
-    slaHours: body.slaHours,
-    dueAt: body.dueAt,
-    acceptanceCriteria: body.acceptanceCriteria,
-    escalationPolicy: body.escalationPolicy,
-    actor: body.actor || "operator",
+    description: typeof body.description === "string" ? body.description : undefined,
+    owner: typeof body.owner === "string" ? body.owner : undefined,
+    priority: typeof body.priority === "string" ? body.priority : undefined,
+    status: typeof body.status === "string" ? body.status : undefined,
+    tags: Array.isArray(body.tags) ? body.tags : undefined,
+    meta: body.meta ?? undefined,
   });
 
-  return NextResponse.json({ ok: true, item }, { status: 201 });
+  return NextResponse.json({ ok: true, id: item.id, item }, { status: 201 });
 }

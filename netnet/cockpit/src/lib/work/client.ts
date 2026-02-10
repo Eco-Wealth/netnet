@@ -1,87 +1,78 @@
-// Unit 41 — Skill→Work integration (client helper)
-// This module only uses the Work API; it does not assume any specific storage backend.
-// Safe-by-default: all functions fail soft (return null/false) so actions never break UX.
+"use client";
 
-export type WorkKind =
-  | "CARBON_RETIRE"
-  | "TRADE_PLAN"
-  | "TOKEN_OPS"
-  | "PROOF"
-  | "OPS"
-  | "OTHER";
+type Json = Record<string, any>;
 
-export type WorkCreateInput = {
+async function jsonFetch<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    ...init,
+    headers: {
+      "content-type": "application/json",
+      ...(init?.headers || {}),
+    },
+  });
+
+  const text = await res.text();
+  let body: any = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    body = { raw: text };
+  }
+
+  if (!res.ok) {
+    const msg = body?.error || body?.message || `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+
+  return body as T;
+}
+
+export type WorkPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+export type WorkStatus = "PROPOSED" | "READY" | "IN_PROGRESS" | "BLOCKED" | "DONE" | "CANCELED";
+
+export type CreateWorkInput = {
   title: string;
-  kind?: WorkKind;
+  description?: string;
+  owner?: string;
+  priority?: WorkPriority;
+  status?: WorkStatus;
   tags?: string[];
-  meta?: Record<string, unknown>;
+  // free-form fields allowed; server should ignore unknown keys
+  [k: string]: any;
 };
 
 export type WorkEventInput = {
-  type: "START" | "INFO" | "WARN" | "ERROR" | "SUCCESS";
-  message: string;
-  data?: Record<string, unknown>;
+  type: string;          // e.g. "NOTE" | "ACTION" | "RESULT" | "ERROR"
+  by?: string;           // e.g. "agent" | "operator"
+  note?: string;         // human-readable
+  patch?: Json;          // machine payload (optional)
+  [k: string]: any;
 };
 
-async function jsonFetch<T>(
-  input: RequestInfo | URL,
-  init?: RequestInit
-): Promise<T | null> {
-  try {
-    const res = await fetch(input, {
-      ...init,
-      headers: {
-        "content-type": "application/json",
-        ...(init?.headers || {}),
-      },
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as T;
-  } catch {
-    return null;
-  }
-}
-
-export async function createWork(input: WorkCreateInput): Promise<string | null> {
-  const out = await jsonFetch<{ ok: boolean; id?: string }>(`/api/work`, {
+export async function createWork(input: CreateWorkInput) {
+  const out = await jsonFetch<{ ok: boolean; id?: string; item?: any }>(`/api/work`, {
     method: "POST",
     body: JSON.stringify(input),
   });
-  return out?.ok && out.id ? out.id : null;
+  // normalize: prefer id field; fall back to item.id
+  const id = out.id || out.item?.id;
+  return { ...out, id };
 }
 
-export async function appendWorkEvent(
-  workId: string,
-  ev: WorkEventInput
-): Promise<boolean> {
-  const out = await jsonFetch<{ ok: boolean }>(`/api/work/${encodeURIComponent(workId)}/events`, {
+/**
+ * Append an event to a work item.
+ * Canonical endpoint: POST /api/work/[id]
+ */
+export async function appendWorkEvent(workId: string, ev: WorkEventInput) {
+  const body = {
+    type: ev.type,
+    by: ev.by ?? "agent",
+    note: ev.note ?? "",
+    patch: ev.patch ?? null,
+  };
+
+  return jsonFetch<{ ok: boolean; item?: any }>(`/api/work/${encodeURIComponent(workId)}`, {
     method: "POST",
-    body: JSON.stringify(ev),
+    body: JSON.stringify(body),
   });
-  return !!out?.ok;
-}
-
-export async function withWork<T>(
-  create: WorkCreateInput,
-  run: (workId: string | null) => Promise<T>
-): Promise<{ workId: string | null; result: T }> {
-  const workId = await createWork(create);
-  if (workId) {
-    await appendWorkEvent(workId, { type: "START", message: "Action started" });
-  }
-  try {
-    const result = await run(workId);
-    if (workId) {
-      await appendWorkEvent(workId, { type: "SUCCESS", message: "Action completed" });
-    }
-    return { workId, result };
-  } catch (e: any) {
-    if (workId) {
-      await appendWorkEvent(workId, {
-        type: "ERROR",
-        message: e?.message ? String(e.message) : "Action failed",
-      });
-    }
-    throw e;
-  }
 }
