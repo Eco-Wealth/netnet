@@ -1,57 +1,58 @@
 "use client";
 
-import React from "react";
-import { usePathname } from "next/navigation";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Card } from "@/components/ui";
 
-type Tab = { href: string; label: string };
+type ShellProps = {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+};
 
-const tabs: Tab[] = [
+const NAV = [
   { href: "/proof", label: "Proof" },
-  { href: "/execute", label: "Execute" },
   { href: "/retire", label: "Retire" },
+  { href: "/execute", label: "Execute" },
+  { href: "/identity", label: "Identity" },
+  { href: "/governance", label: "Governance" },
 ];
 
-function TabLink({ href, label, active }: { href: string; label: string; active: boolean }) {
-  return (
-    <Link
-      href={href}
-      className={[
-        "px-3 py-2 rounded-xl no-underline text-sm",
-        active ? "bg-neutral-800 text-white" : "text-neutral-300 hover:bg-neutral-900",
-      ].join(" ")}
-    >
-      {label}
-    </Link>
-  );
-}
-
-export function Shell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname() ?? "/";
-  const active = (href: string) => pathname === href;
+export default function Shell({ title, subtitle, children }: ShellProps) {
+  const pathname = usePathname();
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="hidden sm:flex items-center justify-between px-4 py-3 border-b border-neutral-900">
-        <div className="font-semibold">netnet cockpit</div>
-        <nav className="flex gap-2">
-          {tabs.map((t) => (
-            <TabLink key={t.href} href={t.href} label={t.label} active={active(t.href)} />
-          ))}
-        </nav>
-      </header>
+    <div className="min-h-screen bg-white text-black">
+      <div className="mx-auto max-w-5xl px-4 py-6">
+        <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <div className="text-2xl font-semibold">{title}</div>
+            {subtitle ? <div className="mt-1 text-sm opacity-75">{subtitle}</div> : null}
+          </div>
+          <nav className="flex flex-wrap gap-2">
+            {NAV.map((item) => {
+              const active = pathname?.startsWith(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={[
+                    "rounded-full border px-3 py-1 text-sm transition",
+                    active ? "border-black" : "opacity-75 hover:opacity-100",
+                  ].join(" ")}
+                  title={item.label}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </header>
 
-      <main className="flex-1 px-4 py-6 sm:py-10 max-w-3xl w-full mx-auto">
-        {children}
-      </main>
-
-      <nav className="sm:hidden sticky bottom-0 bg-neutral-950 border-t border-neutral-900 px-2 py-2">
-        <div className="grid grid-cols-3 gap-2">
-          {tabs.map((t) => (
-            <TabLink key={t.href} href={t.href} label={t.label} active={active(t.href)} />
-          ))}
-        </div>
-      </nav>
+        <main className="mt-6">
+          <Card>{children}</Card>
+        </main>
+      </div>
     </div>
   );
 }

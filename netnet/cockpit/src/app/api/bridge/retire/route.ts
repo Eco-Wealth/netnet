@@ -1,43 +1,100 @@
-import { z } from "zod";
-import { jsonErr, jsonOk } from "@/lib/api/errors";
-import { bridgePost, getBridgeConfig } from "@/lib/bridge/client";
+import { NextRequest, NextResponse } from "next/server";
+import { initiateRetirement, type RetirementRequest } from "@/lib/bridge";
+import { computeIncentivesPacket } from "@/lib/economics";
 
-const Body = z.object({
-  projectId: z.string().min(1),
-  amount: z.number().positive(),
-  chain: z.string().min(1).default("base"),
-  token: z.string().min(1).default("USDC"),
-  beneficiaryName: z.string().min(1),
-  reason: z.string().min(1),
-  // Optional: allow clients to pass a reference for linking proof objects
-  clientRef: z.string().optional(),
-});
-
-export async function POST(req: Request) {
-  let json: unknown;
+/**
+ * POST /api/bridge/retire
+ * 
+ * Initiate a carbon credit retirement via Bridge.eco.
+ * 
+ * Request body:
+ * {
+ *   "projectId": "string",
+ *   "amount": number,
+ *   "token": "USDC" | "ETH" | etc,
+ *   "chain": "base" | "ethereum" | etc,
+ *   "beneficiaryName": "string",
+ *   "beneficiaryAddress": "string (optional)",
+ *   "retirementReason": "string (optional)",
+ *   "metadata": { ... } (optional)
+ * }
+ * 
+ * Response:
+ * {
+ *   "retirementId": "string",
+ *   "status": "PENDING" | "DETECTED" | "CONVERTED" | "CALCULATED" | "RETIRED",
+ *   "paymentAddress": "0x...",
+ *   "amount": number,
+ *   "token": "string",
+ *   "chain": "string",
+ *   "projectId": "string",
+ *   "estimatedCredits": number,
+ *   "createdAt": "ISO timestamp",
+ *   "expiresAt": "ISO timestamp",
+ *   "deepLink": "https://bridge.eco/..."
+ * }
+ */
+export async function POST(req: NextRequest) {
   try {
-    json = await req.json();
-  } catch {
-    return jsonErr(400, "INVALID_JSON", "Request body must be JSON.");
+    const body = await req.json().catch(() => ({}));
+    
+    const { 
+      projectId, 
+      amount, 
+      token, 
+      chain, 
+      beneficiaryName,
+      beneficiaryAddress,
+      retirementReason,
+      metadata,
+    } = body as Partial<RetirementRequest>;
+
+    // Validate required fields
+    if (!projectId) {
+      return NextResponse.json(
+        { error: "Missing required field: projectId" },
+        { status: 400 }
+      );
+    }
+    if (typeof amount !== "number" || amount <= 0) {
+      return NextResponse.json(
+        { error: "amount must be a positive number" },
+        { status: 400 }
+      );
+    }
+    if (!token) {
+      return NextResponse.json(
+        { error: "Missing required field: token (e.g., 'USDC')" },
+        { status: 400 }
+      );
+    }
+    if (!chain) {
+      return NextResponse.json(
+        { error: "Missing required field: chain (e.g., 'base')" },
+        { status: 400 }
+      );
+    }
+    if (!beneficiaryName) {
+      return NextResponse.json(
+        { error: "Missing required field: beneficiaryName (who is credited with the retirement)" },
+        { status: 400 }
+      );
+    }
+
+    const retirement = await initiateRetirement({
+      projectId,
+      amount,
+      token,
+      chain,
+      beneficiaryName,
+      beneficiaryAddress,
+      retirementReason,
+      metadata,
+    });
+    
+    return NextResponse.json({ ...retirement, economics: computeIncentivesPacket({ action: "bridge_retire_initiate", token, chain, amountToken: amount }) });
+} catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  const parsed = Body.safeParse(json);
-  if (!parsed.success) {
-    return jsonErr(400, "INVALID_BODY", "Invalid request body.", parsed.error.flatten());
-  }
-
-  const cfg = getBridgeConfig();
-  const res = await bridgePost<any>("/v1/retire", parsed.data);
-
-  if (!res.ok) {
-    return jsonErr(
-      res.status || 502,
-      "BRIDGE_UPSTREAM_ERROR",
-      "Bridge retire request failed.",
-      { upstreamStatus: res.status, upstreamError: (res as any).error }
-    );
-  }
-
-  // Expected shape: payment instructions + retirement reference (depends on Bridge).
-  return jsonOk({ data: res.data, bridgeBaseUrl: cfg.baseUrl }, { status: 200 });
 }

@@ -1,7 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { withObsJson } from "@/lib/obs";
 
-export const runtime = "nodejs";
-
-export async function GET() {
-  return NextResponse.json({ ok: true, service: "netnet-cockpit" });
+export async function GET(req: NextRequest) {
+  return withObsJson(req, "/api/health", { ok: true, service: "netnet-cockpit" });
 }
