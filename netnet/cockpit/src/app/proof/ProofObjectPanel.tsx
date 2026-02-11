@@ -98,8 +98,7 @@ export default function ProofObjectPanel() {
             insight={{
               what: "Build a proof object from current context.",
               when: "After defining subject and claim details.",
-              costs: "Proof API request only.",
-              requires: "No spend approval.",
+              requires: "No spend approval. Proof API request only.",
               output: "Structured proof payload for sharing and audit.",
             }}
           >
@@ -123,8 +122,7 @@ export default function ProofObjectPanel() {
                 insight={{
                   what: "Create a review work item from the generated proof.",
                   when: "After proof generation succeeds.",
-                  costs: "Single work API write.",
-                  requires: "Proof object present.",
+                  requires: "Proof object present. Single work API write.",
                   output: "New work item linked to proof context.",
                 }}
               >
@@ -144,8 +142,7 @@ export default function ProofObjectPanel() {
                   insight={{
                     what: "Attach the proof payload to an existing work item.",
                     when: "When a work ID already exists and needs evidence.",
-                    costs: "Work event API write.",
-                    requires: "Valid work ID + generated proof.",
+                    requires: "Valid work ID + generated proof. Work event API write.",
                     output: "Proof appended to work timeline.",
                   }}
                 >

@@ -169,8 +169,7 @@ export default function WorkPage() {
               insight={{
                 what: "Create a new work item in the operator queue.",
                 when: "After title, owner, and acceptance context are entered.",
-                costs: "No fund movement; API write only.",
-                requires: "Operator intent and policy-compliant scope.",
+                requires: "Operator intent and policy-compliant scope. No fund movement; API write only.",
                 output: "Persisted work item with metadata and timeline support.",
               }}
             >
@@ -182,8 +181,7 @@ export default function WorkPage() {
               insight={{
                 what: "Refresh work items from the backend.",
                 when: "After create/update activity or before handoff.",
-                costs: "Read-only API call.",
-                requires: "No approval.",
+                requires: "No approval. Read-only API call.",
                 output: "Latest work queue state.",
               }}
             >

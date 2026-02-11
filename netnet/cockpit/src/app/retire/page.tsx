@@ -24,7 +24,6 @@ export default function RetirePage() {
               insight={{
                 what: "Move to quote planning.",
                 when: "After selecting a candidate project.",
-                costs: "None.",
                 requires: "Project identifier.",
                 output: "Amount entry step.",
               }}
@@ -45,8 +44,7 @@ export default function RetirePage() {
               insight={{
                 what: "Generate retirement quote context.",
                 when: "After amount is selected.",
-                costs: "Quote API calls.",
-                requires: "Project + amount.",
+                requires: "Project + amount. Quote API calls.",
                 output: "Payment + tracking prompt.",
               }}
             >
@@ -66,8 +64,7 @@ export default function RetirePage() {
               insight={{
                 what: "Track retirement progression.",
                 when: "After transaction hash is available.",
-                costs: "Read-only status lookup.",
-                requires: "Valid tx hash.",
+                requires: "Valid tx hash. Read-only status lookup.",
                 output: "Tracking status and proof handoff.",
               }}
             >
@@ -85,7 +82,7 @@ export default function RetirePage() {
             <HoverInfo
               label={<span className="nn-chip">Why proof</span>}
               what="Proof object makes this action auditable for operators and agents."
-              impact="Supports economics and policy review."
+              when="Use after retirement tracking to support economics and policy review."
               requires="Tx/certificate references."
               output="netnet.proof.v1 object."
             />

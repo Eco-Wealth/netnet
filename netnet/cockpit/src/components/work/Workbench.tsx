@@ -83,8 +83,7 @@ export default function Workbench() {
             insight={{
               what: `Call ${a.url} and attach result to work history.`,
               when: "Use for quick operator/agent checks.",
-              costs: "API/compute only.",
-              requires: "No onchain signing here.",
+              requires: "No onchain signing here. API/compute only.",
               output: "Work event + endpoint payload.",
             }}
           >
@@ -101,7 +100,7 @@ export default function Workbench() {
           <HoverInfo
             label={<span>Output</span>}
             what="Latest result from the selected action."
-            impact="Lets you inspect response shape before wiring downstream."
+            when="Use before wiring downstream integrations."
             requires="None."
             output="Raw JSON payload."
           />

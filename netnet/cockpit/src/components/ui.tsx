@@ -1,5 +1,7 @@
 import * as React from "react";
 import { defaultPrimaryInsightTitle, toInsightTitle } from "@/lib/insight";
+import type { InsightFields } from "@/lib/insight";
+import { Insight } from "@/components/Insight";
 
 function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
@@ -89,13 +91,7 @@ export function Row({
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "solid" | "ghost";
   size?: "sm" | "md";
-  insight?: {
-    what: string;
-    when?: string;
-    costs?: string;
-    requires?: string;
-    output?: string;
-  };
+  insight?: InsightFields;
 };
 
 export function Button({ variant = "solid", size = "md", className, insight, title, ...rest }: ButtonProps) {
@@ -276,51 +272,19 @@ export function ActionBar({ children, className }: { children: React.ReactNode; 
 export function HoverInfo({
   label,
   what,
-  impact,
+  when,
   requires,
   output,
 }: {
   label: React.ReactNode;
   what: string;
-  impact?: string;
+  when?: string;
   requires?: string;
   output?: string;
 }) {
-  const [open, setOpen] = React.useState(false);
   return (
-    <span
-      className="nn-tip"
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
-      onFocus={() => setOpen(true)}
-      onBlur={() => setOpen(false)}
-      tabIndex={0}
-    >
-      {label}
-      {open ? (
-        <span role="tooltip" className="nn-tip__bubble">
-          <div className="font-semibold">What</div>
-          <div className="nn-muted mt-0.5">{what}</div>
-          {impact ? (
-            <>
-              <div className="mt-2 font-semibold">Impact</div>
-              <div className="nn-muted mt-0.5">{impact}</div>
-            </>
-          ) : null}
-          {requires ? (
-            <>
-              <div className="mt-2 font-semibold">Requires</div>
-              <div className="nn-muted mt-0.5">{requires}</div>
-            </>
-          ) : null}
-          {output ? (
-            <>
-              <div className="mt-2 font-semibold">Output</div>
-              <div className="nn-muted mt-0.5">{output}</div>
-            </>
-          ) : null}
-        </span>
-      ) : null}
-    </span>
+    <Insight insight={{ what, when, requires, output }}>
+      <span>{label}</span>
+    </Insight>
   );
 }

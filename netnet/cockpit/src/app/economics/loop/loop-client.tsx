@@ -95,8 +95,7 @@ export default function EconomicsLoopClient() {
             title={toInsightTitle({
               what: "Run the economics planning loop.",
               when: "After setting revenue window and planning amount.",
-              costs: "Read and proposal API calls only.",
-              requires: "No execution approval; proposal mode.",
+              requires: "No execution approval; proposal mode. Read and proposal API calls only.",
               output: "Revenue report, allocation packet, retire intent, and proof payload.",
             })}
           >
@@ -113,8 +112,7 @@ export default function EconomicsLoopClient() {
           title={toInsightTitle({
             what: "Create a work item from loop output.",
             when: "After a successful loop run.",
-            costs: "Single work API write.",
-            requires: "Loop output available.",
+            requires: "Loop output available. Single work API write.",
             output: "Tracked work item for operator review.",
           })}
         >

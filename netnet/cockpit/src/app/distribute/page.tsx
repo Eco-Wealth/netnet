@@ -111,8 +111,7 @@ export default function DistributePage() {
             title={toInsightTitle({
               what: "Open the proof feed as RSS.",
               when: "When syndicating updates to external readers or automations.",
-              costs: "Read-only request.",
-              requires: "No approval.",
+              requires: "No approval. Read-only request.",
               output: "RSS XML stream for the current proof feed.",
             })}
             target="_blank"
@@ -155,8 +154,7 @@ export default function DistributePage() {
                   title={toInsightTitle({
                     what: "Copy a deep link for this proof item.",
                     when: "When sharing with operators, agents, or reviewers.",
-                    costs: "No network call.",
-                    requires: "Clipboard permission in browser.",
+                    requires: "Clipboard permission in browser. No network call.",
                     output: "URL copied to clipboard.",
                   })}
                 >
@@ -176,8 +174,7 @@ export default function DistributePage() {
                       title={toInsightTitle({
                         what: `Filter feed by tag '${t}'.`,
                         when: "When narrowing proof history to a specific workflow.",
-                        costs: "Client-side filter only.",
-                        requires: "No approval.",
+                        requires: "No approval. Client-side filter only.",
                         output: "Filtered proof list in this page session.",
                       })}
                     >
@@ -199,8 +196,7 @@ export default function DistributePage() {
                       title={toInsightTitle({
                         what: `Open linked evidence: ${l.label}.`,
                         when: "When reviewing source evidence for this proof item.",
-                        costs: "External navigation request.",
-                        requires: "Link accessibility.",
+                        requires: "Link accessibility. External navigation request.",
                         output: "Evidence page/document in a new tab.",
                       })}
                     >

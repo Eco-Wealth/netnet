@@ -73,8 +73,7 @@ export default function RunProgramsClient() {
               insight={{
                 what: "Generate a proposal packet for the selected strategy program.",
                 when: "After selecting program and actor.",
-                costs: "Proposal API calls and optional work item creation.",
-                requires: "Program selection; no live execution permissions.",
+                requires: "Program selection; no live execution permissions. Proposal API calls and optional work item creation.",
                 output: "Step plan, policy envelope, and work item reference.",
               }}
             >

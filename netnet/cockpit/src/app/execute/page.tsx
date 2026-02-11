@@ -44,8 +44,7 @@ export default function ExecutePage() {
               insight={{
                 what: "Queue a proposed action package.",
                 when: "After task and constraints are ready.",
-                costs: "Compute only in this placeholder mode.",
-                requires: "Operator approval before any spend-adjacent execution.",
+                requires: "Operator approval before any spend-adjacent execution. Compute only in this placeholder mode.",
                 output: "Draft execution packet + next-step checklist.",
               }}
             >
@@ -54,7 +53,7 @@ export default function ExecutePage() {
             <HoverInfo
               label={<span className="nn-chip">Insight</span>}
               what="This queue action does not sign transactions."
-              impact="Keeps execution safe-by-default."
+              when="Use this step to keep execution safe-by-default."
               requires="Governance policy for any later execution."
               output="Readable execution plan."
             />

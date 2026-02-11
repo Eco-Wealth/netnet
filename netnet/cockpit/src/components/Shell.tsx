@@ -4,13 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useMemo } from "react";
 import { toInsightTitle } from "@/lib/insight";
+import { Insight } from "@/components/Insight";
 
 type NavItem = {
   href: string;
   label: string;
   what: string;
   when: string;
-  costs: string;
   requires: string;
   output: string;
 };
@@ -21,8 +21,7 @@ const NAV: NavItem[] = [
     label: "Proof",
     what: "Build verifiable proof objects for actions.",
     when: "After planning or execution when you need machine-readable receipts.",
-    costs: "Low compute only.",
-    requires: "No fund movement. Operator attribution recommended.",
+    requires: "No fund movement. Operator attribution recommended. Low compute usage only.",
     output: "proof object + shareable references.",
   },
   {
@@ -30,8 +29,7 @@ const NAV: NavItem[] = [
     label: "Retire",
     what: "Prepare carbon retirement intents and tracking details.",
     when: "When offset plans are needed for actions or portfolios.",
-    costs: "Potential token spend if executed externally.",
-    requires: "Operator approval + policy caps.",
+    requires: "Operator approval + policy caps. Potential spend only in external execution.",
     output: "retirement proposal + proof links.",
   },
   {
@@ -39,8 +37,7 @@ const NAV: NavItem[] = [
     label: "Execute",
     what: "Draft and queue operator/agent actions.",
     when: "When translating policy-approved intent into stepwise plans.",
-    costs: "Compute and possible downstream gas if approved.",
-    requires: "Autonomy level and policy gates.",
+    requires: "Autonomy level and policy gates. Compute and possible downstream gas if approved.",
     output: "proposal packet, work item, and status events.",
   },
   {
@@ -48,8 +45,7 @@ const NAV: NavItem[] = [
     label: "Work",
     what: "Track tasks, ownership, and event trails.",
     when: "Any time work crosses human/agent boundaries.",
-    costs: "No spend by default.",
-    requires: "Named owner and acceptance criteria preferred.",
+    requires: "Named owner and acceptance criteria preferred. No spend by default.",
     output: "auditable work timeline.",
   },
   {
@@ -57,7 +53,6 @@ const NAV: NavItem[] = [
     label: "Identity",
     what: "Define actor identity and operator intent.",
     when: "Before issuing actions and proofs.",
-    costs: "None.",
     requires: "Accurate beneficiary/operator metadata.",
     output: "attribution context for proofs and work.",
   },
@@ -66,8 +61,7 @@ const NAV: NavItem[] = [
     label: "Governance",
     what: "Set autonomy levels, limits, and kill switches.",
     when: "Before enabling any spend-adjacent behavior.",
-    costs: "No spend by default.",
-    requires: "Operator decision + review.",
+    requires: "Operator decision + review. No spend by default.",
     output: "enforced policy envelope.",
   },
 ];
@@ -136,51 +130,33 @@ function NavBar({ pathname }: { pathname: string }) {
         const active = isActivePath(pathname, item.href);
 
         return (
-          <div key={item.href} className="relative flex items-center">
-            <Link
-              href={item.href}
-              className={cn(
-                "group relative inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium",
-                "border border-[color:var(--border)] bg-[hsl(var(--panel))]",
-                "hover:bg-[hsl(var(--panel2))]",
-                active && "bg-[hsl(var(--panel2))] ring-1 ring-[color:var(--ring)]"
-              )}
-              aria-current={active ? "page" : undefined}
-              title={toInsightTitle(item)}
-            >
-              <span className="leading-none">{item.label}</span>
-
-              {/* Hover bubble (desktop) */}
-              <span
+          <Insight
+            key={item.href}
+            insight={{
+              what: item.what,
+              when: item.when,
+              requires: item.requires,
+              output: item.output,
+            }}
+          >
+            <div className="relative flex items-center">
+              <Link
+                href={item.href}
                 className={cn(
-                  "pointer-events-none absolute right-0 top-full mt-2 hidden w-64",
-                  "rounded-xl border border-[color:var(--border)] bg-[hsl(var(--panel2))] p-2 text-[11px] text-[color:var(--fg)] shadow-lg",
-                  "group-hover:block"
+                  "group relative inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium",
+                  "border border-[color:var(--border)] bg-[hsl(var(--panel))]",
+                  "hover:bg-[hsl(var(--panel2))]",
+                  active && "bg-[hsl(var(--panel2))] ring-1 ring-[color:var(--ring)]"
                 )}
+                aria-current={active ? "page" : undefined}
+                title={toInsightTitle(item)}
               >
-                <InsightBody item={item} />
-              </span>
-            </Link>
-          </div>
+                <span className="leading-none">{item.label}</span>
+              </Link>
+            </div>
+          </Insight>
         );
       })}
     </nav>
-  );
-}
-
-function InsightBody({ item }: { item: NavItem }) {
-  return (
-    <>
-      <div className="text-[10px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">What</div>
-      <div className="mt-0.5 leading-snug text-[color:var(--fg)]">{item.what}</div>
-      <div className="mt-2 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">When</div>
-      <div className="mt-0.5 leading-snug">{item.when}</div>
-      <div className="mt-2 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">Costs</div>
-      <div className="mt-0.5 leading-snug">{item.costs}</div>
-      <div className="mt-2 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">Requires</div>
-      <div className="mt-0.5 leading-snug">{item.requires}</div>
-      <div className="mt-2 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">Output</div>
-      <div className="mt-0.5 leading-snug">{item.output}</div>
-    </>
   );
 }
