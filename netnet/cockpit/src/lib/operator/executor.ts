@@ -15,49 +15,70 @@ type SupportedRoute =
   | "/api/bankr/launch"
   | "/api/bankr/token/actions"
   | "/api/bridge/retire";
+type ExecutionAction =
+  | "trade.plan"
+  | "token.launch"
+  | "token.manage"
+  | "bridge.retire";
 
-export type ExecutionResult = {
-  proposalId: string;
-  route: string;
-  action: PolicyAction;
-  statusCode: number;
+type ExecutionTarget = {
+  action: ExecutionAction;
+  route: SupportedRoute;
+  policyAction: PolicyAction;
+  handler: RouteHandler;
+};
+
+export type ExecutionAuditEnvelope = {
   ok: boolean;
-  body: unknown;
-  executedAt: number;
+  route: string;
+  policyDecision: string;
+  timestamp: number;
+  result?: Record<string, unknown>;
   error?: string;
 };
 
-const ROUTE_HANDLERS: Record<SupportedRoute, RouteHandler> = {
-  "/api/agent/trade": tradePost as unknown as RouteHandler,
-  "/api/bankr/launch": bankrLaunchPost as unknown as RouteHandler,
-  "/api/bankr/token/actions": bankrTokenActionsPost as unknown as RouteHandler,
-  "/api/bridge/retire": bridgeRetirePost as unknown as RouteHandler,
+export class ExecutionBoundaryError extends Error {
+  code: string;
+  auditMessage: string;
+
+  constructor(code: string, auditMessage: string, message?: string) {
+    super(message ?? code);
+    this.name = "ExecutionBoundaryError";
+    this.code = code;
+    this.auditMessage = auditMessage;
+  }
+}
+
+const ROUTE_EXECUTION_MAP: Record<ExecutionAction, ExecutionTarget> = {
+  "trade.plan": {
+    action: "trade.plan",
+    route: "/api/agent/trade",
+    policyAction: "trade.plan",
+    handler: tradePost as unknown as RouteHandler,
+  },
+  "token.launch": {
+    action: "token.launch",
+    route: "/api/bankr/launch",
+    policyAction: "token.launch",
+    handler: bankrLaunchPost as unknown as RouteHandler,
+  },
+  "token.manage": {
+    action: "token.manage",
+    route: "/api/bankr/token/actions",
+    policyAction: "token.manage",
+    handler: bankrTokenActionsPost as unknown as RouteHandler,
+  },
+  "bridge.retire": {
+    action: "bridge.retire",
+    route: "/api/bridge/retire",
+    policyAction: "retire.execute",
+    handler: bridgeRetirePost as unknown as RouteHandler,
+  },
 };
 
 function toRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object") return {};
   return value as Record<string, unknown>;
-}
-
-function normalizeRoute(route: string): SupportedRoute | null {
-  if (route in ROUTE_HANDLERS) {
-    return route as SupportedRoute;
-  }
-  return null;
-}
-
-function policyActionForProposal(
-  route: SupportedRoute,
-  body: Record<string, unknown>
-): PolicyAction {
-  if (route === "/api/agent/trade") return "trade.plan";
-  if (route === "/api/bankr/launch") return "token.launch";
-  if (route === "/api/bridge/retire") return "retire.execute";
-
-  const action = String(body.action ?? "").trim();
-  if (action === "launch") return "token.launch";
-  if (action === "fee_route") return "token.manage";
-  return "proof.build";
 }
 
 function policyContextFromProposal(
@@ -101,15 +122,7 @@ function policyContextFromProposal(
   };
 }
 
-async function parseResponseBody(res: Response): Promise<unknown> {
-  try {
-    return await res.json();
-  } catch {
-    return { raw: await res.text().catch(() => "") };
-  }
-}
-
-function internalRequest(route: string, body: Record<string, unknown>): Request {
+function internalRequest(route: SupportedRoute, body: Record<string, unknown>): Request {
   return new Request(`http://internal${route}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -125,102 +138,119 @@ function getProposalById(id: string): SkillProposalEnvelope | null {
   return { ...proposal, id: proposalId };
 }
 
-export async function executeProposal(id: string): Promise<ExecutionResult> {
-  const proposalId = String(id || "").trim();
-  const proposal = getProposalById(proposalId);
-  if (!proposal) {
-    return {
-      proposalId,
-      route: "",
-      action: "proof.build",
-      statusCode: 404,
-      ok: false,
-      body: null,
-      executedAt: Date.now(),
-      error: "proposal_not_found",
-    };
+function resolveExecutionTarget(
+  proposal: SkillProposalEnvelope
+): ExecutionTarget {
+  const actionBySkill = ROUTE_EXECUTION_MAP[proposal.skillId as ExecutionAction];
+  if (actionBySkill && actionBySkill.route === proposal.route) {
+    return actionBySkill;
   }
+  throw new ExecutionBoundaryError(
+    "execution_target_unmapped",
+    `Execution blocked: unmapped skill/route pair (${proposal.skillId} -> ${proposal.route}).`
+  );
+}
 
+function assertExecutionPreconditions(proposal: SkillProposalEnvelope | null): asserts proposal is SkillProposalEnvelope {
+  if (!proposal) {
+    throw new ExecutionBoundaryError(
+      "proposal_not_found",
+      "Execution blocked: proposal not found."
+    );
+  }
   if (proposal.status !== "approved") {
-    return {
-      proposalId,
-      route: proposal.route,
-      action: "proof.build",
-      statusCode: 409,
-      ok: false,
-      body: null,
-      executedAt: Date.now(),
-      error: "proposal_not_approved",
-    };
+    throw new ExecutionBoundaryError(
+      "proposal_not_approved",
+      "Execution blocked: proposal is not approved."
+    );
   }
   if (proposal.executionIntent !== "locked") {
-    return {
-      proposalId,
-      route: proposal.route,
-      action: "proof.build",
-      statusCode: 409,
-      ok: false,
-      body: null,
-      executedAt: Date.now(),
-      error: "execution_intent_not_locked",
-    };
+    throw new ExecutionBoundaryError(
+      "execution_intent_not_locked",
+      "Execution blocked: execution intent is not locked."
+    );
   }
-
-  const route = normalizeRoute(proposal.route);
-  if (!route) {
-    return {
-      proposalId,
-      route: proposal.route,
-      action: "proof.build",
-      statusCode: 400,
-      ok: false,
-      body: null,
-      executedAt: Date.now(),
-      error: "unsupported_route",
-    };
+  if ((proposal.executionStatus ?? "idle") !== "idle") {
+    throw new ExecutionBoundaryError(
+      "execution_not_idle",
+      "Execution blocked: proposal execution is not idle."
+    );
   }
+}
 
-  const body = toRecord(proposal.proposedBody);
-  const action = policyActionForProposal(route, body);
-  const gate = enforcePolicy(action, policyContextFromProposal(route, body));
+export function validateExecutionBoundary(
+  proposal: SkillProposalEnvelope | null
+): { route: SupportedRoute; action: ExecutionAction } {
+  assertExecutionPreconditions(proposal);
+  const target = resolveExecutionTarget(proposal);
+  return { route: target.route, action: target.action };
+}
+
+async function parseRouteResponse(res: Response): Promise<Record<string, unknown>> {
+  try {
+    const json = (await res.json()) as Record<string, unknown>;
+    return { statusCode: res.status, body: json };
+  } catch {
+    const text = await res.text().catch(() => "");
+    return { statusCode: res.status, body: { raw: text } };
+  }
+}
+
+export async function executeProposal(
+  id: string,
+  snapshot?: SkillProposalEnvelope
+): Promise<ExecutionAuditEnvelope> {
+  const proposal = snapshot ?? getProposalById(id);
+  validateExecutionBoundary(proposal ?? null);
+  const frozenSnapshot = JSON.parse(
+    JSON.stringify(proposal)
+  ) as SkillProposalEnvelope;
+  const target = resolveExecutionTarget(frozenSnapshot);
+  const payload = toRecord(frozenSnapshot.proposedBody);
+  const gate = enforcePolicy(
+    target.policyAction,
+    policyContextFromProposal(target.route, payload)
+  );
   if (!gate.ok) {
     return {
-      proposalId,
-      route,
-      action,
-      statusCode: 403,
       ok: false,
-      body: { ok: false, error: "Policy blocked", details: gate.reasons, policy: gate.policy },
-      executedAt: Date.now(),
-      error: "policy_blocked",
+      route: target.route,
+      policyDecision: "DENY",
+      timestamp: Date.now(),
+      error: "policy_denied",
+      result: {
+        reasons: gate.reasons,
+      },
     };
   }
 
-  const handler = ROUTE_HANDLERS[route];
-  const req = internalRequest(route, body);
-
+  const req = internalRequest(target.route, payload);
   try {
-    const res = await handler(req);
-    const responseBody = await parseResponseBody(res);
+    const res = await target.handler(req);
+    const routeResult = await parseRouteResponse(res);
+    if (!res.ok) {
+      return {
+        ok: false,
+        route: target.route,
+        policyDecision: "ALLOW",
+        timestamp: Date.now(),
+        error: `route_execution_failed_${res.status}`,
+        result: routeResult,
+      };
+    }
     return {
-      proposalId,
-      route,
-      action,
-      statusCode: res.status,
-      ok: res.ok,
-      body: responseBody,
-      executedAt: Date.now(),
-      error: res.ok ? undefined : `route_execution_failed_${res.status}`,
+      ok: true,
+      route: target.route,
+      policyDecision: "ALLOW",
+      timestamp: Date.now(),
+      result: routeResult,
     };
   } catch (error: unknown) {
     return {
-      proposalId,
-      route,
-      action,
-      statusCode: 500,
       ok: false,
-      body: null,
-      executedAt: Date.now(),
+      route: target.route,
+      policyDecision: "ALLOW",
+      timestamp: Date.now(),
       error: error instanceof Error ? error.message : "execution_failed",
     };
   }

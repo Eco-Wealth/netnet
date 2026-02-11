@@ -3,12 +3,25 @@ import { getSkillContextSummary } from "@/lib/operator/skillContext";
 import {
   parseSkillProposalEnvelopeFromContent,
   stringifySkillProposalEnvelope,
+  type SkillProposalEnvelope,
 } from "@/lib/operator/proposal";
 
 type OpenRouterChatMessage = {
   role: "system" | "user" | "assistant";
   content: string;
 };
+
+// Execution boundary guard:
+// This module must only produce analysis/proposal text. It must never import
+// executor/db/store modules or trigger side effects.
+function assertLlmIsolation(
+  action: "analysis" | "proposal",
+  proposal: SkillProposalEnvelope | null
+) {
+  if (proposal && action !== "proposal") {
+    throw new Error("llm_isolation_violation");
+  }
+}
 
 function hashText(input: string): string {
   let h = 2166136261;
@@ -109,14 +122,17 @@ export async function generateAssistantReply(
     const content = proposal
       ? stringifySkillProposalEnvelope(proposal)
       : raw || "No assistant content returned.";
+    const action: "analysis" | "proposal" = proposal ? "proposal" : "analysis";
+    assertLlmIsolation(action, proposal);
+    const proposalMetadata = action === "proposal" ? proposal ?? undefined : undefined;
     return {
       id: buildDeterministicId(messages, content),
       role: "assistant",
       content,
       createdAt: Date.now(),
       metadata: {
-        action: proposal ? "proposal" : "analysis",
-        proposal: proposal || undefined,
+        action,
+        proposal: proposalMetadata,
       },
     };
   } catch {

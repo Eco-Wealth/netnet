@@ -9,8 +9,10 @@ import {
   type ExecutionPlan,
 } from "@/lib/operator/planner";
 import {
+  ExecutionBoundaryError,
   executeProposal as executeWithOrchestrator,
-  type ExecutionResult,
+  type ExecutionAuditEnvelope,
+  validateExecutionBoundary,
 } from "@/lib/operator/executor";
 import {
   loadMessages,
@@ -352,9 +354,23 @@ export function generateExecutionPlan(id: string): ExecutionPlan | null {
 export type ExecuteProposalOutcome = {
   ok: boolean;
   proposal: SkillProposalEnvelope | null;
-  result?: ExecutionResult;
+  result?: ExecutionAuditEnvelope;
   error?: string;
+  auditMessage?: string;
 };
+
+function withExecutionSnapshot(
+  envelope: ExecutionAuditEnvelope,
+  snapshot: SkillProposalEnvelope
+): ExecutionAuditEnvelope {
+  return {
+    ...envelope,
+    result: {
+      ...(envelope.result ?? {}),
+      proposalSnapshot: snapshot,
+    },
+  };
+}
 
 export async function executeProposal(
   id: string
@@ -378,6 +394,25 @@ export async function executeProposal(
     return { ok: false, proposal: entry, error: "execution_already_started" };
   }
 
+  const executionSnapshot = JSON.parse(
+    JSON.stringify(entry)
+  ) as SkillProposalEnvelope;
+
+  try {
+    // Validate execution boundary in executor before mutating state.
+    validateExecutionBoundary(executionSnapshot);
+  } catch (error: unknown) {
+    if (error instanceof ExecutionBoundaryError) {
+      return {
+        ok: false,
+        proposal: entry,
+        error: error.code,
+        auditMessage: error.auditMessage,
+      };
+    }
+    return { ok: false, proposal: entry, error: "execution_boundary_error" };
+  }
+
   const startedAt = Date.now();
   const running = persistProposalUpdate(proposalId, {
     ...entry,
@@ -393,19 +428,28 @@ export async function executeProposal(
     status: "running",
     startedAt,
     completedAt: undefined,
-    result: undefined,
+    result: {
+      ok: false,
+      route: executionSnapshot.route,
+      policyDecision: "PENDING",
+      timestamp: startedAt,
+      result: {
+        proposalSnapshot: executionSnapshot,
+      },
+    },
     error: undefined,
   });
 
-  const result = await executeWithOrchestrator(proposalId);
+  const result = await executeWithOrchestrator(proposalId, executionSnapshot);
   const completedAt = Date.now();
 
   if (result.ok) {
+    const persistedResult = withExecutionSnapshot(result, executionSnapshot);
     const completed = persistProposalUpdate(proposalId, {
       ...running,
       executionStatus: "completed",
       executionCompletedAt: completedAt,
-      executionResult: result as unknown as Record<string, unknown>,
+      executionResult: persistedResult,
       executionError: undefined,
     });
     saveExecution({
@@ -414,18 +458,19 @@ export async function executeProposal(
       status: "completed",
       startedAt: running.executionStartedAt,
       completedAt,
-      result: result as unknown as Record<string, unknown>,
+      result: persistedResult,
       error: undefined,
     });
-    return { ok: true, proposal: completed, result };
+    return { ok: true, proposal: completed, result: persistedResult };
   }
 
+  const persistedErrorResult = withExecutionSnapshot(result, executionSnapshot);
   const failed = persistProposalUpdate(proposalId, {
     ...running,
     executionStatus: "failed",
     executionCompletedAt: completedAt,
-    executionResult: result as unknown as Record<string, unknown>,
-    executionError: result.error ?? "execution_failed",
+    executionResult: persistedErrorResult,
+    executionError: persistedErrorResult.error ?? "execution_failed",
   });
   saveExecution({
     id: proposalId,
@@ -433,10 +478,15 @@ export async function executeProposal(
     status: "failed",
     startedAt: running.executionStartedAt,
     completedAt,
-    result: result as unknown as Record<string, unknown>,
+    result: persistedErrorResult,
     error: failed.executionError,
   });
-  return { ok: false, proposal: failed, result, error: failed.executionError };
+  return {
+    ok: false,
+    proposal: failed,
+    result: persistedErrorResult,
+    error: failed.executionError,
+  };
 }
 
 export function isProposalEligible(id: string): boolean {

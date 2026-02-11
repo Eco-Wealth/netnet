@@ -320,9 +320,15 @@ export async function executeProposalAction(
       },
     });
   } else {
+    const policyDenied = outcome.result?.policyDecision === "DENY";
+    const content = outcome.auditMessage
+      ? outcome.auditMessage
+      : policyDenied
+      ? "Execution failed: policy denied by centralized gate."
+      : `Execution failed: ${outcome.error ?? "unknown_error"}`;
     appendOperatorMessage({
       role: "assistant",
-      content: `Execution failed: ${outcome.error ?? "unknown_error"}`,
+      content,
       metadata: {
         policySnapshot: policySnapshot(),
         action: "execution",
