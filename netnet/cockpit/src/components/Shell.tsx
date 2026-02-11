@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useMemo, useState } from "react";
+import { toInsightTitle } from "@/lib/insight";
 
 type NavItem = {
   href: string;
@@ -140,7 +141,7 @@ function NavBar({ pathname }: { pathname: string }) {
                 active && "bg-[hsl(var(--panel2))] ring-1 ring-[color:var(--ring)]"
               )}
               aria-current={active ? "page" : undefined}
-              title={`What: ${item.what} | When: ${item.when} | Costs: ${item.costs} | Requires: ${item.requires} | Output: ${item.output}`}
+              title={toInsightTitle(item)}
               onClick={() => setOpen(null)}
             >
               <span className="leading-none">{item.label}</span>

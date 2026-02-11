@@ -1,4 +1,5 @@
 import * as React from "react";
+import { defaultPrimaryInsightTitle, toInsightTitle } from "@/lib/insight";
 
 function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
@@ -98,20 +99,11 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 export function Button({ variant = "solid", size = "md", className, insight, title, ...rest }: ButtonProps) {
-  const derivedTitle =
-    insight
-      ? [
-          `What: ${insight.what}`,
-          insight.when ? `When: ${insight.when}` : null,
-          insight.costs ? `Costs: ${insight.costs}` : null,
-          insight.requires ? `Requires: ${insight.requires}` : null,
-          insight.output ? `Output: ${insight.output}` : null,
-        ]
-          .filter(Boolean)
-          .join(" | ")
-      : variant === "solid"
-      ? "What: Primary action | When: Use after reviewing context | Costs: May consume API/compute resources | Requires: Policy and operator approval if spend-adjacent | Output: Action result and/or proof artifact"
-      : undefined;
+  const derivedTitle = insight
+    ? toInsightTitle(insight)
+    : variant === "solid"
+    ? defaultPrimaryInsightTitle()
+    : undefined;
 
   return (
     <button
