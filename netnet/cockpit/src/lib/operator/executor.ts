@@ -7,11 +7,7 @@ import { POST as tradePost } from "@/app/api/agent/trade/route";
 import { POST as bankrLaunchPost } from "@/app/api/bankr/launch/route";
 import { POST as bankrTokenActionsPost } from "@/app/api/bankr/token/actions/route";
 import { POST as bridgeRetirePost } from "@/app/api/bridge/retire/route";
-
-type ProposalRegistryEntry = {
-  proposal: SkillProposalEnvelope;
-  eligibleForExecution: boolean;
-};
+import { loadProposal } from "@/lib/operator/db";
 
 type RouteHandler = (req: Request) => Promise<Response>;
 type SupportedRoute =
@@ -30,13 +26,6 @@ export type ExecutionResult = {
   executedAt: number;
   error?: string;
 };
-
-declare global {
-  // eslint-disable-next-line no-var
-  var __NETNET_OPERATOR_PROPOSALS__:
-    | Record<string, ProposalRegistryEntry>
-    | undefined;
-}
 
 const ROUTE_HANDLERS: Record<SupportedRoute, RouteHandler> = {
   "/api/agent/trade": tradePost as unknown as RouteHandler,
@@ -131,9 +120,9 @@ function internalRequest(route: string, body: Record<string, unknown>): Request 
 function getProposalById(id: string): SkillProposalEnvelope | null {
   const proposalId = String(id || "").trim();
   if (!proposalId) return null;
-  const registry = globalThis.__NETNET_OPERATOR_PROPOSALS__;
-  if (!registry) return null;
-  return registry[proposalId]?.proposal ?? null;
+  const proposal = loadProposal(proposalId);
+  if (!proposal) return null;
+  return { ...proposal, id: proposalId };
 }
 
 export async function executeProposal(id: string): Promise<ExecutionResult> {
