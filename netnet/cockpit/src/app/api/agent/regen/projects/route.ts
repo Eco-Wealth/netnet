@@ -22,7 +22,7 @@ export async function GET(req: Request) {
   const body: ApiOk<{
     actions: ("info" | "generate")[];
     nextAction: "generate";
-    safety: { mode: "PROPOSAL_ONLY"; note: string };
+    safety: { mode: "PROPOSE_ONLY"; requiresApproval: true; note: string };
     input: {
       method: "POST";
       path: "/api/agent/regen/projects";
@@ -33,7 +33,8 @@ export async function GET(req: Request) {
     actions: ["info", "generate"],
     nextAction: "generate",
     safety: {
-      mode: "PROPOSAL_ONLY",
+      mode: "PROPOSE_ONLY",
+      requiresApproval: true,
       note: "Generates a Regen registry project packet; does not submit or mutate registry state.",
     },
     input: {
