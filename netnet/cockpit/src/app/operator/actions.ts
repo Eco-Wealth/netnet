@@ -1,7 +1,7 @@
 "use server";
 
 import { getPolicy } from "@/lib/policy/store";
-import type { OperatorConsoleMode, OperatorMessage } from "@/lib/operator/model";
+import type { MessageEnvelope, OperatorConsoleMode } from "@/lib/operator/model";
 import { appendOperatorMessage, listOperatorMessages } from "@/lib/operator/store";
 
 type OperatorStatus = {
@@ -13,7 +13,7 @@ type OperatorStatus = {
 
 export type OperatorThreadSnapshot = {
   status: OperatorStatus;
-  messages: OperatorMessage[];
+  messages: MessageEnvelope[];
 };
 
 function statusFromPolicy(): OperatorStatus {
@@ -24,6 +24,35 @@ function statusFromPolicy(): OperatorStatus {
     policyUpdatedAt: policy.updatedAt,
     policyUpdatedBy: policy.updatedBy,
   };
+}
+
+function policySnapshot() {
+  const policy = getPolicy();
+  return {
+    autonomy: policy.autonomy,
+    maxUsdPerDay: policy.maxUsdPerDay,
+    maxUsdPerAction: policy.maxUsdPerAction,
+    allowlistTokens: [...policy.allowlistTokens],
+    allowlistVenues: [...policy.allowlistVenues],
+    allowlistChains: [...policy.allowlistChains],
+    kill: { ...policy.kill },
+    updatedAt: policy.updatedAt,
+    updatedBy: policy.updatedBy,
+  };
+}
+
+function ensureSystemMessage() {
+  const current = listOperatorMessages();
+  if (current.length > 0) return;
+  appendOperatorMessage({
+    role: "system",
+    content:
+      "Operator console initialized in READ_ONLY mode. External models and execution flows are disabled.",
+    metadata: {
+      policySnapshot: policySnapshot(),
+      action: "operator.bootstrap",
+    },
+  });
 }
 
 function localAssistantReply(input: string): string {
@@ -39,6 +68,7 @@ function localAssistantReply(input: string): string {
 }
 
 export async function readOperatorThread(): Promise<OperatorThreadSnapshot> {
+  ensureSystemMessage();
   return {
     status: statusFromPolicy(),
     messages: listOperatorMessages(),
@@ -50,19 +80,29 @@ export async function postOperatorMessage(input: {
 }): Promise<OperatorThreadSnapshot> {
   const content = String(input?.content ?? "").trim();
   if (!content) {
+    ensureSystemMessage();
     return {
       status: statusFromPolicy(),
       messages: listOperatorMessages(),
     };
   }
 
+  ensureSystemMessage();
   appendOperatorMessage({
     role: "operator",
     content,
+    metadata: {
+      policySnapshot: policySnapshot(),
+      action: "operator.message",
+    },
   });
   appendOperatorMessage({
     role: "assistant",
     content: localAssistantReply(content),
+    metadata: {
+      policySnapshot: policySnapshot(),
+      action: "assistant.local_ack",
+    },
   });
 
   return {
@@ -70,4 +110,3 @@ export async function postOperatorMessage(input: {
     messages: listOperatorMessages(),
   };
 }
-

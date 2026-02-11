@@ -1,12 +1,15 @@
 export type OperatorMessageRole = "system" | "operator" | "assistant" | "skill";
 
-export type OperatorMessage = {
+export type MessageEnvelope = {
   id: string;
   role: OperatorMessageRole;
   content: string;
-  createdAt: string;
-  skill?: string;
+  createdAt: number;
+  metadata?: {
+    policySnapshot?: object;
+    proofId?: string;
+    action?: string;
+  };
 };
 
 export type OperatorConsoleMode = "READ_ONLY";
-

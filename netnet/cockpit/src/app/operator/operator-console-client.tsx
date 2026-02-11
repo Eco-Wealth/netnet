@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { OperatorMessage } from "@/lib/operator/model";
+import type { MessageEnvelope } from "@/lib/operator/model";
 import { Button, Card, Input, Muted, Pill } from "@/components/ui";
 import type { OperatorThreadSnapshot } from "./actions";
 import { postOperatorMessage } from "./actions";
@@ -10,7 +10,7 @@ type OperatorConsoleClientProps = {
   initial: OperatorThreadSnapshot;
 };
 
-function roleTone(role: OperatorMessage["role"]) {
+function roleTone(role: MessageEnvelope["role"]) {
   if (role === "system") return "border-[color:var(--border)] bg-[color:var(--surface-2)]";
   if (role === "operator") return "border-[color:var(--accent)]/40 bg-[color:var(--surface)]";
   if (role === "assistant") return "border-[color:var(--primary)]/40 bg-[color:var(--surface)]";
@@ -46,7 +46,9 @@ export default function OperatorConsoleClient({ initial }: OperatorConsoleClient
                 <span className="text-[color:var(--muted)]">{new Date(m.createdAt).toLocaleString()}</span>
               </div>
               <div className="mt-1 whitespace-pre-wrap text-sm">{m.content}</div>
-              {m.skill ? <div className="mt-1 text-xs text-[color:var(--muted)]">skill: {m.skill}</div> : null}
+              {m.metadata?.action ? (
+                <div className="mt-1 text-xs text-[color:var(--muted)]">action: {m.metadata.action}</div>
+              ) : null}
             </div>
           ))}
         </div>
@@ -85,4 +87,3 @@ export default function OperatorConsoleClient({ initial }: OperatorConsoleClient
     </div>
   );
 }
-
