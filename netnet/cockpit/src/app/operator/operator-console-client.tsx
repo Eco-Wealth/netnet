@@ -3,8 +3,13 @@
 import { useState, useTransition } from "react";
 import type { MessageEnvelope } from "@/lib/operator/model";
 import { Button, Card, Input, Muted, Pill } from "@/components/ui";
+import type { SkillProposalEnvelope } from "@/lib/operator/proposal";
 import type { OperatorThreadSnapshot } from "./actions";
-import { postOperatorMessage } from "./actions";
+import {
+  approveOperatorProposal,
+  postOperatorMessage,
+  rejectOperatorProposal,
+} from "./actions";
 
 type OperatorConsoleClientProps = {
   initial: OperatorThreadSnapshot;
@@ -20,6 +25,7 @@ function roleTone(role: MessageEnvelope["role"]) {
 export default function OperatorConsoleClient({ initial }: OperatorConsoleClientProps) {
   const [snapshot, setSnapshot] = useState<OperatorThreadSnapshot>(initial);
   const [draft, setDraft] = useState("");
+  const [activeProposalId, setActiveProposalId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   function onSend() {
@@ -30,6 +36,70 @@ export default function OperatorConsoleClient({ initial }: OperatorConsoleClient
       setSnapshot(next);
       setDraft("");
     });
+  }
+
+  function onApproveProposal(id: string) {
+    setActiveProposalId(id);
+    startTransition(async () => {
+      const next = await approveOperatorProposal(id);
+      setSnapshot(next);
+      setActiveProposalId(null);
+    });
+  }
+
+  function onRejectProposal(id: string) {
+    setActiveProposalId(id);
+    startTransition(async () => {
+      const next = await rejectOperatorProposal(id);
+      setSnapshot(next);
+      setActiveProposalId(null);
+    });
+  }
+
+  function renderProposalCard(messageId: string, proposal: SkillProposalEnvelope) {
+    const isDraft = proposal.status === "draft";
+    const busy = pending && activeProposalId === messageId;
+
+    return (
+      <div className="mt-2 rounded-[var(--r-sm)] border border-[color:var(--border)] bg-[color:var(--surface-2)] p-2">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <Pill>{proposal.skillId}</Pill>
+          <Pill>risk: {proposal.riskLevel}</Pill>
+          <Pill>status: {proposal.status}</Pill>
+        </div>
+        <div className="mt-2 text-xs text-[color:var(--muted)]">route: {proposal.route}</div>
+        <div className="mt-1 whitespace-pre-wrap text-sm">{proposal.reasoning}</div>
+        <div className="mt-2 flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={() => onApproveProposal(messageId)}
+            disabled={!isDraft || busy}
+            insight={{
+              what: "Mark this proposal as approved for future execution layer eligibility.",
+              when: "After operator review of risk and reasoning.",
+              requires: "Human approval only; no route execution.",
+              output: "Proposal status updated to approved and audit note message.",
+            }}
+          >
+            {busy ? "Working…" : "Approve"}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onRejectProposal(messageId)}
+            disabled={!isDraft || busy}
+            insight={{
+              what: "Reject this proposal and prevent future execution eligibility.",
+              when: "When proposal quality, scope, or risk is unacceptable.",
+              requires: "Human rejection only; no route execution.",
+              output: "Proposal status updated to rejected and audit note message.",
+            }}
+          >
+            {busy ? "Working…" : "Reject"}
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -46,6 +116,7 @@ export default function OperatorConsoleClient({ initial }: OperatorConsoleClient
                 <span className="text-[color:var(--muted)]">{new Date(m.createdAt).toLocaleString()}</span>
               </div>
               <div className="mt-1 whitespace-pre-wrap text-sm">{m.content}</div>
+              {m.metadata?.proposal ? renderProposalCard(m.id, m.metadata.proposal) : null}
               {m.metadata?.action ? (
                 <div className="mt-1 text-xs text-[color:var(--muted)]">action: {m.metadata.action}</div>
               ) : null}

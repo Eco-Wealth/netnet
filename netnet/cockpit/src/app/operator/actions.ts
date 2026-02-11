@@ -3,9 +3,13 @@
 import { getPolicy } from "@/lib/policy/store";
 import type { MessageEnvelope, OperatorConsoleMode } from "@/lib/operator/model";
 import {
+  approveProposal,
   appendOperatorEnvelope,
   appendOperatorMessage,
+  getProposal,
   listOperatorMessages,
+  registerProposal,
+  rejectProposal,
 } from "@/lib/operator/store";
 import { generateAssistantReply } from "@/lib/operator/llm";
 import { parseSkillProposalEnvelopeFromContent } from "@/lib/operator/proposal";
@@ -92,9 +96,12 @@ export async function postOperatorMessage(input: {
   });
   const history = listOperatorMessages();
   const assistant = await generateAssistantReply(history);
-  const proposal = parseSkillProposalEnvelopeFromContent(assistant.content);
+  const proposal = parseSkillProposalEnvelopeFromContent(assistant.content, {
+    status: "draft",
+    createdAt: Date.now(),
+  });
   const action = proposal ? "proposal" : "analysis";
-  appendOperatorEnvelope({
+  const updated = appendOperatorEnvelope({
     ...assistant,
     role: "assistant",
     metadata: {
@@ -104,6 +111,79 @@ export async function postOperatorMessage(input: {
       proposal: proposal || assistant.metadata?.proposal,
     },
   });
+  if (proposal) {
+    const created = updated[updated.length - 1];
+    if (created?.id) {
+      registerProposal(created.id, proposal);
+    }
+  }
+
+  return {
+    status: statusFromPolicy(),
+    messages: listOperatorMessages(),
+  };
+}
+
+export async function approveOperatorProposal(
+  id: string
+): Promise<OperatorThreadSnapshot> {
+  ensureSystemMessage();
+  const proposalId = String(id || "").trim();
+  const updated = approveProposal(proposalId);
+  if (updated) {
+    appendOperatorMessage({
+      role: "assistant",
+      content: "Proposal approved by operator.",
+      metadata: {
+        policySnapshot: policySnapshot(),
+        action: "analysis",
+        proposal: updated,
+      },
+    });
+  } else {
+    appendOperatorMessage({
+      role: "assistant",
+      content: "Proposal not found.",
+      metadata: {
+        policySnapshot: policySnapshot(),
+        action: "analysis",
+      },
+    });
+  }
+
+  return {
+    status: statusFromPolicy(),
+    messages: listOperatorMessages(),
+  };
+}
+
+export async function rejectOperatorProposal(
+  id: string
+): Promise<OperatorThreadSnapshot> {
+  ensureSystemMessage();
+  const proposalId = String(id || "").trim();
+  const existing = getProposal(proposalId);
+  const updated = rejectProposal(proposalId);
+  if (updated || existing) {
+    appendOperatorMessage({
+      role: "assistant",
+      content: "Proposal rejected by operator.",
+      metadata: {
+        policySnapshot: policySnapshot(),
+        action: "analysis",
+        proposal: updated || existing || undefined,
+      },
+    });
+  } else {
+    appendOperatorMessage({
+      role: "assistant",
+      content: "Proposal not found.",
+      metadata: {
+        policySnapshot: policySnapshot(),
+        action: "analysis",
+      },
+    });
+  }
 
   return {
     status: statusFromPolicy(),
