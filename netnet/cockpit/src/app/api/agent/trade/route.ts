@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { enforcePolicy, tradePolicyEnvelope } from "@/lib/policy/enforce";
 
 /**
  * Unit N — Trade API v2 (PROPOSE-ONLY)
@@ -32,32 +33,6 @@ const PlanBody = z.object({
 
 function nowIso() {
   return new Date().toISOString();
-}
-
-function defaultPolicy() {
-  return {
-    autonomyLevel: "PROPOSE_ONLY" as const,
-    allowlists: {
-      venues: ["bankr", "uniswap", "aerodrome"],
-      chains: ["base", "ethereum", "polygon", "arbitrum", "optimism", "celo"],
-      tokens: ["USDC", "WETH", "REGEN", "K2", "KVCM", "ECO", "ZORA"],
-    },
-    caps: {
-      maxUsdPerTrade: 250,
-      maxUsdPerDay: 500,
-    },
-  };
-}
-
-function policyCheck(input: { chain: string; venue: string; from: string; to: string; amountUsd: number }) {
-  const p = defaultPolicy();
-  const errors: string[] = [];
-  if (!p.allowlists.chains.includes(input.chain)) errors.push(`chain not allowed: ${input.chain}`);
-  if (!p.allowlists.venues.includes(input.venue)) errors.push(`venue not allowed: ${input.venue}`);
-  if (!p.allowlists.tokens.includes(input.from)) errors.push(`from token not allowed: ${input.from}`);
-  if (!p.allowlists.tokens.includes(input.to)) errors.push(`to token not allowed: ${input.to}`);
-  if (input.amountUsd > p.caps.maxUsdPerTrade) errors.push(`amountUsd exceeds maxUsdPerTrade (${p.caps.maxUsdPerTrade})`);
-  return { ok: errors.length === 0, errors, policy: p };
 }
 
 function proofEnvelope(args: {
@@ -97,7 +72,7 @@ export async function GET(req: NextRequest) {
         actions: ["quote", "plan"],
         defaultChain: q.chain,
         defaultVenue: q.venue,
-        policy: defaultPolicy(),
+        policy: tradePolicyEnvelope(),
       },
     });
   }
@@ -132,9 +107,19 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const gate = policyCheck({ chain: q.chain, venue: q.venue, from: q.from, to: q.to, amountUsd: q.amountUsd });
+  const gate = enforcePolicy("trade.quote", {
+    route: "/api/agent/trade",
+    chain: q.chain,
+    venue: q.venue,
+    fromToken: q.from,
+    toToken: q.to,
+    amountUsd: q.amountUsd,
+  });
   if (!gate.ok) {
-    return NextResponse.json({ ok: false, error: "Policy blocked", details: gate.errors, policy: gate.policy }, { status: 403 });
+    return NextResponse.json(
+      { ok: false, error: "Policy blocked", details: gate.reasons, policy: gate.policy },
+      { status: 403 }
+    );
   }
 
   const feeBps = 120; // informational only
@@ -164,9 +149,19 @@ export async function POST(req: NextRequest) {
   }
   const b = parsed.data;
 
-  const gate = policyCheck({ chain: b.chain, venue: b.venue, from: b.from, to: b.to, amountUsd: b.amountUsd });
+  const gate = enforcePolicy("trade.plan", {
+    route: "/api/agent/trade",
+    chain: b.chain,
+    venue: b.venue,
+    fromToken: b.from,
+    toToken: b.to,
+    amountUsd: b.amountUsd,
+  });
   if (!gate.ok) {
-    return NextResponse.json({ ok: false, error: "Policy blocked", details: gate.errors, policy: gate.policy }, { status: 403 });
+    return NextResponse.json(
+      { ok: false, error: "Policy blocked", details: gate.reasons, policy: gate.policy },
+      { status: 403 }
+    );
   }
 
   const estimatedCostsUsd = 0.01; // placeholder inference cost; real value comes from ops/inference accounting later

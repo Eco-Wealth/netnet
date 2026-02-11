@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchBankrWallet } from "@/lib/bankrWallet";
+import { enforcePolicy } from "@/lib/policy/enforce";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +10,17 @@ export async function GET(req: Request) {
   const wallet = url.searchParams.get("wallet") || undefined;
   const limitRaw = url.searchParams.get("limit");
   const limit = limitRaw ? Math.max(1, Math.min(200, Number(limitRaw))) : undefined;
+
+  const gate = enforcePolicy("proof.build", {
+    route: "/api/bankr/wallet",
+    venue: "bankr",
+  });
+  if (!gate.ok) {
+    return NextResponse.json(
+      { ok: false, error: "Policy blocked", details: gate.reasons },
+      { status: 403 }
+    );
+  }
 
   if (!["balances", "positions", "history", "state"].includes(action)) {
     return NextResponse.json(

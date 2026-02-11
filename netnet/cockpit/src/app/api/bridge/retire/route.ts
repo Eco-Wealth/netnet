@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { initiateRetirement, type RetirementRequest } from "@/lib/bridge";
 import { computeIncentivesPacket } from "@/lib/economics";
+import { enforcePolicy } from "@/lib/policy/enforce";
 
 /**
  * POST /api/bridge/retire
@@ -78,6 +79,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "Missing required field: beneficiaryName (who is credited with the retirement)" },
         { status: 400 }
+      );
+    }
+
+    const gate = enforcePolicy("retire.execute", {
+      route: "/api/bridge/retire",
+      chain,
+      venue: "bridge-eco",
+      fromToken: token,
+      amountUsd: typeof amount === "number" ? amount : undefined,
+    });
+    if (!gate.ok) {
+      return NextResponse.json(
+        { ok: false, error: "Policy blocked", details: gate.reasons },
+        { status: 403 }
       );
     }
 

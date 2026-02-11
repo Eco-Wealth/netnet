@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { computeIncentivesPacket } from "@/lib/economics";
+import { enforcePolicy } from "@/lib/policy/enforce";
 import {
   fetchProjects,
   getRetirementQuote,
@@ -187,6 +188,20 @@ export async function GET(req: NextRequest) {
           return NextResponse.json({ error: "amount must be positive" }, { status: 400 });
         }
 
+        const gate = enforcePolicy("retire.quote", {
+          route: "/api/agent/carbon",
+          chain,
+          venue: "bridge-eco",
+          fromToken: token,
+          amountUsd: amount,
+        });
+        if (!gate.ok) {
+          return NextResponse.json(
+            { ok: false, error: "Policy blocked", details: gate.reasons },
+            { status: 403 }
+          );
+        }
+
         const quote = await getRetirementQuote(projectId, amount, token, chain);
         return NextResponse.json({
           ...quote,
@@ -253,6 +268,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "Missing beneficiaryName (who should be credited with this offset)" },
         { status: 400 }
+      );
+    }
+
+    const gate = enforcePolicy("retire.execute", {
+      route: "/api/agent/carbon",
+      chain,
+      venue: "bridge-eco",
+      fromToken: token,
+      amountUsd: amount,
+    });
+    if (!gate.ok) {
+      return NextResponse.json(
+        { ok: false, error: "Policy blocked", details: gate.reasons },
+        { status: 403 }
       );
     }
 

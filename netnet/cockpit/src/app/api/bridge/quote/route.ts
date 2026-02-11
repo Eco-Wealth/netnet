@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { jsonErr, jsonOk } from "@/lib/api/errors";
 import { bridgePost, getBridgeConfig } from "@/lib/bridge/client";
+import { enforcePolicy } from "@/lib/policy/enforce";
 
 const Body = z.object({
   projectId: z.string().min(1),
@@ -23,6 +24,17 @@ export async function POST(req: Request) {
   const parsed = Body.safeParse(json);
   if (!parsed.success) {
     return jsonErr(400, "INVALID_BODY", "Invalid request body.", parsed.error.flatten());
+  }
+
+  const gate = enforcePolicy("retire.quote", {
+    route: "/api/bridge/quote",
+    chain: parsed.data.chain,
+    venue: "bridge-eco",
+    fromToken: parsed.data.token,
+    amountUsd: parsed.data.amount,
+  });
+  if (!gate.ok) {
+    return jsonErr(403, "POLICY_BLOCKED", "Policy blocked.", { details: gate.reasons });
   }
 
   const cfg = getBridgeConfig();
