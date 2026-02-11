@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildLaunchEnvelope, submitLaunchToBankr } from "@/lib/bankr/launcher";
+import { withRequestId } from "@/lib/http/errors";
 
 const LaunchSchema = z.object({
   name: z.string().min(2),
@@ -13,7 +14,7 @@ const LaunchSchema = z.object({
   submit: z.boolean().optional().default(false),
 });
 
-export async function GET() {
+export const GET = withRequestId(async () => {
   return NextResponse.json({
     ok: true,
     mode: "PROPOSE_ONLY",
@@ -26,9 +27,9 @@ export async function GET() {
       submit: false,
     },
   });
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = withRequestId(async (req) => {
   const body = await req.json().catch(() => ({}));
   const parsed = LaunchSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ ok: false, error: parsed.error.message }, { status: 400 });
@@ -44,4 +45,4 @@ export async function POST(req: NextRequest) {
   } catch (e: any) {
     return NextResponse.json({ ...envelope, submitted: false, error: e?.message || "submit_failed" }, { status: 502 });
   }
-}
+});
