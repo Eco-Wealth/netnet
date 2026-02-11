@@ -3,13 +3,13 @@ import { z } from "zod";
 
 /**
  * Unit N — Trade API v2 (PROPOSE-ONLY)
- * - GET ?action=info|quote
+ * - GET ?action=info|quote|plan (plan on GET returns guidance; use POST to execute plan contract)
  * - POST { action: "plan", ... }
  * No broadcasting. Always returns `requiresApproval: true`.
  */
 
 const QuoteQuery = z.object({
-  action: z.enum(["info", "quote"]).default("info"),
+  action: z.enum(["info", "quote", "plan"]).default("info"),
   chain: z.string().min(1).default("base"),
   venue: z.string().min(1).default("bankr"),
   from: z.string().min(1).optional(),
@@ -100,6 +100,28 @@ export async function GET(req: NextRequest) {
         policy: defaultPolicy(),
       },
     });
+  }
+
+  if (q.action === "plan") {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: {
+          code: "METHOD_NOT_ALLOWED",
+          message: "Use POST /api/agent/trade with body.action='plan'",
+        },
+        expectedBody: {
+          action: "plan",
+          chain: "base",
+          venue: "bankr",
+          from: "USDC",
+          to: "REGEN",
+          amountUsd: 50,
+          operator: { id: "operator-1", reason: "rebalance" },
+        },
+      },
+      { status: 405 }
+    );
   }
 
   // Quote (mock, propose-only)

@@ -1,24 +1,71 @@
-# Trading module (safe stub)
+# Trading API (proposal-only)
 
-Status: **scaffold only**. This module exists to prove an interface and guardrails. It does not broadcast transactions.
+Route: `/api/agent/trade`
 
-## Environment flags
+Status: **PROPOSE_ONLY**. This route never signs or broadcasts transactions.
 
-- `TRADE_ENABLED` (default: `false`)
-  - If false: server forces DRY_RUN.
-- `TRADE_MAX_USD` (default: `25`)
-  - Hard cap enforced server-side.
-- `TRADE_ALLOWLIST_TOKENS` (default: `USDC,ETH`)
-  - Comma-separated symbol list (case-insensitive). Requests outside the allowlist are rejected.
+## Supported actions
 
-## Agent endpoints
+### `GET ?action=info`
 
-- `GET /api/agent/trade?action=info`
-- `GET /api/agent/trade?action=quote&side=buy&tokenIn=USDC&tokenOut=ETH&amountUsd=10`
-- `POST /api/agent/trade`
-  - Body must include `beneficiaryName` and `reason`.
-  - Defaults to DRY_RUN.
+Returns mode, supported actions, and default policy envelope.
 
-## UI
+Example:
+`GET /api/agent/trade?action=info`
 
-- Visit `/execute/paper` to use the paper-trade form.
+### `GET ?action=quote`
+
+Returns an estimated quote if policy gates pass.
+
+Required query fields:
+- `chain`
+- `venue`
+- `from`
+- `to`
+- `amountUsd`
+
+Example:
+`GET /api/agent/trade?action=quote&chain=base&venue=bankr&from=USDC&to=REGEN&amountUsd=50`
+
+### `GET ?action=plan`
+
+Explicitly defined as not allowed on GET.
+
+Response:
+- HTTP `405`
+- error code `METHOD_NOT_ALLOWED`
+- guidance to use `POST /api/agent/trade` with `action: "plan"`
+
+### `POST` with `action: "plan"`
+
+Builds a proposal packet and proof envelope.
+
+Minimal request body:
+```json
+{
+  "action": "plan",
+  "chain": "base",
+  "venue": "bankr",
+  "from": "USDC",
+  "to": "REGEN",
+  "amountUsd": 50,
+  "operator": {
+    "id": "operator-1",
+    "reason": "rebalance"
+  }
+}
+```
+
+Response includes:
+- `ok: true`
+- `mode: "PROPOSE_ONLY"`
+- `plan.whatWillHappen[]`
+- `plan.requiresApproval: true`
+- `plan.estimatedCosts`
+- `proof` (`kind: "netnet.trade.plan.v2"`)
+
+## Guardrails and failure cases
+
+- Policy allowlists/caps are enforced server-side.
+- Blocked requests return `403` with details and policy context.
+- Invalid payloads return `400` with validation details.
