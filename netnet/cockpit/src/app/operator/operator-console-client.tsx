@@ -7,6 +7,7 @@ import type { SkillProposalEnvelope } from "@/lib/operator/proposal";
 import type { OperatorThreadSnapshot } from "./actions";
 import {
   approveOperatorProposal,
+  generateExecutionPlanAction,
   lockExecutionIntentAction,
   postOperatorMessage,
   requestExecutionIntentAction,
@@ -76,12 +77,22 @@ export default function OperatorConsoleClient({ initial }: OperatorConsoleClient
     });
   }
 
+  function onGenerateExecutionPlan(id: string) {
+    setActiveProposalId(id);
+    startTransition(async () => {
+      const next = await generateExecutionPlanAction(id);
+      setSnapshot(next);
+      setActiveProposalId(null);
+    });
+  }
+
   function renderProposalCard(messageId: string, proposal: SkillProposalEnvelope) {
     const isDraft = proposal.status === "draft";
     const isApproved = proposal.status === "approved";
     const executionIntent = proposal.executionIntent ?? "none";
     const canRequestIntent = isApproved && executionIntent === "none";
     const canLockIntent = isApproved && executionIntent === "requested";
+    const canGeneratePlan = isApproved && executionIntent === "locked";
     const busy = pending && activeProposalId === messageId;
 
     return (
@@ -159,6 +170,22 @@ export default function OperatorConsoleClient({ initial }: OperatorConsoleClient
               {busy ? "Working…" : "Lock Execution Intent"}
             </Button>
           ) : null}
+
+          {canGeneratePlan ? (
+            <Button
+              size="sm"
+              onClick={() => onGenerateExecutionPlan(messageId)}
+              disabled={busy}
+              insight={{
+                what: "Generate a deterministic dry-run execution plan for this proposal.",
+                when: "After execution intent is locked and operator wants a final preview.",
+                requires: "Locked execution intent; no route invocation.",
+                output: "ExecutionPlan summary and route/payload preview in thread.",
+              }}
+            >
+              {busy ? "Working…" : "Generate Execution Plan"}
+            </Button>
+          ) : null}
         </div>
       </div>
     );
@@ -181,6 +208,15 @@ export default function OperatorConsoleClient({ initial }: OperatorConsoleClient
               {m.metadata?.proposal ? renderProposalCard(m.id, m.metadata.proposal) : null}
               {m.metadata?.action ? (
                 <div className="mt-1 text-xs text-[color:var(--muted)]">action: {m.metadata.action}</div>
+              ) : null}
+              {m.metadata?.plan ? (
+                <div className="mt-2 rounded-[var(--r-sm)] border border-[color:var(--border)] bg-[color:var(--surface-2)] p-2">
+                  <div className="text-xs text-[color:var(--muted)]">dry-run plan</div>
+                  <div className="mt-1 text-sm">{m.metadata.plan.summary}</div>
+                  <div className="mt-1 text-xs text-[color:var(--muted)]">
+                    route preview: {m.metadata.plan.steps[0]?.route ?? "n/a"}
+                  </div>
+                </div>
               ) : null}
             </div>
           ))}

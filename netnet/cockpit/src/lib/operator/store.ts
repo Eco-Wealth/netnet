@@ -3,6 +3,11 @@ import {
   coerceSkillProposalEnvelope,
   type SkillProposalEnvelope,
 } from "@/lib/operator/proposal";
+import {
+  buildExecutionPlan,
+  isExecutionPlan,
+  type ExecutionPlan,
+} from "@/lib/operator/planner";
 
 type MessageEnvelopeInput = {
   role: OperatorMessageRole;
@@ -22,6 +27,8 @@ declare global {
         { proposal: SkillProposalEnvelope; eligibleForExecution: boolean }
       >
     | undefined;
+  // eslint-disable-next-line no-var
+  var __NETNET_OPERATOR_LAST_PLANS__: Record<string, ExecutionPlan> | undefined;
 }
 
 const ALLOWED_ROLES: readonly OperatorMessageRole[] = [
@@ -76,6 +83,9 @@ function normalizeMetadata(metadata: MessageEnvelope["metadata"]): MessageEnvelo
       normalized.proposal = proposal;
     }
   }
+  if (metadata.plan && isExecutionPlan(metadata.plan)) {
+    normalized.plan = metadata.plan;
+  }
   return Object.keys(normalized).length ? normalized : undefined;
 }
 
@@ -86,15 +96,26 @@ function ensureProposalRegistry() {
   return globalThis.__NETNET_OPERATOR_PROPOSALS__;
 }
 
+function ensurePlanRegistry() {
+  if (!globalThis.__NETNET_OPERATOR_LAST_PLANS__) {
+    globalThis.__NETNET_OPERATOR_LAST_PLANS__ = {};
+  }
+  return globalThis.__NETNET_OPERATOR_LAST_PLANS__;
+}
+
 function syncProposalRegistryFromMessages() {
   const registry = ensureProposalRegistry();
   const messages = listOperatorMessages();
   for (const message of messages) {
     const proposal = message.metadata?.proposal;
     if (!proposal) continue;
+    const normalizedProposal = {
+      ...proposal,
+      id: message.id,
+    };
     registry[message.id] = {
-      proposal,
-      eligibleForExecution: proposal.status === "approved",
+      proposal: normalizedProposal,
+      eligibleForExecution: normalizedProposal.status === "approved",
     };
   }
 }
@@ -224,6 +245,7 @@ export function registerProposal(
   if (!proposalId) throw new Error("invalid_proposal_id");
   const normalizedProposal =
     coerceSkillProposalEnvelope(proposal, {
+      id: proposalId,
       status: proposal.status,
       createdAt: proposal.createdAt,
       executionIntent: proposal.executionIntent ?? "none",
@@ -335,6 +357,21 @@ export function lockExecutionIntent(id: string): SkillProposalEnvelope | null {
       entry.proposal.executionRequestedAt ?? Date.now(),
   };
   return persistProposalUpdate(proposalId, next);
+}
+
+export function generateExecutionPlan(id: string): ExecutionPlan | null {
+  const proposalId = String(id || "").trim();
+  if (!proposalId) return null;
+  syncProposalRegistryFromMessages();
+  const registry = ensureProposalRegistry();
+  const entry = registry[proposalId];
+  if (!entry) return null;
+  if (entry.proposal.executionIntent !== "locked") return null;
+
+  const plan = buildExecutionPlan(entry.proposal);
+  const plans = ensurePlanRegistry();
+  plans[proposalId] = plan;
+  return plan;
 }
 
 export function isProposalEligible(id: string): boolean {

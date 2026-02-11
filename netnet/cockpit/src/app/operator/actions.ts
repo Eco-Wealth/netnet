@@ -6,6 +6,7 @@ import {
   approveProposal,
   appendOperatorEnvelope,
   appendOperatorMessage,
+  generateExecutionPlan,
   getProposal,
   lockExecutionIntent,
   listOperatorMessages,
@@ -252,6 +253,43 @@ export async function lockExecutionIntentAction(
         policySnapshot: policySnapshot(),
         action: "analysis",
         proposal: existing || undefined,
+      },
+    });
+  }
+
+  return {
+    status: statusFromPolicy(),
+    messages: listOperatorMessages(),
+  };
+}
+
+export async function generateExecutionPlanAction(
+  id: string
+): Promise<OperatorThreadSnapshot> {
+  ensureSystemMessage();
+  const proposalId = String(id || "").trim();
+  const proposal = getProposal(proposalId);
+  const plan = generateExecutionPlan(proposalId);
+
+  if (plan && proposal) {
+    appendOperatorMessage({
+      role: "assistant",
+      content: "Execution plan generated (dry-run).",
+      metadata: {
+        policySnapshot: policySnapshot(),
+        action: "analysis",
+        proposal,
+        plan,
+      },
+    });
+  } else {
+    appendOperatorMessage({
+      role: "assistant",
+      content: "Execution plan generation denied.",
+      metadata: {
+        policySnapshot: policySnapshot(),
+        action: "analysis",
+        proposal: proposal || undefined,
       },
     });
   }

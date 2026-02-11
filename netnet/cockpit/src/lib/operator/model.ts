@@ -1,4 +1,5 @@
 import type { SkillProposalEnvelope } from "@/lib/operator/proposal";
+import type { ExecutionPlan } from "@/lib/operator/planner";
 
 export type OperatorMessageRole = "system" | "operator" | "assistant" | "skill";
 
@@ -12,6 +13,7 @@ export type MessageEnvelope = {
     proofId?: string;
     action?: string;
     proposal?: SkillProposalEnvelope;
+    plan?: ExecutionPlan;
   };
 };
 

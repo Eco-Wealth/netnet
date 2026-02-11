@@ -3,6 +3,7 @@ export type ExecutionIntentStatus = "none" | "requested" | "locked";
 
 export type SkillProposalEnvelope = {
   type: "skill.proposal";
+  id: string;
   skillId: string;
   route: string;
   reasoning: string;
@@ -21,6 +22,7 @@ export function isSkillProposalEnvelope(
   if (!value || typeof value !== "object") return false;
   const v = value as Record<string, unknown>;
   if (v.type !== "skill.proposal") return false;
+  if (typeof v.id !== "string" || !v.id.trim()) return false;
   if (typeof v.skillId !== "string" || !v.skillId.trim()) return false;
   if (typeof v.route !== "string" || !v.route.trim()) return false;
   if (typeof v.reasoning !== "string" || !v.reasoning.trim()) return false;
@@ -54,6 +56,7 @@ export function isSkillProposalEnvelope(
 
 type SkillProposalDraftShape = {
   type?: unknown;
+  id?: unknown;
   skillId?: unknown;
   route?: unknown;
   reasoning?: unknown;
@@ -88,10 +91,30 @@ function normalizeExecutionIntent(
 }
 
 type CoerceOptions = {
+  id?: string;
   status?: ProposalStatus;
   createdAt?: number;
   executionIntent?: ExecutionIntentStatus;
 };
+
+function hashText(input: string): string {
+  let h = 2166136261;
+  for (let i = 0; i < input.length; i += 1) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16).padStart(8, "0");
+}
+
+function deterministicProposalId(
+  skillId: string,
+  route: string,
+  reasoning: string,
+  proposedBody: Record<string, unknown>
+) {
+  const seed = `${skillId}|${route}|${reasoning}|${JSON.stringify(proposedBody)}`;
+  return `proposal-${hashText(seed)}`;
+}
 
 export function coerceSkillProposalEnvelope(
   value: unknown,
@@ -135,8 +158,13 @@ export function coerceSkillProposalEnvelope(
         : undefined
       : undefined;
 
+  const id =
+    String(v.id ?? options?.id ?? "").trim() ||
+    deterministicProposalId(skillId, route, reasoning, proposedBody);
+
   return {
     type: "skill.proposal",
+    id,
     skillId,
     route,
     reasoning,
