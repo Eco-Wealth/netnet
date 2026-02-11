@@ -2,7 +2,38 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: dark; }
-html, body { height: 100%; }
-body { @apply bg-neutral-950 text-neutral-100; }
-a { @apply underline underline-offset-4; }
+/* Unit L: Mobile action zones + compact rhythm helpers */
+:root {
+  --nw-radius: 16px;
+  --nw-border: rgba(255,255,255,0.10);
+  --nw-panel: rgba(0,0,0,0.55);
+  --nw-text: rgba(255,255,255,0.92);
+  --nw-muted: rgba(255,255,255,0.65);
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  color: var(--nw-text);
+  background: radial-gradient(1200px 700px at 20% 0%, rgba(255,255,255,0.06), transparent 55%),
+              radial-gradient(900px 600px at 80% 10%, rgba(255,255,255,0.05), transparent 60%),
+              #070708;
+}
+
+/* Compact spacing utilities */
+.nw-stack { display: grid; gap: 10px; }
+.nw-row { display: flex; gap: 10px; align-items: center; }
+.nw-panel {
+  border: 1px solid var(--nw-border);
+  background: var(--nw-panel);
+  border-radius: var(--nw-radius);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+}
+.nw-muted { color: var(--nw-muted); }
+
+/* Keep content clear of mobile dock */
+.nw-has-dock {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 84px);
+}

@@ -1,188 +1,199 @@
 import * as React from "react";
 
-function cx(...parts: Array<string | undefined | false>) {
+function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
 }
 
 export function Card({
-  className,
+  title,
+  subtitle,
+  right,
   children,
+  className,
 }: {
-  className?: string;
+  title?: string;
+  subtitle?: string;
+  right?: React.ReactNode;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <div
-      className={cx(
-        "rounded-2xl border border-white/10 bg-white/[0.04] shadow-sm",
-        "backdrop-blur-sm",
-        className
-      )}
-    >
-      {children}
-    </div>
+    <section className={cx("nn-panel", "p-[var(--pad-2)]", className)}>
+      {(title || subtitle || right) ? (
+        <header className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            {title ? <div className="text-[15px] font-semibold leading-tight">{title}</div> : null}
+            {subtitle ? <div className="nn-muted mt-1 text-[13px] leading-snug">{subtitle}</div> : null}
+          </div>
+          {right ? <div className="shrink-0">{right}</div> : null}
+        </header>
+      ) : null}
+      <div className={cx(title || subtitle || right ? "mt-[var(--gap-2)]" : "", "grid gap-[var(--gap-2)]")}>
+        {children}
+      </div>
+    </section>
   );
 }
 
-export function CardHeader({
+export function Row({
+  left,
+  right,
   className,
-  children,
 }: {
+  left: React.ReactNode;
+  right?: React.ReactNode;
   className?: string;
-  children: React.ReactNode;
-}) {
-  return <div className={cx("p-4 md:p-5", className)}>{children}</div>;
-}
-
-export function CardContent({
-  className,
-  children,
-}: {
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return <div className={cx("px-4 pb-4 md:px-5 md:pb-5", className)}>{children}</div>;
-}
-
-export function Label({
-  className,
-  children,
-}: {
-  className?: string;
-  children: React.ReactNode;
 }) {
   return (
-    <div className={cx("text-xs font-medium tracking-wide text-white/70", className)}>
-      {children}
+    <div className={cx("flex items-center justify-between gap-3", className)}>
+      <div className="min-w-0">{left}</div>
+      {right ? <div className="shrink-0">{right}</div> : null}
     </div>
   );
-}
-
-export function Muted({
-  className,
-  children,
-}: {
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return <div className={cx("text-sm text-white/60", className)}>{children}</div>;
 }
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "solid" | "ghost" | "subtle" | "danger";
-  size?: "sm" | "md" | "lg";
+  variant?: "solid" | "ghost";
+  size?: "sm" | "md";
 };
 
-export function Button({
-  className,
-  variant = "solid",
-  size = "md",
-  ...rest
-}: ButtonProps) {
-  const variantClass =
-    variant === "ghost"
-      ? "bg-transparent text-white border border-white/15 hover:bg-white/10"
-      : variant === "subtle"
-      ? "bg-white/10 text-white hover:bg-white/15 border border-white/10"
-      : variant === "danger"
-      ? "bg-red-500/90 text-white hover:bg-red-500 border border-red-400/40"
-      : "bg-white text-black hover:bg-neutral-200 border border-white/10";
-
-  const sizeClass =
-    size === "sm"
-      ? "px-3 py-1.5 text-xs"
-      : size === "lg"
-      ? "px-5 py-3 text-sm"
-      : "px-4 py-2 text-sm";
-
+export function Button({ variant = "solid", size = "md", className, ...rest }: ButtonProps) {
   return (
     <button
       {...rest}
       className={cx(
-        "rounded-xl font-medium transition disabled:opacity-40 disabled:cursor-not-allowed",
-        "focus:outline-none focus:ring-2 focus:ring-white/20",
-        variantClass,
-        sizeClass,
+        "nn-btn",
+        size === "sm" && "nn-btn--sm",
+        variant === "solid" ? "nn-btn--solid" : "nn-btn--ghost",
+        "nn-focus disabled:opacity-50 disabled:cursor-not-allowed",
         className
       )}
     />
   );
 }
 
-export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
-  const { className, ...rest } = props;
+type InputProps = React.InputHTMLAttributes<HTMLInputElement> & {
+  size?: "sm" | "md";
+};
+export function Input({ size = "md", className, ...rest }: InputProps) {
   return (
     <input
       {...rest}
       className={cx(
-        "w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white",
-        "placeholder:text-white/35",
-        "focus:outline-none focus:ring-2 focus:ring-white/15",
+        "nn-input nn-focus w-full text-[14px]",
+        size === "sm" && "nn-input--sm text-[13px]",
         className
       )}
     />
   );
 }
 
-export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  const { className, ...rest } = props;
+type TextAreaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement>;
+export function TextArea({ className, ...rest }: TextAreaProps) {
   return (
     <textarea
       {...rest}
       className={cx(
-        "w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white",
-        "placeholder:text-white/35",
-        "focus:outline-none focus:ring-2 focus:ring-white/15",
+        "nn-focus w-full rounded-[var(--r-md)] border border-[hsl(var(--border))] bg-[hsl(var(--panel))] p-3 text-[14px] leading-snug",
         className
       )}
     />
   );
 }
 
-/** Used by GovernancePolicyEditor */
-export function Pill({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-flex items-center rounded-full border border-white/15 bg-white/10 px-2 py-1 text-[11px] text-white/80">
-      {children}
-    </span>
-  );
+export function Muted({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <div className={cx("nn-muted text-[13px]", className)}>{children}</div>;
 }
 
-/** Used by GovernancePolicyEditor */
-export function SectionTitle({
-  title,
-  subtitle,
-}: {
-  title: string;
-  subtitle?: string;
-}) {
+export function Pill({ children }: { children: React.ReactNode }) {
+  return <span className="nn-chip">{children}</span>;
+}
+
+export function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
-    <div className="space-y-0.5">
-      <div className="text-sm font-semibold text-white">{title}</div>
-      {subtitle ? <div className="text-xs text-white/60">{subtitle}</div> : null}
+    <div className="grid gap-1">
+      <div className="text-[15px] font-semibold leading-tight">{title}</div>
+      {subtitle ? <div className="nn-muted text-[13px] leading-snug">{subtitle}</div> : null}
     </div>
   );
 }
 
-/** Used by GovernancePolicyEditor */
 export function Switch({
   label,
   checked,
   onChange,
+  hint,
 }: {
   label: string;
   checked: boolean;
   onChange: (next: boolean) => void;
+  hint?: string;
 }) {
   return (
-    <label className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white">
-      <span className="text-white/80">{label}</span>
+    <label className="flex items-center justify-between gap-3 rounded-[var(--r-md)] border border-[hsl(var(--border))] bg-[hsl(var(--panel))] px-3 py-2">
+      <div className="min-w-0">
+        <div className="text-[13px] font-semibold leading-tight">{label}</div>
+        {hint ? <div className="nn-muted mt-1 text-[12px] leading-snug">{hint}</div> : null}
+      </div>
       <input
+        className="h-4 w-4 accent-[hsl(var(--accent))]"
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="h-4 w-4 accent-white"
       />
     </label>
+  );
+}
+
+/** Hover insight wrapper (basic; Unit H will upgrade) */
+export function HoverInfo({
+  label,
+  what,
+  impact,
+  requires,
+  output,
+}: {
+  label: React.ReactNode;
+  what: string;
+  impact?: string;
+  requires?: string;
+  output?: string;
+}) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <span
+      className="nn-tip"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onFocus={() => setOpen(true)}
+      onBlur={() => setOpen(false)}
+      tabIndex={0}
+    >
+      {label}
+      {open ? (
+        <span role="tooltip" className="nn-tip__bubble">
+          <div className="font-semibold">What</div>
+          <div className="nn-muted mt-0.5">{what}</div>
+          {impact ? (
+            <>
+              <div className="mt-2 font-semibold">Impact</div>
+              <div className="nn-muted mt-0.5">{impact}</div>
+            </>
+          ) : null}
+          {requires ? (
+            <>
+              <div className="mt-2 font-semibold">Requires</div>
+              <div className="nn-muted mt-0.5">{requires}</div>
+            </>
+          ) : null}
+          {output ? (
+            <>
+              <div className="mt-2 font-semibold">Output</div>
+              <div className="nn-muted mt-0.5">{output}</div>
+            </>
+          ) : null}
+        </span>
+      ) : null}
+    </span>
   );
 }

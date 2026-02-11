@@ -1,38 +1,29 @@
-# netnet-cockpit — Bankr Token Launcher (Propose-only)
+# netnet cockpit — Bankr Launch (Propose-only)
 
-Purpose: generate an operator-approved proposal packet to launch a token via Bankr.
+Endpoint: `POST /api/bankr/launch`
 
-## Endpoint
-- `GET /api/bankr/launch` — contract + safety
-- `POST /api/bankr/launch` — create proposal packet
-
-## Safety posture
-- PROPOSE_ONLY by default
-- Always requires operator approval
-- Output always includes:
-  - what will happen
-  - estimated costs (best-effort)
-  - requires approval = true
-
-## Example (proposal)
-POST body:
+## Contract (stable)
+Input:
 ```json
 {
-  "name": "vealth",
-  "symbol": "VEALTH",
+  "name": "EcoWealth",
+  "symbol": "ECO",
   "chain": "base",
-  "initialLiquidityUsd": 250,
-  "notes": "Experiment: self-paying agent loop",
-  "operator": { "id": "brawlaphant", "reason": "Pilot launch for fee-funded inference + micro-retire" }
+  "description": "optional",
+  "website": "optional",
+  "twitter": "optional",
+  "imageUrl": "optional",
+  "submit": false
 }
 ```
 
-Response:
-- `proposal.whatWillHappen[]`
-- `proposal.estimatedCosts`
-- `proposal.proofIntent` (attach to proof-of-action)
+Output (propose-only):
+- `requiresApproval: true`
+- `whatWillHappen[]`
+- `estimatedCosts.usd` + `estimatedCosts.notes[]`
+- `proposal` (echo)
+- `proof` (netnet.proof.v1)
 
-## Next steps
-1) Operator reviews proposal, confirms chain + symbol + intent.
-2) Operator executes launch via Bankr tooling.
-3) Record result (token address / tx hash / links) into proof object (Unit 19) and fee routing policy (Unit 38).
+Notes:
+- Setting `"submit": true` attempts to forward to Bankr if `BANKR_API_BASE_URL` is configured.
+- Default mode is PROPOSE_ONLY; do not assume funds movement.

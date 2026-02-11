@@ -1,107 +1,118 @@
-export type WorkStatus = "PROPOSED" | "IN_PROGRESS" | "BLOCKED" | "DONE" | "CANCELED";
+import { WorkEvent, WorkItem, WorkPriority, WorkStatus } from "./types";
 
-export type WorkEvent = {
-  at: string; // ISO
-  type: string;
-  by?: string;
-  note?: string;
-  patch?: any;
-};
-
-export type WorkItem = {
-  id: string;
-  title: string;
-  description?: string;
-  status: WorkStatus;
-  priority?: "LOW" | "MEDIUM" | "HIGH";
-  tags?: string[];
-  owner?: string;
-  createdAt: string;
-  updatedAt: string;
-  events: WorkEvent[];
-};
-
-const store = new Map<string, WorkItem>();
-
-function nowIso() {
+function isoNow() {
   return new Date().toISOString();
 }
 
-function makeId() {
-  // good-enough local id for in-memory store
-  return "w_" + Math.random().toString(16).slice(2) + "_" + Date.now().toString(16);
+function rid(prefix: string) {
+  // short, sortable-enough id
+  return `${prefix}_${Math.random().toString(36).slice(2, 8)}${Date.now().toString(36)}`;
 }
 
-export function listWorkItems(): WorkItem[] {
-  return Array.from(store.values()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-}
+const db = new Map<string, WorkItem>();
 
-export function getWorkItem(id: string): WorkItem | null {
-  return store.get(id) ?? null;
-}
-
-export function createWorkItem(input: {
+export type CreateWorkInput = {
   title: string;
   description?: string;
   tags?: string[];
-  priority?: "LOW" | "MEDIUM" | "HIGH";
-  owner?: string;
   status?: WorkStatus;
-}): WorkItem {
-  const t = nowIso();
-  const item: WorkItem = {
-    id: makeId(),
-    title: input.title,
-    description: input.description,
-    status: input.status ?? "PROPOSED",
-    priority: input.priority ?? "MEDIUM",
-    tags: input.tags ?? [],
-    owner: input.owner,
-    createdAt: t,
-    updatedAt: t,
-    events: [],
-  };
+  priority?: WorkPriority;
+  owner?: string;
+  links?: { label: string; url: string }[];
+  data?: Record<string, unknown> | null;
+};
 
-  store.set(item.id, item);
-  return item;
+export type UpdateWorkInput = Partial<Omit<WorkItem, "id" | "events" | "createdAt">>;
+
+export function listWorkItems(): WorkItem[] {
+  return Array.from(db.values()).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
 }
 
-export function updateWorkItem(
-  id: string,
-  patch: Partial<Pick<WorkItem, "title" | "description" | "status" | "priority" | "tags" | "owner">>
-): WorkItem | null {
-  const cur = store.get(id);
+export function getWorkItem(id: string): WorkItem | null {
+  return db.get(id) ?? null;
+}
+
+export function createWorkItem(input: CreateWorkInput): WorkItem {
+  const now = isoNow();
+  const item: WorkItem = {
+    id: rid("work"),
+    title: input.title,
+    description: input.description,
+    tags: input.tags ?? [],
+    status: input.status ?? "PROPOSED",
+    priority: input.priority ?? "MEDIUM",
+    owner: input.owner,
+    createdAt: now,
+    updatedAt: now,
+    events: [],
+    links: input.links ?? [],
+    data: input.data ?? null,
+  };
+
+  db.set(item.id, item);
+  appendWorkEvent(item.id, {
+    type: "NOTE",
+    by: input.owner ?? "system",
+    note: "Work item created.",
+    patch: { title: item.title, status: item.status, priority: item.priority },
+  });
+
+  return db.get(item.id)!;
+}
+
+export function updateWorkItem(id: string, patch: UpdateWorkInput): WorkItem | null {
+  const cur = db.get(id);
   if (!cur) return null;
+
   const next: WorkItem = {
     ...cur,
     ...patch,
-    updatedAt: nowIso(),
+    // keep immutable fields
+    id: cur.id,
+    createdAt: cur.createdAt,
+    events: cur.events,
+    updatedAt: isoNow(),
   };
-  store.set(id, next);
-  return next;
+
+  db.set(id, next);
+  appendWorkEvent(id, {
+    type: "PATCH",
+    by: "system",
+    note: "Work item updated.",
+    patch: patch as Record<string, unknown>,
+  });
+
+  return db.get(id)!;
 }
 
-export function appendWorkEvent(
-  id: string,
-  ev: Omit<WorkEvent, "at"> & { at?: string }
-): WorkItem | null {
-  const cur = store.get(id);
+export type AppendEventInput = {
+  type: WorkEvent["type"];
+  by: string;
+  note?: string;
+  patch?: Record<string, unknown> | null;
+  meta?: Record<string, unknown> | null;
+};
+
+export function appendWorkEvent(id: string, ev: AppendEventInput): WorkItem | null {
+  const cur = db.get(id);
   if (!cur) return null;
 
   const event: WorkEvent = {
-    at: ev.at ?? nowIso(),
+    id: rid("ev"),
+    ts: isoNow(),
     type: ev.type,
     by: ev.by,
     note: ev.note,
-    patch: ev.patch,
+    patch: ev.patch ?? null,
+    meta: ev.meta ?? null,
   };
 
   const next: WorkItem = {
     ...cur,
-    events: [...cur.events, event],
-    updatedAt: nowIso(),
+    events: [event, ...(cur.events ?? [])],
+    updatedAt: isoNow(),
   };
 
-  store.set(id, next);
-  return next;
+  db.set(id, next);
+  return db.get(id)!;
 }
