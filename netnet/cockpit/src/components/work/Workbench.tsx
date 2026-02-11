@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { withWork, appendWorkEvent } from "@/lib/work/client";
 import { useWorkSession } from "./useWorkSession";
+import { Button, HoverInfo } from "@/components/ui";
 
 type ApiResult = { ok: boolean; [k: string]: any };
 
@@ -34,7 +35,14 @@ export default function Workbench() {
       const { workId: created, result } = await withWork(
         { title: action.label, kind: action.kind, tags: ["workbench"] },
         async (wid) => {
-          if (wid) await appendWorkEvent(wid, { type: "INFO", message: "Calling endpoint", data: { url: action.url } });
+          if (wid) {
+            await appendWorkEvent(wid, {
+              type: "NOTE",
+              by: "agent",
+              note: "Calling endpoint",
+              patch: { url: action.url },
+            });
+          }
           return await getJson(action.url);
         }
       );
@@ -46,16 +54,16 @@ export default function Workbench() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl p-6">
+    <div className="mx-auto max-w-3xl p-4 md:p-5">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">Workbench</h1>
         <div className="text-sm opacity-80">
           Current work:{" "}
           <span className="font-mono">{workId || "none"}</span>
           {workId ? (
-            <button className="ml-3 underline" onClick={() => setWorkId(null)}>
+            <Button className="ml-2" size="sm" variant="ghost" onClick={() => setWorkId(null)}>
               clear
-            </button>
+            </Button>
           ) : null}
         </div>
       </div>
@@ -66,20 +74,38 @@ export default function Workbench() {
 
       <div className="mt-5 grid gap-2">
         {actions.map((a) => (
-          <button
+          <Button
             key={a.key}
             disabled={busy}
             onClick={() => run(a)}
-            className="rounded-xl border px-4 py-3 text-left hover:bg-black/5 disabled:opacity-50"
+            variant="ghost"
+            className="justify-start rounded-xl px-3 py-3 text-left disabled:opacity-50"
+            insight={{
+              what: `Call ${a.url} and attach result to work history.`,
+              when: "Use for quick operator/agent checks.",
+              costs: "API/compute only.",
+              requires: "No onchain signing here.",
+              output: "Work event + endpoint payload.",
+            }}
           >
-            <div className="font-medium">{a.label}</div>
-            <div className="mt-1 font-mono text-xs opacity-70">{a.url}</div>
-          </button>
+            <div className="w-full">
+              <div className="font-medium">{a.label}</div>
+              <div className="mt-1 font-mono text-xs opacity-70">{a.url}</div>
+            </div>
+          </Button>
         ))}
       </div>
 
       <div className="mt-6 rounded-xl border p-4">
-        <div className="text-sm font-medium">Output</div>
+        <div className="text-sm font-medium">
+          <HoverInfo
+            label={<span>Output</span>}
+            what="Latest result from the selected action."
+            impact="Lets you inspect response shape before wiring downstream."
+            requires="None."
+            output="Raw JSON payload."
+          />
+        </div>
         <pre className="mt-2 max-h-[420px] overflow-auto rounded-lg bg-black/5 p-3 text-xs">
           {out ? JSON.stringify(out, null, 2) : busy ? "Running..." : "—"}
         </pre>

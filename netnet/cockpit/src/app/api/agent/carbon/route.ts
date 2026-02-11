@@ -267,10 +267,33 @@ export async function POST(req: NextRequest) {
       metadata,
     });
 
+    const proof = {
+      schema: "netnet.proof.v1",
+      kind: "carbon_retire_initiate",
+      ts: new Date().toISOString(),
+      subject: {
+        operator: beneficiaryName,
+        chain,
+        token,
+      },
+      refs: {
+        url: retirement.deepLink,
+      },
+      claims: {
+        projectId,
+        amount,
+        beneficiaryName,
+        retirementReason,
+      },
+    };
+
     return NextResponse.json({
-      success: true,
+      ok: true,
+      mode: "PROPOSE_ONLY",
+      requiresApproval: true,
       ...retirement,
       economics: computeIncentivesPacket({ action: "carbon_retire_initiate", token, chain, amountToken: String(amount) }),
+      proof,
       instructions: [
         `1. Send ${amount} ${token} on ${chain} to: ${retirement.paymentAddress}`,
         "2. Save the transaction hash",
