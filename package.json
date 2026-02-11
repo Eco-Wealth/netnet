@@ -12,6 +12,7 @@
     "start": "npm --prefix netnet/cockpit run start",
     "test": "npm --prefix netnet/cockpit run test",
     "smoke": "bash scripts/smoke.sh",
-    "audit:check": "npm --prefix netnet/cockpit run audit:check"
+    "audit:check": "npm --prefix netnet/cockpit run audit:check",
+    "contracts:check": "node scripts/check-api-contract-sot.mjs"
   }
 }

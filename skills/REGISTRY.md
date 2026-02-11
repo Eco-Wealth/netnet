@@ -34,4 +34,6 @@ Scope target: `netnet/cockpit/src/app/api/**`.
 2. Any skill contract change must update both:
    - the skill markdown file in `skills/`
    - the API contract source-of-truth file in `netnet/cockpit/docs/`
-3. Do not delete superseded skills without migration notes in this registry.
+3. Validate integrity with:
+   - `npm run contracts:check`
+4. Do not delete superseded skills without migration notes in this registry.
