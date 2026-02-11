@@ -2,7 +2,12 @@
 
 import { getPolicy } from "@/lib/policy/store";
 import type { MessageEnvelope, OperatorConsoleMode } from "@/lib/operator/model";
-import { appendOperatorMessage, listOperatorMessages } from "@/lib/operator/store";
+import {
+  appendOperatorEnvelope,
+  appendOperatorMessage,
+  listOperatorMessages,
+} from "@/lib/operator/store";
+import { generateAssistantReply } from "@/lib/operator/llm";
 
 type OperatorStatus = {
   mode: OperatorConsoleMode;
@@ -55,18 +60,6 @@ function ensureSystemMessage() {
   });
 }
 
-function localAssistantReply(input: string): string {
-  const trimmed = input.trim();
-  if (!trimmed) {
-    return "No message content provided. READ_ONLY console accepted no-op.";
-  }
-  return [
-    "READ_ONLY acknowledgment:",
-    `Received operator message (${Math.min(trimmed.length, 280)} chars).`,
-    "No external API calls, model routing, or execution steps were performed.",
-  ].join(" ");
-}
-
 export async function readOperatorThread(): Promise<OperatorThreadSnapshot> {
   ensureSystemMessage();
   return {
@@ -96,12 +89,15 @@ export async function postOperatorMessage(input: {
       action: "operator.message",
     },
   });
-  appendOperatorMessage({
+  const history = listOperatorMessages();
+  const assistant = await generateAssistantReply(history);
+  appendOperatorEnvelope({
+    ...assistant,
     role: "assistant",
-    content: localAssistantReply(content),
     metadata: {
+      ...(assistant.metadata || {}),
       policySnapshot: policySnapshot(),
-      action: "assistant.local_ack",
+      action: assistant.metadata?.action || "assistant.openrouter.reply",
     },
   });
 

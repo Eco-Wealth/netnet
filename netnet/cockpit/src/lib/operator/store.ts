@@ -97,6 +97,14 @@ function normalizeExistingMessage(value: unknown): MessageEnvelope | null {
   };
 }
 
+function ensureUniqueId(
+  candidateId: string,
+  messages: MessageEnvelope[]
+): string {
+  if (!messages.some((m) => m.id === candidateId)) return candidateId;
+  return nextMessageId();
+}
+
 function syncSequence(messages: MessageEnvelope[]) {
   let max = 0;
   for (const m of messages) {
@@ -131,5 +139,24 @@ export function appendOperatorMessage(input: MessageEnvelopeInput): MessageEnvel
   const next = normalizeEnvelope(input);
   const updated = [...current, next];
   globalThis.__NETNET_OPERATOR_MESSAGES__ = updated;
+  return updated;
+}
+
+export function appendOperatorEnvelope(
+  envelope: MessageEnvelope
+): MessageEnvelope[] {
+  const current = listOperatorMessages();
+  const normalized = normalizeExistingMessage(envelope);
+  if (!normalized) {
+    throw new Error("invalid_message_envelope");
+  }
+
+  const next: MessageEnvelope = {
+    ...normalized,
+    id: ensureUniqueId(normalized.id, current),
+  };
+  const updated = [...current, next];
+  globalThis.__NETNET_OPERATOR_MESSAGES__ = updated;
+  syncSequence(updated);
   return updated;
 }
