@@ -7,7 +7,9 @@ import type { SkillProposalEnvelope } from "@/lib/operator/proposal";
 import type { OperatorThreadSnapshot } from "./actions";
 import {
   approveOperatorProposal,
+  lockExecutionIntentAction,
   postOperatorMessage,
+  requestExecutionIntentAction,
   rejectOperatorProposal,
 } from "./actions";
 
@@ -56,8 +58,30 @@ export default function OperatorConsoleClient({ initial }: OperatorConsoleClient
     });
   }
 
+  function onRequestExecutionIntent(id: string) {
+    setActiveProposalId(id);
+    startTransition(async () => {
+      const next = await requestExecutionIntentAction(id);
+      setSnapshot(next);
+      setActiveProposalId(null);
+    });
+  }
+
+  function onLockExecutionIntent(id: string) {
+    setActiveProposalId(id);
+    startTransition(async () => {
+      const next = await lockExecutionIntentAction(id);
+      setSnapshot(next);
+      setActiveProposalId(null);
+    });
+  }
+
   function renderProposalCard(messageId: string, proposal: SkillProposalEnvelope) {
     const isDraft = proposal.status === "draft";
+    const isApproved = proposal.status === "approved";
+    const executionIntent = proposal.executionIntent ?? "none";
+    const canRequestIntent = isApproved && executionIntent === "none";
+    const canLockIntent = isApproved && executionIntent === "requested";
     const busy = pending && activeProposalId === messageId;
 
     return (
@@ -66,37 +90,75 @@ export default function OperatorConsoleClient({ initial }: OperatorConsoleClient
           <Pill>{proposal.skillId}</Pill>
           <Pill>risk: {proposal.riskLevel}</Pill>
           <Pill>status: {proposal.status}</Pill>
+          <Pill>execution intent: {executionIntent}</Pill>
         </div>
         <div className="mt-2 text-xs text-[color:var(--muted)]">route: {proposal.route}</div>
         <div className="mt-1 whitespace-pre-wrap text-sm">{proposal.reasoning}</div>
         <div className="mt-2 flex items-center gap-2">
-          <Button
-            size="sm"
-            onClick={() => onApproveProposal(messageId)}
-            disabled={!isDraft || busy}
-            insight={{
-              what: "Mark this proposal as approved for future execution layer eligibility.",
-              when: "After operator review of risk and reasoning.",
-              requires: "Human approval only; no route execution.",
-              output: "Proposal status updated to approved and audit note message.",
-            }}
-          >
-            {busy ? "Working…" : "Approve"}
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => onRejectProposal(messageId)}
-            disabled={!isDraft || busy}
-            insight={{
-              what: "Reject this proposal and prevent future execution eligibility.",
-              when: "When proposal quality, scope, or risk is unacceptable.",
-              requires: "Human rejection only; no route execution.",
-              output: "Proposal status updated to rejected and audit note message.",
-            }}
-          >
-            {busy ? "Working…" : "Reject"}
-          </Button>
+          {isDraft ? (
+            <>
+              <Button
+                size="sm"
+                onClick={() => onApproveProposal(messageId)}
+                disabled={busy}
+                insight={{
+                  what: "Mark this proposal as approved for future execution layer eligibility.",
+                  when: "After operator review of risk and reasoning.",
+                  requires: "Human approval only; no route execution.",
+                  output: "Proposal status updated to approved and audit note message.",
+                }}
+              >
+                {busy ? "Working…" : "Approve"}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => onRejectProposal(messageId)}
+                disabled={busy}
+                insight={{
+                  what: "Reject this proposal and prevent future execution eligibility.",
+                  when: "When proposal quality, scope, or risk is unacceptable.",
+                  requires: "Human rejection only; no route execution.",
+                  output: "Proposal status updated to rejected and audit note message.",
+                }}
+              >
+                {busy ? "Working…" : "Reject"}
+              </Button>
+            </>
+          ) : null}
+
+          {isApproved ? (
+            <Button
+              size="sm"
+              onClick={() => onRequestExecutionIntent(messageId)}
+              disabled={!canRequestIntent || busy}
+              insight={{
+                what: "Request execution intent for this approved proposal.",
+                when: "After approval and readiness review.",
+                requires: "Proposal must be approved; no execution route calls.",
+                output: "Proposal execution intent set to requested.",
+              }}
+            >
+              {busy ? "Working…" : "Request Execution Intent"}
+            </Button>
+          ) : null}
+
+          {canLockIntent ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => onLockExecutionIntent(messageId)}
+              disabled={busy}
+              insight={{
+                what: "Lock execution intent state without executing.",
+                when: "After intent is requested and operator wants a hard checkpoint.",
+                requires: "Execution intent must already be requested.",
+                output: "Proposal execution intent set to locked.",
+              }}
+            >
+              {busy ? "Working…" : "Lock Execution Intent"}
+            </Button>
+          ) : null}
         </div>
       </div>
     );

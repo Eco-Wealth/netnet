@@ -7,7 +7,9 @@ import {
   appendOperatorEnvelope,
   appendOperatorMessage,
   getProposal,
+  lockExecutionIntent,
   listOperatorMessages,
+  requestExecutionIntent,
   registerProposal,
   rejectProposal,
 } from "@/lib/operator/store";
@@ -99,6 +101,7 @@ export async function postOperatorMessage(input: {
   const proposal = parseSkillProposalEnvelopeFromContent(assistant.content, {
     status: "draft",
     createdAt: Date.now(),
+    executionIntent: "none",
   });
   const action = proposal ? "proposal" : "analysis";
   const updated = appendOperatorEnvelope({
@@ -181,6 +184,74 @@ export async function rejectOperatorProposal(
       metadata: {
         policySnapshot: policySnapshot(),
         action: "analysis",
+      },
+    });
+  }
+
+  return {
+    status: statusFromPolicy(),
+    messages: listOperatorMessages(),
+  };
+}
+
+export async function requestExecutionIntentAction(
+  id: string
+): Promise<OperatorThreadSnapshot> {
+  ensureSystemMessage();
+  const proposalId = String(id || "").trim();
+  const updated = requestExecutionIntent(proposalId);
+  if (updated) {
+    appendOperatorMessage({
+      role: "assistant",
+      content: "Execution intent requested.",
+      metadata: {
+        policySnapshot: policySnapshot(),
+        action: "analysis",
+        proposal: updated,
+      },
+    });
+  } else {
+    appendOperatorMessage({
+      role: "assistant",
+      content: "Execution intent request denied.",
+      metadata: {
+        policySnapshot: policySnapshot(),
+        action: "analysis",
+      },
+    });
+  }
+
+  return {
+    status: statusFromPolicy(),
+    messages: listOperatorMessages(),
+  };
+}
+
+export async function lockExecutionIntentAction(
+  id: string
+): Promise<OperatorThreadSnapshot> {
+  ensureSystemMessage();
+  const proposalId = String(id || "").trim();
+  const existing = getProposal(proposalId);
+  const updated = lockExecutionIntent(proposalId);
+  if (updated) {
+    appendOperatorMessage({
+      role: "assistant",
+      content: "Execution intent locked.",
+      metadata: {
+        policySnapshot: policySnapshot(),
+        action: "analysis",
+        proposal: updated,
+      },
+    });
+  } else {
+    appendOperatorMessage({
+      role: "assistant",
+      content: "Execution intent lock denied.",
+      metadata: {
+        policySnapshot: policySnapshot(),
+        action: "analysis",
+        proposal: existing || undefined,
       },
     });
   }

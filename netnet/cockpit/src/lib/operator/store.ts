@@ -1,7 +1,6 @@
 import type { MessageEnvelope, OperatorMessageRole } from "@/lib/operator/model";
 import {
   coerceSkillProposalEnvelope,
-  isSkillProposalEnvelope,
   type SkillProposalEnvelope,
 } from "@/lib/operator/proposal";
 
@@ -68,12 +67,11 @@ function normalizeMetadata(metadata: MessageEnvelope["metadata"]): MessageEnvelo
     normalized.action = metadata.action.trim();
   }
   if (metadata.proposal && typeof metadata.proposal === "object") {
-    const proposal = isSkillProposalEnvelope(metadata.proposal)
-      ? metadata.proposal
-      : coerceSkillProposalEnvelope(metadata.proposal, {
-          status: "draft",
-          createdAt: Date.now(),
-        });
+    const proposal = coerceSkillProposalEnvelope(metadata.proposal, {
+      status: "draft",
+      createdAt: Date.now(),
+      executionIntent: "none",
+    });
     if (proposal) {
       normalized.proposal = proposal;
     }
@@ -224,31 +222,25 @@ export function registerProposal(
 ) {
   const proposalId = String(id || "").trim();
   if (!proposalId) throw new Error("invalid_proposal_id");
+  const normalizedProposal =
+    coerceSkillProposalEnvelope(proposal, {
+      status: proposal.status,
+      createdAt: proposal.createdAt,
+      executionIntent: proposal.executionIntent ?? "none",
+    }) || proposal;
   syncProposalRegistryFromMessages();
   const registry = ensureProposalRegistry();
   registry[proposalId] = {
-    proposal,
-    eligibleForExecution: proposal.status === "approved",
+    proposal: normalizedProposal,
+    eligibleForExecution: normalizedProposal.status === "approved",
   };
 }
 
-function updateProposalStatus(
-  id: string,
-  status: "approved" | "rejected"
-): SkillProposalEnvelope | null {
-  const proposalId = String(id || "").trim();
-  if (!proposalId) return null;
-
-  syncProposalRegistryFromMessages();
+function persistProposalUpdate(
+  proposalId: string,
+  next: SkillProposalEnvelope
+): SkillProposalEnvelope {
   const registry = ensureProposalRegistry();
-  const entry = registry[proposalId];
-  if (!entry) return null;
-
-  const next: SkillProposalEnvelope = {
-    ...entry.proposal,
-    status,
-    approvedAt: status === "approved" ? Date.now() : undefined,
-  };
   registry[proposalId] = {
     proposal: next,
     eligibleForExecution: next.status === "approved",
@@ -270,8 +262,27 @@ function updateProposalStatus(
   if (touched) {
     globalThis.__NETNET_OPERATOR_MESSAGES__ = updated;
   }
-
   return next;
+}
+
+function updateProposalStatus(
+  id: string,
+  status: "approved" | "rejected"
+): SkillProposalEnvelope | null {
+  const proposalId = String(id || "").trim();
+  if (!proposalId) return null;
+
+  syncProposalRegistryFromMessages();
+  const registry = ensureProposalRegistry();
+  const entry = registry[proposalId];
+  if (!entry) return null;
+
+  const next: SkillProposalEnvelope = {
+    ...entry.proposal,
+    status,
+    approvedAt: status === "approved" ? Date.now() : undefined,
+  };
+  return persistProposalUpdate(proposalId, next);
 }
 
 export function approveProposal(id: string): SkillProposalEnvelope | null {
@@ -288,6 +299,42 @@ export function getProposal(id: string): SkillProposalEnvelope | null {
   syncProposalRegistryFromMessages();
   const registry = ensureProposalRegistry();
   return registry[proposalId]?.proposal ?? null;
+}
+
+export function requestExecutionIntent(id: string): SkillProposalEnvelope | null {
+  const proposalId = String(id || "").trim();
+  if (!proposalId) return null;
+  syncProposalRegistryFromMessages();
+  const registry = ensureProposalRegistry();
+  const entry = registry[proposalId];
+  if (!entry) return null;
+  if (entry.proposal.status !== "approved") return null;
+
+  const next: SkillProposalEnvelope = {
+    ...entry.proposal,
+    executionIntent: "requested",
+    executionRequestedAt: Date.now(),
+  };
+  return persistProposalUpdate(proposalId, next);
+}
+
+export function lockExecutionIntent(id: string): SkillProposalEnvelope | null {
+  const proposalId = String(id || "").trim();
+  if (!proposalId) return null;
+  syncProposalRegistryFromMessages();
+  const registry = ensureProposalRegistry();
+  const entry = registry[proposalId];
+  if (!entry) return null;
+  if (entry.proposal.status !== "approved") return null;
+  if (entry.proposal.executionIntent !== "requested") return null;
+
+  const next: SkillProposalEnvelope = {
+    ...entry.proposal,
+    executionIntent: "locked",
+    executionRequestedAt:
+      entry.proposal.executionRequestedAt ?? Date.now(),
+  };
+  return persistProposalUpdate(proposalId, next);
 }
 
 export function isProposalEligible(id: string): boolean {

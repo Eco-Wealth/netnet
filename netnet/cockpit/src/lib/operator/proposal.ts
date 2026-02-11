@@ -1,4 +1,5 @@
 export type ProposalStatus = "draft" | "approved" | "rejected";
+export type ExecutionIntentStatus = "none" | "requested" | "locked";
 
 export type SkillProposalEnvelope = {
   type: "skill.proposal";
@@ -10,6 +11,8 @@ export type SkillProposalEnvelope = {
   status: ProposalStatus;
   createdAt: number;
   approvedAt?: number;
+  executionIntent?: ExecutionIntentStatus;
+  executionRequestedAt?: number;
 };
 
 export function isSkillProposalEnvelope(
@@ -32,6 +35,20 @@ export function isSkillProposalEnvelope(
   if (v.approvedAt !== undefined && (typeof v.approvedAt !== "number" || !Number.isFinite(v.approvedAt))) {
     return false;
   }
+  if (
+    v.executionIntent !== undefined &&
+    v.executionIntent !== "none" &&
+    v.executionIntent !== "requested" &&
+    v.executionIntent !== "locked"
+  ) {
+    return false;
+  }
+  if (
+    v.executionRequestedAt !== undefined &&
+    (typeof v.executionRequestedAt !== "number" || !Number.isFinite(v.executionRequestedAt))
+  ) {
+    return false;
+  }
   return true;
 }
 
@@ -45,6 +62,8 @@ type SkillProposalDraftShape = {
   status?: unknown;
   createdAt?: unknown;
   approvedAt?: unknown;
+  executionIntent?: unknown;
+  executionRequestedAt?: unknown;
 };
 
 function normalizeRiskLevel(value: unknown): SkillProposalEnvelope["riskLevel"] {
@@ -59,9 +78,19 @@ function normalizeStatus(value: unknown, fallback: ProposalStatus): ProposalStat
     : fallback;
 }
 
+function normalizeExecutionIntent(
+  value: unknown,
+  fallback: ExecutionIntentStatus
+): ExecutionIntentStatus {
+  return value === "none" || value === "requested" || value === "locked"
+    ? value
+    : fallback;
+}
+
 type CoerceOptions = {
   status?: ProposalStatus;
   createdAt?: number;
+  executionIntent?: ExecutionIntentStatus;
 };
 
 export function coerceSkillProposalEnvelope(
@@ -93,6 +122,18 @@ export function coerceSkillProposalEnvelope(
         ? v.approvedAt
         : Date.now()
       : undefined;
+  const executionIntent = normalizeExecutionIntent(
+    v.executionIntent,
+    options?.executionIntent ?? "none"
+  );
+  const executionRequestedAt =
+    executionIntent === "requested" || executionIntent === "locked"
+      ? typeof v.executionRequestedAt === "number" && Number.isFinite(v.executionRequestedAt)
+        ? v.executionRequestedAt
+        : executionIntent === "requested"
+        ? Date.now()
+        : undefined
+      : undefined;
 
   return {
     type: "skill.proposal",
@@ -104,6 +145,8 @@ export function coerceSkillProposalEnvelope(
     status,
     createdAt: createdAtCandidate,
     approvedAt,
+    executionIntent,
+    executionRequestedAt,
   };
 }
 
