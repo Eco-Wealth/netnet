@@ -67,7 +67,7 @@ const dupes = [];
 
 const schemaErrors = [];
 const badRefs = [];
-const uncoveredBySkill = [];
+const missingSkillOwner = [];
 
 for (const entry of entries) {
   if (typeof entry.route !== "string" || !entry.route.startsWith("/api/")) {
@@ -90,13 +90,16 @@ for (const entry of entries) {
     }
   }
 
-  if (entry.skill == null) {
-    uncoveredBySkill.push(entry.route);
-  } else if (typeof entry.skill === "string") {
-    const skillPath = path.join(repoRoot, entry.skill);
-    if (!fs.existsSync(skillPath)) badRefs.push(`${entry.route}: missing skill file ${entry.skill}`);
+  if (typeof entry.skill === "string") {
+    const owner = entry.skill.trim();
+    if (!owner) {
+      missingSkillOwner.push(entry.route);
+    } else if (owner !== "platform") {
+      const skillPath = path.join(repoRoot, owner);
+      if (!fs.existsSync(skillPath)) badRefs.push(`${entry.route}: missing skill file ${owner}`);
+    }
   } else {
-    schemaErrors.push(`${entry.route}: 'skill' must be string or null`);
+    missingSkillOwner.push(entry.route);
   }
 
   if (!Array.isArray(entry.docs)) {
@@ -116,11 +119,11 @@ for (const entry of entries) {
 console.log("API contract SOT check");
 console.log(`- route files: ${actualRoutes.length}`);
 console.log(`- mapped routes: ${entries.length}`);
-console.log(`- uncovered by skill: ${uncoveredBySkill.length}`);
+console.log(`- missing skill owners: ${missingSkillOwner.length}`);
 
-if (uncoveredBySkill.length) {
-  console.log("- uncovered routes:");
-  for (const route of uncoveredBySkill) console.log(`  - ${route}`);
+if (missingSkillOwner.length) {
+  console.error("- missing skill owners (use a skill path or 'platform'):");
+  for (const route of missingSkillOwner) console.error(`  - ${route}`);
 }
 
 if (missingInMap.length) {
@@ -149,6 +152,7 @@ const hasHardErrors =
   staleInMap.length > 0 ||
   dupes.length > 0 ||
   schemaErrors.length > 0 ||
-  badRefs.length > 0;
+  badRefs.length > 0 ||
+  missingSkillOwner.length > 0;
 
 process.exit(hasHardErrors ? 1 : 0);

@@ -84,35 +84,35 @@
       "route": "/api/bridge/projects",
       "methods": ["GET"],
       "actions": ["list"],
-      "skill": null,
+      "skill": "platform",
       "docs": ["netnet/cockpit/docs/bridge.md"]
     },
     {
       "route": "/api/bridge/quote",
       "methods": ["POST"],
       "actions": ["quote"],
-      "skill": null,
+      "skill": "platform",
       "docs": ["netnet/cockpit/docs/bridge.md"]
     },
     {
       "route": "/api/bridge/registry",
       "methods": ["GET"],
       "actions": ["registry"],
-      "skill": null,
+      "skill": "platform",
       "docs": ["netnet/cockpit/docs/bridge.md"]
     },
     {
       "route": "/api/bridge/retire",
       "methods": ["POST"],
       "actions": ["retire"],
-      "skill": null,
+      "skill": "platform",
       "docs": ["netnet/cockpit/docs/bridge.md"]
     },
     {
       "route": "/api/bridge/tx",
       "methods": ["GET"],
       "actions": ["status"],
-      "skill": null,
+      "skill": "platform",
       "docs": ["netnet/cockpit/docs/bridge.md"]
     },
     {
@@ -147,7 +147,7 @@
       "route": "/api/policy",
       "methods": ["GET", "POST"],
       "actions": ["get_policy", "set_policy"],
-      "skill": null,
+      "skill": "platform",
       "docs": ["netnet/cockpit/docs/unit45-governance.md"]
     },
     {
@@ -182,7 +182,7 @@
       "route": "/api/proof/feed",
       "methods": ["GET"],
       "actions": ["json", "rss"],
-      "skill": null,
+      "skill": "platform",
       "docs": ["netnet/cockpit/docs/unit46-distribution.md"]
     },
     {
@@ -196,35 +196,35 @@
       "route": "/api/work",
       "methods": ["GET", "POST"],
       "actions": ["list", "create"],
-      "skill": null,
+      "skill": "platform",
       "docs": ["netnet/cockpit/docs/work.md"]
     },
     {
       "route": "/api/work/[id]",
       "methods": ["GET", "PATCH", "POST"],
       "actions": ["fetch", "update", "append_event"],
-      "skill": null,
+      "skill": "platform",
       "docs": ["netnet/cockpit/docs/work.md"]
     },
     {
       "route": "/api/work/[id]/events",
       "methods": ["POST"],
       "actions": ["append_event_alias"],
-      "skill": null,
+      "skill": "platform",
       "docs": ["netnet/cockpit/docs/work.md"]
     },
     {
       "route": "/api/work/items",
       "methods": ["GET", "POST"],
       "actions": ["list_alias", "create_alias"],
-      "skill": null,
+      "skill": "platform",
       "docs": ["netnet/cockpit/docs/work.md"]
     },
     {
       "route": "/api/x402/config",
       "methods": ["GET"],
       "actions": ["x402_config"],
-      "skill": null,
+      "skill": "platform",
       "docs": ["netnet/cockpit/docs/x402.md"]
     }
   ]
