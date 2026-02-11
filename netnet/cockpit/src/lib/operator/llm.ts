@@ -1,4 +1,5 @@
 import type { MessageEnvelope } from "@/lib/operator/model";
+import { getSkillContextSummary } from "@/lib/operator/skillContext";
 
 type OpenRouterChatMessage = {
   role: "system" | "user" | "assistant";
@@ -32,12 +33,14 @@ function fallbackReply(reason: string, history: MessageEnvelope[]): MessageEnvel
     content,
     createdAt: Date.now(),
     metadata: {
-      action: "assistant.local_fallback",
+      action: "analysis",
     },
   };
 }
 
-function toOpenRouterMessages(history: MessageEnvelope[]): OpenRouterChatMessage[] {
+async function toOpenRouterMessages(
+  history: MessageEnvelope[]
+): Promise<OpenRouterChatMessage[]> {
   const conversation = history
     .filter(
       (m) =>
@@ -49,12 +52,17 @@ function toOpenRouterMessages(history: MessageEnvelope[]): OpenRouterChatMessage
       return { role: "user", content: m.content };
     });
 
+  const skillSummary = await getSkillContextSummary();
   const guardrail: OpenRouterChatMessage = {
     role: "system",
     content: [
       "You are netnet operator assistant in strict READ_ONLY mode.",
-      "Do not call tools, do not propose execution steps, do not claim actions were run.",
-      "Provide concise planning guidance only.",
+      "No route calls, no tool calls, no side effects, and no execution guidance.",
+      "You may only provide analysis and suggestions using these exact forms:",
+      "- Consider skill: <skill-id>",
+      "- Proposed action envelope for skill: <skill-id> { purpose, constraints, expected_output }",
+      "Never imply any action was executed.",
+      skillSummary,
     ].join(" "),
   };
 
@@ -68,9 +76,10 @@ export async function generateAssistantReply(
   if (!apiKey) return fallbackReply("no_api_key", messages);
 
   const model = process.env.OPENROUTER_MODEL?.trim() || "openai/gpt-4o-mini";
+  const promptMessages = await toOpenRouterMessages(messages);
   const payload = {
     model,
-    messages: toOpenRouterMessages(messages),
+    messages: promptMessages,
     temperature: 0.2,
   };
 
@@ -98,11 +107,10 @@ export async function generateAssistantReply(
       content,
       createdAt: Date.now(),
       metadata: {
-        action: "assistant.openrouter.reply",
+        action: "analysis",
       },
     };
   } catch {
     return fallbackReply("request_failed", messages);
   }
 }
-

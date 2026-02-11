@@ -97,7 +97,7 @@ export async function postOperatorMessage(input: {
     metadata: {
       ...(assistant.metadata || {}),
       policySnapshot: policySnapshot(),
-      action: assistant.metadata?.action || "assistant.openrouter.reply",
+      action: "analysis",
     },
   });
 
