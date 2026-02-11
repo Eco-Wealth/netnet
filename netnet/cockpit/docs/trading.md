@@ -3,6 +3,7 @@
 Route: `/api/agent/trade`
 
 Status: **PROPOSE_ONLY**. This route never signs or broadcasts transactions.
+Canonical field-level contract: `netnet/cockpit/docs/api-contract-source-of-truth.json`.
 
 ## Supported actions
 
@@ -39,22 +40,6 @@ Response:
 ### `POST` with `action: "plan"`
 
 Builds a proposal packet and proof envelope.
-
-Minimal request body:
-```json
-{
-  "action": "plan",
-  "chain": "base",
-  "venue": "bankr",
-  "from": "USDC",
-  "to": "REGEN",
-  "amountUsd": 50,
-  "operator": {
-    "id": "operator-1",
-    "reason": "rebalance"
-  }
-}
-```
 
 Response includes:
 - `ok: true`

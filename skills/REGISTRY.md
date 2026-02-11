@@ -3,9 +3,12 @@
 This file is the source-of-truth index for skill coverage in `skills/`.
 Scope target: `netnet/cockpit/src/app/api/**`.
 
+Exact API request/response contracts are canonical in:
+- `netnet/cockpit/docs/api-contract-source-of-truth.json`
+- `netnet/cockpit/docs/CONTRACT_AUTHORITY.md`
+
 ## Status legend
 - `ACTIVE` = current supported skill contract
-- `SUPERSEDED` = retained for compatibility/history; do not extend
 
 ## Registry
 | Skill file | Status | Primary API coverage |
@@ -13,7 +16,6 @@ Scope target: `netnet/cockpit/src/app/api/**`.
 | `netnet-cockpit.md` | ACTIVE | `/api/health`, `/api/agent/carbon`, `/api/proof/build`, `/api/proof-paid` |
 | `netnet-cockpit-carbon.md` | ACTIVE | `/api/agent/carbon` |
 | `netnet-cockpit-trade.md` | ACTIVE | `/api/agent/trade` |
-| `netnet-cockpit-trade-stub.md` | SUPERSEDED | `/api/agent/trade` |
 | `netnet-cockpit-regen.md` | ACTIVE | `/api/agent/regen` |
 | `netnet-cockpit-regen-projects.md` | ACTIVE | `/api/agent/regen/projects` |
 | `netnet-cockpit-regen-projects-workspace.md` | ACTIVE | `/api/agent/regen/projects`, `/api/work` |
@@ -36,4 +38,3 @@ Scope target: `netnet/cockpit/src/app/api/**`.
    - the API contract source-of-truth file in `netnet/cockpit/docs/`
 3. Validate integrity with:
    - `npm run contracts:check`
-4. Do not delete superseded skills without migration notes in this registry.
