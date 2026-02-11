@@ -1,4 +1,3 @@
-import Shell from "@/components/Shell";
 import AssetWorkspaceClient from "./workspace-client";
 
 export const dynamic = "force-dynamic";
@@ -9,8 +8,8 @@ export default function AssetWorkspacePage({ params }: { params: Params }) {
   const chain = decodeURIComponent(params.chain || "base");
   const address = decodeURIComponent(params.address || "");
   return (
-    <Shell>
+    <main>
       <AssetWorkspaceClient chain={chain} address={address} />
-    </Shell>
+    </main>
   );
 }
