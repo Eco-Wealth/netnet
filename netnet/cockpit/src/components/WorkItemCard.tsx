@@ -9,7 +9,7 @@ type Props = {
 
 function Badge({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center rounded-full border border-neutral-200 bg-white px-2 py-0.5 text-xs text-neutral-700 shadow-sm">
+    <span className="inline-flex items-center rounded-full border border-[color:var(--border)] bg-[color:var(--surface-2)] px-2 py-0.5 text-xs text-[color:var(--muted)]">
       {children}
     </span>
   );
@@ -20,12 +20,12 @@ export function WorkItemCard({ item, onOpen }: Props) {
     <button
       type="button"
       onClick={() => onOpen?.(item.id)}
-      className="w-full text-left rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm hover:shadow transition"
+      className="w-full rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] p-4 text-left transition hover:border-[color:var(--surface-3)]"
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-sm font-semibold text-neutral-900">{item.title}</div>
-          <div className="mt-1 text-xs text-neutral-600 line-clamp-2">
+          <div className="text-sm font-semibold">{item.title}</div>
+          <div className="mt-1 line-clamp-2 text-xs text-[color:var(--muted)]">
             {item.description || "—"}
           </div>
         </div>
@@ -43,7 +43,7 @@ export function WorkItemCard({ item, onOpen }: Props) {
         {item.slaHours ? <Badge>SLA: {item.slaHours}h</Badge> : null}
       </div>
 
-      <div className="mt-3 text-[11px] text-neutral-500">
+      <div className="mt-3 text-[11px] text-[color:var(--muted)]">
         Updated {new Date(item.updatedAt).toLocaleString()}
       </div>
     </button>

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { WorkItemCard } from "@/components/WorkItemCard";
+import { Button, Input, Label, TextArea } from "@/components/ui";
 
 type WorkItem = any;
 
@@ -79,23 +80,23 @@ export default function WorkPage() {
   }, [items]);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10">
+    <div className="nn-page max-w-5xl">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <div className="text-sm text-neutral-600">Ops Console</div>
-          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">
+          <div className="text-sm text-[color:var(--muted)]">Ops Console</div>
+          <h1 className="nn-page-title">
             Work System
           </h1>
-          <div className="mt-2 text-sm text-neutral-600">
+          <div className="mt-1 text-sm text-[color:var(--muted)]">
             Queue + SLA metadata + audit trail. Safe-by-default; execution stays gated elsewhere.
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2 text-xs text-neutral-600">
+        <div className="flex flex-wrap gap-2 text-xs text-[color:var(--muted)]">
           {Object.entries(counts).map(([k, v]) => (
             <span
               key={k}
-              className="rounded-full border border-neutral-200 bg-white px-2 py-1 shadow-sm"
+              className="nn-chip"
             >
               {k}: {v}
             </span>
@@ -103,44 +104,44 @@ export default function WorkPage() {
         </div>
       </div>
 
-      <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
-        <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
-          <div className="text-sm font-semibold text-neutral-900">New work item</div>
+      <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="nn-panel p-4">
+          <div className="text-sm font-semibold">New work item</div>
 
-          <label className="mt-3 block text-xs text-neutral-600">Title</label>
-          <input
+          <Label className="mt-3 block">Title</Label>
+          <Input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-neutral-200"
+            className="mt-1"
             placeholder="e.g., Publish proof for weekly retirement"
           />
 
-          <label className="mt-3 block text-xs text-neutral-600">Description</label>
-          <textarea
+          <Label className="mt-3 block">Description</Label>
+          <TextArea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-neutral-200"
+            className="mt-1"
             rows={4}
             placeholder="What, why, links, acceptance criteria…"
           />
 
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
-              <label className="block text-xs text-neutral-600">Owner</label>
-              <input
+              <Label className="block">Owner</Label>
+              <Input
                 value={owner}
                 onChange={(e) => setOwner(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-neutral-200"
+                className="mt-1"
                 placeholder="operator / agent"
               />
             </div>
 
             <div>
-              <label className="block text-xs text-neutral-600">Priority</label>
+              <Label className="block">Priority</Label>
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-neutral-200"
+                className="nn-input nn-focus mt-1 w-full"
               >
                 <option>LOW</option>
                 <option>MEDIUM</option>
@@ -150,41 +151,40 @@ export default function WorkPage() {
             </div>
 
             <div>
-              <label className="block text-xs text-neutral-600">Tags</label>
-              <input
+              <Label className="block">Tags</Label>
+              <Input
                 value={tags}
                 onChange={(e) => setTags(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-neutral-200"
+                className="mt-1"
                 placeholder="comma,separated"
               />
             </div>
           </div>
 
-          {error ? <div className="mt-3 text-sm text-red-600">{error}</div> : null}
+          {error ? <div className="mt-3 text-sm text-red-300">{error}</div> : null}
 
           <div className="mt-4 flex gap-2">
-            <button
+            <Button
               onClick={create}
-              className="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:opacity-90"
             >
               Create
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
               onClick={refresh}
-              className="rounded-xl border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-900 shadow-sm hover:bg-neutral-50"
             >
               Refresh
-            </button>
+            </Button>
           </div>
         </div>
 
         <div className="space-y-3">
           {loading ? (
-            <div className="rounded-2xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
+            <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] p-4 text-sm text-[color:var(--muted)]">
               Loading…
             </div>
           ) : items.length === 0 ? (
-            <div className="rounded-2xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
+            <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] p-4 text-sm text-[color:var(--muted)]">
               No work items yet.
             </div>
           ) : (
