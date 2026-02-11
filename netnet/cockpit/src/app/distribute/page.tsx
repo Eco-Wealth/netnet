@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { toInsightTitle } from "@/lib/insight";
+import { Button, Input } from "@/components/ui";
 
 type ProofFeedItem = {
   id: string;
@@ -86,11 +87,11 @@ export default function DistributePage() {
             <div className="text-lg font-semibold">{totalScore}</div>
           </div>
 
-          <input
+          <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search proofs…"
-            className="nn-input nn-focus h-10 w-full md:w-64"
+            className="h-10 w-full md:w-64"
           />
 
           <select
@@ -148,9 +149,11 @@ export default function DistributePage() {
                   <div className="mt-1 text-xs text-[color:var(--muted)]">{fmt(it.createdAt)}</div>
                 </div>
 
-                <button
+                <Button
                   onClick={() => navigator.clipboard?.writeText(location.origin + "/distribute#" + it.id)}
-                  className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-2)] px-3 py-1.5 text-xs hover:opacity-95"
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs"
                   title={toInsightTitle({
                     what: "Copy a deep link for this proof item.",
                     when: "When sharing with operators, agents, or reviewers.",
@@ -159,7 +162,7 @@ export default function DistributePage() {
                   })}
                 >
                   Copy link
-                </button>
+                </Button>
               </div>
 
               <p className="mt-2 text-sm text-[color:var(--muted)]">{it.summary}</p>
@@ -167,10 +170,12 @@ export default function DistributePage() {
               {(it.tags || []).length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {(it.tags || []).map((t) => (
-                    <button
+                    <Button
                       key={t}
                       onClick={() => setTag(t)}
-                      className="rounded-full border border-[color:var(--border)] bg-[color:var(--surface-2)] px-2 py-1 text-xs text-[color:var(--muted)] hover:text-[color:var(--fg)]"
+                      variant="ghost"
+                      size="sm"
+                      className="rounded-full px-2 py-1 text-xs text-[color:var(--muted)] hover:text-[color:var(--fg)]"
                       title={toInsightTitle({
                         what: `Filter feed by tag '${t}'.`,
                         when: "When narrowing proof history to a specific workflow.",
@@ -179,7 +184,7 @@ export default function DistributePage() {
                       })}
                     >
                       {t}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               )}

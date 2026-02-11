@@ -7,6 +7,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from "react";
+import { Button, Input } from "@/components/ui";
 
 type AutonomyLevel = "READ_ONLY" | "PROPOSE_ONLY" | "EXECUTE_WITH_LIMITS";
 
@@ -110,7 +111,7 @@ function ToggleRow(props: {
           <MiniHelp title={props.help}>?</MiniHelp>
         </div>
       </div>
-      <input
+      <Input
         type="checkbox"
         checked={props.checked}
         onChange={(e) => props.onChange(e.target.checked)}
@@ -141,14 +142,14 @@ function NumberRow(props: {
         <div className="text-xs text-white/60">{suffix || ""}</div>
       </div>
       <div className="mt-2 flex items-center gap-2">
-        <input
+        <Input
           type="number"
           value={Number.isFinite(props.value) ? props.value : 0}
           min={min}
           max={max}
           step={step}
           onChange={(e) => props.onChange(clamp(Number(e.target.value || 0), min, max))}
-          className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm outline-none focus:border-white/25"
+          className="w-full bg-black/20"
         />
       </div>
     </div>
@@ -169,11 +170,11 @@ function TextRow(props: {
         <MiniHelp title={props.help}>?</MiniHelp>
       </div>
       <div className="mt-2">
-        <input
+        <Input
           value={props.value}
           onChange={(e) => props.onChange(e.target.value)}
           placeholder={props.placeholder}
-          className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm outline-none placeholder:text-white/30 focus:border-white/25"
+          className="w-full bg-black/20 placeholder:text-white/30"
         />
       </div>
     </div>
@@ -276,14 +277,14 @@ export default function GovernancePolicyEditor() {
         <div className="flex items-center gap-2">
           <Pill title="Current autonomy mode">{badges.autonomy}</Pill>
           <Pill title="Emergency kill switches for execution/spend">{badges.ks}</Pill>
-          <button
+          <Button
             onClick={save}
             disabled={saving}
-            className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-black hover:bg-neutral-200 disabled:opacity-50"
+            size="sm"
             title="Persist policy to /api/policy. This does not execute trades; it changes what the system will allow."
           >
             {saving ? "Saving…" : "Save"}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -332,7 +333,7 @@ export default function GovernancePolicyEditor() {
                         : "Exec allowed inside caps + allowlists."}
                   </div>
                 </div>
-                <input
+                <Input
                   type="radio"
                   name="autonomyLevel"
                   checked={policy.autonomyLevel === lvl}

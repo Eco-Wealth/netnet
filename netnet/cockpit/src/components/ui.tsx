@@ -119,13 +119,17 @@ export function Button({ variant = "solid", size = "md", className, insight, tit
 type InputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, "size"> & {
   size?: "sm" | "md";
 };
-export function Input({ size = "md", className, ...rest }: InputProps) {
+export function Input({ size = "md", className, type, ...rest }: InputProps) {
+  const isChoice = type === "checkbox" || type === "radio";
   return (
     <input
+      type={type}
       {...rest}
       className={cx(
-        "nn-input nn-focus w-full text-[14px]",
-        size === "sm" && "nn-input--sm text-[13px]",
+        isChoice
+          ? "h-4 w-4 accent-[hsl(var(--accent))]"
+          : "nn-input nn-focus w-full text-[14px]",
+        !isChoice && size === "sm" && "nn-input--sm text-[13px]",
         className
       )}
     />

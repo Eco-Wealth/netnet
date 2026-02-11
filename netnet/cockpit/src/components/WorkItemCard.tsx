@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { Button } from "@/components/ui";
 
 type Props = {
   item: any;
@@ -17,9 +18,10 @@ function Badge({ children }: { children: React.ReactNode }) {
 
 export function WorkItemCard({ item, onOpen }: Props) {
   return (
-    <button
+    <Button
       type="button"
       onClick={() => onOpen?.(item.id)}
+      variant="ghost"
       className="w-full rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] p-4 text-left transition hover:border-[color:var(--surface-3)]"
     >
       <div className="flex items-start justify-between gap-3">
@@ -46,6 +48,6 @@ export function WorkItemCard({ item, onOpen }: Props) {
       <div className="mt-3 text-[11px] text-[color:var(--muted)]">
         Updated {new Date(item.updatedAt).toLocaleString()}
       </div>
-    </button>
+    </Button>
   );
 }

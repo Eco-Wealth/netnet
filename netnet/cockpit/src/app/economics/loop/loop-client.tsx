@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { toInsightTitle } from "@/lib/insight";
+import { Button, Input } from "@/components/ui";
 
 async function getJSON<T>(url: string): Promise<T> {
   const res = await fetch(url, { cache: "no-store" });
@@ -67,9 +68,8 @@ export default function EconomicsLoopClient() {
       <div className="grid gap-2 sm:grid-cols-3">
         <label className="grid gap-1 text-sm">
           <span className="opacity-70">Revenue window (days)</span>
-          <input
+          <Input
             type="number"
-            className="rounded-xl border border-white/10 bg-black/20 px-3 py-2"
             value={days}
             min={1}
             max={90}
@@ -78,9 +78,8 @@ export default function EconomicsLoopClient() {
         </label>
         <label className="grid gap-1 text-sm">
           <span className="opacity-70">Plan amount (USD)</span>
-          <input
+          <Input
             type="number"
-            className="rounded-xl border border-white/10 bg-black/20 px-3 py-2"
             value={usd}
             min={1}
             max={1_000_000}
@@ -88,8 +87,8 @@ export default function EconomicsLoopClient() {
           />
         </label>
         <div className="flex items-end gap-2">
-          <button
-            className="w-full rounded-xl bg-white px-4 py-2 text-sm font-medium text-black disabled:opacity-40"
+          <Button
+            className="w-full"
             onClick={run}
             disabled={!can}
             title={toInsightTitle({
@@ -100,13 +99,13 @@ export default function EconomicsLoopClient() {
             })}
           >
             Run loop
-          </button>
+          </Button>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <button
-          className="rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-sm hover:bg-white/15 disabled:opacity-40"
+        <Button
+          variant="ghost"
           onClick={createWork}
           disabled={!out?.ok}
           title={toInsightTitle({
@@ -117,7 +116,7 @@ export default function EconomicsLoopClient() {
           })}
         >
           Create work item
-        </button>
+        </Button>
       </div>
 
       {err ? <div className="text-sm text-red-300">{err}</div> : null}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Button, Input, TextArea } from "@/components/ui";
 
 type ApiOk<T> = { ok: true } & T;
 type ApiErr = { ok?: false; error: string };
@@ -73,8 +74,7 @@ export default function RegenProjectsClient() {
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="grid gap-1 text-sm">
           <span className="opacity-70">Project name</span>
-          <input
-            className="rounded-xl border border-white/10 bg-black/20 px-3 py-2"
+          <Input
             value={packet.projectName || ""}
             onChange={(e) => setPacket({ ...packet, projectName: e.target.value })}
             placeholder="Mangrove restoration — Gulf Coast"
@@ -82,8 +82,7 @@ export default function RegenProjectsClient() {
         </label>
         <label className="grid gap-1 text-sm">
           <span className="opacity-70">Location</span>
-          <input
-            className="rounded-xl border border-white/10 bg-black/20 px-3 py-2"
+          <Input
             value={packet.location || ""}
             onChange={(e) => setPacket({ ...packet, location: e.target.value })}
             placeholder="Country/region, coordinates if available"
@@ -93,8 +92,7 @@ export default function RegenProjectsClient() {
 
       <label className="grid gap-1 text-sm">
         <span className="opacity-70">Methodology</span>
-        <input
-          className="rounded-xl border border-white/10 bg-black/20 px-3 py-2"
+        <Input
           value={packet.methodology || ""}
           onChange={(e) => setPacket({ ...packet, methodology: e.target.value })}
           placeholder="Short methodology tag / approach"
@@ -103,8 +101,8 @@ export default function RegenProjectsClient() {
 
       <label className="grid gap-1 text-sm">
         <span className="opacity-70">MRV notes</span>
-        <textarea
-          className="min-h-[90px] rounded-xl border border-white/10 bg-black/20 px-3 py-2"
+        <TextArea
+          className="min-h-[90px]"
           value={packet?.mrv?.notes || ""}
           onChange={(e) => setPacket({ ...packet, mrv: { ...(packet.mrv || {}), notes: e.target.value } })}
           placeholder="Assumptions, data sources, cadence, risks..."
@@ -112,19 +110,18 @@ export default function RegenProjectsClient() {
       </label>
 
       <div className="flex flex-wrap gap-2">
-        <button
-          className="rounded-xl bg-white px-4 py-2 text-sm font-medium text-black disabled:opacity-40"
+        <Button
           onClick={generate}
           disabled={!canSubmit}
         >
           Generate packet
-        </button>
-        <button className="rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-sm hover:bg-white/15" onClick={validate}>
+        </Button>
+        <Button variant="ghost" onClick={validate}>
           Validate
-        </button>
-        <button className="rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-sm hover:bg-white/15" onClick={attachToWork}>
+        </Button>
+        <Button variant="ghost" onClick={attachToWork}>
           Create work item
-        </button>
+        </Button>
       </div>
 
       {err ? <div className="text-sm text-red-300">{err}</div> : null}
