@@ -25,12 +25,21 @@ const baseAllow = {
 };
 
 export function getDefaultPolicy(): PolicyConfig {
-  const mk = (id: ProgramId, name: string, autonomy: any, actions: any[]) => ({
+  const mk = (
+    id: ProgramId,
+    name: string,
+    autonomy: any,
+    actions: any[],
+    overrides?: {
+      budgets?: Partial<typeof defaultBudgets>;
+      allow?: Partial<typeof baseAllow>;
+    }
+  ) => ({
     id,
     name,
     autonomy,
-    budgets: { ...defaultBudgets },
-    allow: { ...baseAllow, actions },
+    budgets: { ...defaultBudgets, ...(overrides?.budgets || {}) },
+    allow: { ...baseAllow, ...(overrides?.allow || {}), actions },
     anomalies: { ...defaultAnomalies },
   });
 
@@ -38,14 +47,23 @@ export function getDefaultPolicy(): PolicyConfig {
     version: "policy.v1",
     updatedAt: nowIso(),
     programs: {
-      TRADING_LOOP: mk("TRADING_LOOP", "Trading loop", "PROPOSE_ONLY", [
-        "trade.quote",
-        "trade.plan",
-        "fees.route",
-        "proof.build",
-        "work.create",
-        "work.update",
-      ]),
+      TRADING_LOOP: mk(
+        "TRADING_LOOP",
+        "Trading loop",
+        "PROPOSE_ONLY",
+        ["trade.quote", "trade.plan", "fees.route", "proof.build", "work.create", "work.update"],
+        {
+          budgets: {
+            usdPerRun: 250,
+            usdPerDay: 500,
+          },
+          allow: {
+            chains: ["base", "ethereum", "polygon", "arbitrum", "optimism", "celo"],
+            venues: ["bankr", "uniswap", "aerodrome"],
+            tokens: ["USDC", "WETH", "REGEN", "K2", "KVCM", "ECO", "ZORA"],
+          },
+        }
+      ),
       TOKEN_OPS: mk("TOKEN_OPS", "Token operations", "PROPOSE_ONLY", [
         "token.launch",
         "token.manage",

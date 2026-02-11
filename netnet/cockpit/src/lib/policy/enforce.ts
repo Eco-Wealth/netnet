@@ -1,105 +1,104 @@
-import type { PolicyAction } from "./types";
+import { loadPolicyConfig } from "./config";
+import { decide, programForAction } from "./decide";
+import type {
+  EnforcePolicyContext,
+  PolicyAction,
+  PolicyDecision,
+  ProgramPolicy,
+  SpendPolicyEnvelope,
+} from "./types";
 
-export type EnforcePolicyContext = {
-  route?: string;
-  chain?: string;
-  venue?: string;
-  fromToken?: string;
-  toToken?: string;
-  amountUsd?: number;
-};
-
-export type TradePolicyEnvelope = {
-  autonomyLevel: "PROPOSE_ONLY";
-  allowlists: {
-    venues: string[];
-    chains: string[];
-    tokens: string[];
+function toEnvelope(program: ProgramPolicy): SpendPolicyEnvelope {
+  return {
+    autonomyLevel: program.autonomy,
+    allowlists: {
+      venues: program.allow.venues,
+      chains: program.allow.chains,
+      tokens: program.allow.tokens,
+    },
+    caps: {
+      maxUsdPerTrade: program.budgets.usdPerRun,
+      maxUsdPerDay: program.budgets.usdPerDay,
+    },
   };
-  caps: {
-    maxUsdPerTrade: number;
-    maxUsdPerDay: number;
-  };
-};
-
-export type PolicyDecision = {
-  ok: boolean;
-  action: PolicyAction;
-  mode: "READ_ONLY" | "PROPOSE_ONLY";
-  requiresApproval: boolean;
-  reasons: string[];
-  policy?: TradePolicyEnvelope;
-};
-
-const TRADE_POLICY: TradePolicyEnvelope = {
-  autonomyLevel: "PROPOSE_ONLY",
-  allowlists: {
-    venues: ["bankr", "uniswap", "aerodrome"],
-    chains: ["base", "ethereum", "polygon", "arbitrum", "optimism", "celo"],
-    tokens: ["USDC", "WETH", "REGEN", "K2", "KVCM", "ECO", "ZORA"],
-  },
-  caps: {
-    maxUsdPerTrade: 250,
-    maxUsdPerDay: 500,
-  },
-};
-
-export function tradePolicyEnvelope(): TradePolicyEnvelope {
-  return TRADE_POLICY;
 }
 
-function gateTrade(action: PolicyAction, context: EnforcePolicyContext): PolicyDecision {
-  const reasons: string[] = [];
-  const chain = context.chain ?? "";
-  const venue = context.venue ?? "";
-  const fromToken = context.fromToken ?? "";
-  const toToken = context.toToken ?? "";
-  const amountUsd = context.amountUsd ?? 0;
+export function tradePolicyEnvelope(): SpendPolicyEnvelope {
+  const cfg = loadPolicyConfig();
+  return toEnvelope(cfg.programs.TRADING_LOOP);
+}
 
-  if (chain && !TRADE_POLICY.allowlists.chains.includes(chain)) {
-    reasons.push(`chain not allowed: ${chain}`);
-  }
-  if (venue && !TRADE_POLICY.allowlists.venues.includes(venue)) {
-    reasons.push(`venue not allowed: ${venue}`);
-  }
-  if (fromToken && !TRADE_POLICY.allowlists.tokens.includes(fromToken)) {
-    reasons.push(`from token not allowed: ${fromToken}`);
-  }
-  if (toToken && !TRADE_POLICY.allowlists.tokens.includes(toToken)) {
-    reasons.push(`to token not allowed: ${toToken}`);
-  }
-  if (amountUsd > TRADE_POLICY.caps.maxUsdPerTrade) {
-    reasons.push(`amountUsd exceeds maxUsdPerTrade (${TRADE_POLICY.caps.maxUsdPerTrade})`);
+function normalizeTradeReasons(
+  reasons: string[],
+  context: EnforcePolicyContext,
+  policy: SpendPolicyEnvelope
+) {
+  const out: string[] = [];
+  for (const r of reasons) {
+    if (r === "chain_not_allowed") {
+      out.push(`chain not allowed: ${context.chain ?? ""}`.trim());
+      continue;
+    }
+    if (r === "venue_not_allowed") {
+      out.push(`venue not allowed: ${context.venue ?? ""}`.trim());
+      continue;
+    }
+    if (r === "token_not_allowed") {
+      out.push(`from token not allowed: ${context.fromToken ?? ""}`.trim());
+      continue;
+    }
+    if (r === "budget_exceeds_usdPerRun") {
+      out.push(`amountUsd exceeds maxUsdPerTrade (${policy.caps.maxUsdPerTrade})`);
+      continue;
+    }
+    out.push(r);
   }
 
-  return {
-    ok: reasons.length === 0,
-    action,
-    mode: "PROPOSE_ONLY",
-    requiresApproval: true,
-    reasons,
-    policy: TRADE_POLICY,
-  };
+  if (
+    context.toToken &&
+    context.toToken.length > 0 &&
+    !policy.allowlists.tokens.includes(context.toToken)
+  ) {
+    out.push(`to token not allowed: ${context.toToken}`);
+  }
+  return out;
 }
 
 /**
  * Centralized policy gate for spend-adjacent endpoints.
- * Keep this helper behavior-preserving while routes migrate.
+ * Uses the same schema + config + decision engine as lib/policy/decide.ts.
  */
 export function enforcePolicy(
   action: PolicyAction,
   context: EnforcePolicyContext = {}
 ): PolicyDecision {
-  if (action === "trade.quote" || action === "trade.plan" || action === "trade.execute") {
-    return gateTrade(action, context);
-  }
+  const cfg = loadPolicyConfig();
+  const programId = programForAction(action);
+  const program = cfg.programs[programId];
+  const policy = toEnvelope(program);
 
-  // Current behavior for non-trade spend-adjacent routes is proposal-first with operator approval.
-  return {
-    ok: true,
+  const isTrade =
+    action === "trade.quote" || action === "trade.plan" || action === "trade.execute";
+
+  const decision = decide({
+    programId,
     action,
-    mode: "PROPOSE_ONLY",
+    chain: isTrade ? context.chain : undefined,
+    venue: isTrade ? context.venue : undefined,
+    token: isTrade ? context.fromToken : undefined,
+    spendUsd: isTrade ? context.amountUsd : undefined,
+  });
+
+  const reasons = isTrade
+    ? normalizeTradeReasons(decision.reasons, context, policy)
+    : decision.reasons;
+
+  return {
+    ok: decision.mode !== "BLOCK" && reasons.length === 0,
+    action,
+    mode: program.autonomy === "READ_ONLY" ? "READ_ONLY" : "PROPOSE_ONLY",
     requiresApproval: true,
-    reasons: [],
+    reasons,
+    policy,
   };
 }

@@ -1,10 +1,28 @@
 import crypto from "crypto";
-import type { DecideInput, Decision } from "./types";
+import type { DecideInput, Decision, PolicyAction, ProgramId } from "./types";
 import { loadPolicyConfig } from "./config";
 import { getProgramStatus, pauseProgram } from "./circuitBreaker";
 
 function cid() {
   return crypto.randomBytes(8).toString("hex");
+}
+
+const ACTION_TO_PROGRAM: Record<PolicyAction, ProgramId> = {
+  "trade.quote": "TRADING_LOOP",
+  "trade.plan": "TRADING_LOOP",
+  "trade.execute": "TRADING_LOOP",
+  "token.launch": "TOKEN_OPS",
+  "token.manage": "TOKEN_OPS",
+  "fees.route": "TOKEN_OPS",
+  "retire.quote": "MICRO_RETIRE",
+  "retire.execute": "MICRO_RETIRE",
+  "proof.build": "SDG_WORK",
+  "work.create": "SDG_WORK",
+  "work.update": "SDG_WORK",
+};
+
+export function programForAction(action: PolicyAction): ProgramId {
+  return ACTION_TO_PROGRAM[action];
 }
 
 export function decide(input: DecideInput): Decision {
