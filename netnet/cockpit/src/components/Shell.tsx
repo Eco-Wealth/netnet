@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { toInsightTitle } from "@/lib/insight";
 
 type NavItem = {
@@ -103,15 +103,23 @@ export default function Shell({
     <div className="min-h-screen bg-[var(--bg)] text-[var(--fg)]">
       {/* Top bar */}
       <div className="sticky top-0 z-40 border-b border-[color:var(--border)] bg-[var(--bg)]/90 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-3 py-2">
-          <div className="min-w-0">
-            <div className="truncate text-sm font-semibold tracking-tight">{title}</div>
-            <div className="truncate text-xs text-[color:var(--muted)]">
-              {subtitle ?? (active ? `${active.what} Output: ${active.output}` : "Operator-first. Safe-by-default.")}
+        <div className="mx-auto w-full max-w-5xl px-3 py-2">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold tracking-tight">{title}</div>
+              <div className="truncate text-xs text-[color:var(--muted)]">
+                {subtitle ?? (active ? `${active.what} Output: ${active.output}` : "Operator-first. Safe-by-default.")}
+              </div>
             </div>
+            {active ? (
+              <span className="nn-chip hidden sm:inline-flex">
+                {active.label}
+              </span>
+            ) : null}
           </div>
-
-          <NavBar pathname={pathname} />
+          <div className="mt-2">
+            <NavBar pathname={pathname} />
+          </div>
         </div>
       </div>
 
@@ -122,13 +130,10 @@ export default function Shell({
 }
 
 function NavBar({ pathname }: { pathname: string }) {
-  const [open, setOpen] = useState<string | null>(null);
-
   return (
-    <nav className="flex items-center gap-1">
+    <nav className="flex items-center gap-1 overflow-x-auto pb-0.5 [scrollbar-width:none]">
       {NAV.map((item) => {
         const active = isActivePath(pathname, item.href);
-        const show = open === item.href;
 
         return (
           <div key={item.href} className="relative flex items-center">
@@ -142,7 +147,6 @@ function NavBar({ pathname }: { pathname: string }) {
               )}
               aria-current={active ? "page" : undefined}
               title={toInsightTitle(item)}
-              onClick={() => setOpen(null)}
             >
               <span className="leading-none">{item.label}</span>
 
@@ -157,32 +161,6 @@ function NavBar({ pathname }: { pathname: string }) {
                 <InsightBody item={item} />
               </span>
             </Link>
-
-            {/* Mobile help toggle */}
-            <button
-              type="button"
-              className={cn(
-                "ml-1 inline-flex h-7 w-7 items-center justify-center rounded-full",
-                "border border-[color:var(--border)] bg-[hsl(var(--panel))] text-xs",
-                "hover:bg-[hsl(var(--panel2))]",
-                show && "ring-1 ring-[color:var(--ring)]"
-              )}
-              aria-label={`Help for ${item.label}`}
-              onClick={() => setOpen((prev) => (prev === item.href ? null : item.href))}
-            >
-              ⓘ
-            </button>
-
-            {show ? (
-              <div
-                className={cn(
-                  "absolute right-0 top-full mt-2 w-72",
-                  "rounded-xl border border-[color:var(--border)] bg-[hsl(var(--panel2))] p-2 text-[11px] shadow-lg"
-                )}
-              >
-                <InsightBody item={item} />
-              </div>
-            ) : null}
           </div>
         );
       })}
