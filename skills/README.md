@@ -1,8 +1,9 @@
 # netnet skills
 
-Skills are human-readable contracts that mirror the API surfaces under `netnet/cockpit/src/app/api/**`.
+`skills/` is the canonical skill registry for netnet.
 
-- `netnet-cockpit.md` — core cockpit flows (proof, retire, safety)
-- `netnet-cockpit-carbon.md` — minimal carbon retirement workflow
-- `netnet-cockpit-trade-stub.md` — safe trade planning stub
-- `netnet-cockpit-regen.md` — Regen Registry project packet generator (read-only)
+Use `/Users/EcoWealth/dev/netnet/skills/REGISTRY.md` as the source-of-truth index for:
+- active skills
+- superseded skills
+- API coverage per skill
+- maintenance rules for adding/updating skills
