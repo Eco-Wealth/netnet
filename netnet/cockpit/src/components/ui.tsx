@@ -4,6 +4,34 @@ function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
 }
 
+export function Page({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <main className={cx("nn-page", className)}>{children}</main>;
+}
+
+export function PageHeader({
+  title,
+  subtitle,
+  right,
+  className,
+}: {
+  title: React.ReactNode;
+  subtitle?: React.ReactNode;
+  right?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <header className={cx("nn-page-header", className)}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="nn-page-title">{title}</h1>
+          {subtitle ? <div className="nn-page-subtitle mt-1">{subtitle}</div> : null}
+        </div>
+        {right ? <div className="shrink-0">{right}</div> : null}
+      </div>
+    </header>
+  );
+}
+
 export function Card({
   title,
   subtitle,
@@ -122,7 +150,7 @@ export function TextArea({ className, ...rest }: TextAreaProps) {
     <textarea
       {...rest}
       className={cx(
-        "nn-focus w-full rounded-[var(--r-md)] border border-[hsl(var(--border))] bg-[hsl(var(--panel))] p-3 text-[14px] leading-snug",
+        "nn-focus w-full rounded-[var(--r-md)] border border-[color:var(--border)] bg-[color:var(--surface)] p-3 text-[14px] leading-snug",
         className
       )}
     />
@@ -134,7 +162,7 @@ export const Textarea = TextArea;
 
 export function Label({ children, htmlFor, className }: { children: React.ReactNode; htmlFor?: string; className?: string }) {
   return (
-    <label htmlFor={htmlFor} className={cx("text-[12px] font-semibold tracking-wide text-[hsl(var(--muted))]", className)}>
+    <label htmlFor={htmlFor} className={cx("text-[12px] font-semibold tracking-wide text-[color:var(--muted)]", className)}>
       {children}
     </label>
   );
@@ -144,7 +172,7 @@ export function Code({ children, className }: { children: React.ReactNode; class
   return (
     <code
       className={cx(
-        "rounded-[8px] border border-[hsl(var(--border))] bg-[hsl(var(--panel2))] px-1.5 py-0.5 font-mono text-[12px]",
+        "rounded-[8px] border border-[color:var(--border)] bg-[color:var(--surface-2)] px-1.5 py-0.5 font-mono text-[12px]",
         className
       )}
     >
@@ -173,7 +201,7 @@ export function StatusChip({
       ? "border-rose-500/40 text-rose-300"
       : toneVariant === "warn" || normalized === "IN_PROGRESS" || normalized === "RUNNING"
       ? "border-amber-500/40 text-amber-300"
-      : "border-[hsl(var(--border))] text-[hsl(var(--muted))]";
+      : "border-[color:var(--border)] text-[color:var(--muted)]";
 
   return (
     <span className={cx("inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium", toneClass, className)}>
@@ -211,7 +239,7 @@ export function Switch({
   hint?: string;
 }) {
   return (
-    <label className="flex items-center justify-between gap-3 rounded-[var(--r-md)] border border-[hsl(var(--border))] bg-[hsl(var(--panel))] px-3 py-2">
+    <label className="flex items-center justify-between gap-3 rounded-[var(--r-md)] border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2">
       <div className="min-w-0">
         <div className="text-[13px] font-semibold leading-tight">{label}</div>
         {hint ? <div className="nn-muted mt-1 text-[12px] leading-snug">{hint}</div> : null}
@@ -224,6 +252,32 @@ export function Switch({
       />
     </label>
   );
+}
+
+export function Field({
+  label,
+  hint,
+  children,
+  className,
+}: {
+  label: React.ReactNode;
+  hint?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cx("grid gap-1.5", className)}>
+      <div className="flex items-center justify-between gap-2">
+        <Label>{label}</Label>
+        {hint ? <span className="text-[11px] text-[color:var(--muted)]">{hint}</span> : null}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+export function ActionBar({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <div className={cx("nn-action-row", className)}>{children}</div>;
 }
 
 /** Hover insight wrapper (basic; Unit H will upgrade) */
