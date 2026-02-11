@@ -1,3 +1,5 @@
+import type { SkillProposalEnvelope } from "@/lib/operator/proposal";
+
 export type OperatorMessageRole = "system" | "operator" | "assistant" | "skill";
 
 export type MessageEnvelope = {
@@ -9,6 +11,7 @@ export type MessageEnvelope = {
     policySnapshot?: object;
     proofId?: string;
     action?: string;
+    proposal?: SkillProposalEnvelope;
   };
 };
 

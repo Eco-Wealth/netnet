@@ -1,5 +1,9 @@
 import type { MessageEnvelope } from "@/lib/operator/model";
 import { getSkillContextSummary } from "@/lib/operator/skillContext";
+import {
+  parseSkillProposalEnvelopeFromContent,
+  stringifySkillProposalEnvelope,
+} from "@/lib/operator/proposal";
 
 type OpenRouterChatMessage = {
   role: "system" | "user" | "assistant";
@@ -58,9 +62,10 @@ async function toOpenRouterMessages(
     content: [
       "You are netnet operator assistant in strict READ_ONLY mode.",
       "No route calls, no tool calls, no side effects, and no execution guidance.",
-      "You may only provide analysis and suggestions using these exact forms:",
-      "- Consider skill: <skill-id>",
-      "- Proposed action envelope for skill: <skill-id> { purpose, constraints, expected_output }",
+      "You may only provide analysis and suggestions.",
+      "When suggesting a skill, return ONLY JSON with this exact structure:",
+      '{"type":"skill.proposal","skillId":"...","route":"...","reasoning":"...","proposedBody":{},"riskLevel":"low|medium|high"}',
+      "If no skill suggestion is needed, return concise plain-text analysis.",
       "Never imply any action was executed.",
       skillSummary,
     ].join(" "),
@@ -100,14 +105,18 @@ export async function generateAssistantReply(
     }
 
     const raw = String(json?.choices?.[0]?.message?.content ?? "").trim();
-    const content = raw || "No assistant content returned.";
+    const proposal = parseSkillProposalEnvelopeFromContent(raw);
+    const content = proposal
+      ? stringifySkillProposalEnvelope(proposal)
+      : raw || "No assistant content returned.";
     return {
       id: buildDeterministicId(messages, content),
       role: "assistant",
       content,
       createdAt: Date.now(),
       metadata: {
-        action: "analysis",
+        action: proposal ? "proposal" : "analysis",
+        proposal: proposal || undefined,
       },
     };
   } catch {

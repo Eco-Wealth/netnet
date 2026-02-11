@@ -8,6 +8,7 @@ import {
   listOperatorMessages,
 } from "@/lib/operator/store";
 import { generateAssistantReply } from "@/lib/operator/llm";
+import { parseSkillProposalEnvelopeFromContent } from "@/lib/operator/proposal";
 
 type OperatorStatus = {
   mode: OperatorConsoleMode;
@@ -91,13 +92,16 @@ export async function postOperatorMessage(input: {
   });
   const history = listOperatorMessages();
   const assistant = await generateAssistantReply(history);
+  const proposal = parseSkillProposalEnvelopeFromContent(assistant.content);
+  const action = proposal ? "proposal" : "analysis";
   appendOperatorEnvelope({
     ...assistant,
     role: "assistant",
     metadata: {
       ...(assistant.metadata || {}),
       policySnapshot: policySnapshot(),
-      action: "analysis",
+      action,
+      proposal: proposal || assistant.metadata?.proposal,
     },
   });
 

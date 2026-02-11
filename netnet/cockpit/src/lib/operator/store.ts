@@ -1,4 +1,5 @@
 import type { MessageEnvelope, OperatorMessageRole } from "@/lib/operator/model";
+import { isSkillProposalEnvelope } from "@/lib/operator/proposal";
 
 type MessageEnvelopeInput = {
   role: OperatorMessageRole;
@@ -54,6 +55,9 @@ function normalizeMetadata(metadata: MessageEnvelope["metadata"]): MessageEnvelo
   }
   if (typeof metadata.action === "string" && metadata.action.trim()) {
     normalized.action = metadata.action.trim();
+  }
+  if (isSkillProposalEnvelope(metadata.proposal)) {
+    normalized.proposal = metadata.proposal;
   }
   return Object.keys(normalized).length ? normalized : undefined;
 }
