@@ -92,7 +92,17 @@ export default function ProofObjectPanel() {
             <div className="text-sm font-semibold">Proof</div>
             <div className="text-xs nw-muted">Build a proof object and attach it to the work system.</div>
           </div>
-          <Button onClick={buildProof} disabled={busy}>
+          <Button
+            onClick={buildProof}
+            disabled={busy}
+            insight={{
+              what: "Build a proof object from current context.",
+              when: "After defining subject and claim details.",
+              costs: "Proof API request only.",
+              requires: "No spend approval.",
+              output: "Structured proof payload for sharing and audit.",
+            }}
+          >
             {busy ? "Working…" : "Build proof"}
           </Button>
         </div>
@@ -106,7 +116,18 @@ export default function ProofObjectPanel() {
             </div>
 
             <div className="grid gap-2 md:grid-cols-3">
-              <Button variant="ghost" onClick={createWork} disabled={busy}>
+              <Button
+                variant="ghost"
+                onClick={createWork}
+                disabled={busy}
+                insight={{
+                  what: "Create a review work item from the generated proof.",
+                  when: "After proof generation succeeds.",
+                  costs: "Single work API write.",
+                  requires: "Proof object present.",
+                  output: "New work item linked to proof context.",
+                }}
+              >
                 Create work from proof
               </Button>
 
@@ -116,7 +137,18 @@ export default function ProofObjectPanel() {
                   onChange={(e) => setWorkId(e.target.value)}
                   placeholder="Work id to attach…"
                 />
-                <Button variant="ghost" onClick={attachToWork} disabled={busy}>
+                <Button
+                  variant="ghost"
+                  onClick={attachToWork}
+                  disabled={busy}
+                  insight={{
+                    what: "Attach the proof payload to an existing work item.",
+                    when: "When a work ID already exists and needs evidence.",
+                    costs: "Work event API write.",
+                    requires: "Valid work ID + generated proof.",
+                    output: "Proof appended to work timeline.",
+                  }}
+                >
                   Attach to work
                 </Button>
               </div>

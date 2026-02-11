@@ -166,12 +166,26 @@ export default function WorkPage() {
           <div className="mt-4 flex gap-2">
             <Button
               onClick={create}
+              insight={{
+                what: "Create a new work item in the operator queue.",
+                when: "After title, owner, and acceptance context are entered.",
+                costs: "No fund movement; API write only.",
+                requires: "Operator intent and policy-compliant scope.",
+                output: "Persisted work item with metadata and timeline support.",
+              }}
             >
               Create
             </Button>
             <Button
               variant="ghost"
               onClick={refresh}
+              insight={{
+                what: "Refresh work items from the backend.",
+                when: "After create/update activity or before handoff.",
+                costs: "Read-only API call.",
+                requires: "No approval.",
+                output: "Latest work queue state.",
+              }}
             >
               Refresh
             </Button>

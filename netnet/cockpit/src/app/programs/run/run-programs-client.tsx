@@ -67,7 +67,17 @@ export default function RunProgramsClient() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Button disabled={!programId || busy} onClick={run}>
+            <Button
+              disabled={!programId || busy}
+              onClick={run}
+              insight={{
+                what: "Generate a proposal packet for the selected strategy program.",
+                when: "After selecting program and actor.",
+                costs: "Proposal API calls and optional work item creation.",
+                requires: "Program selection; no live execution permissions.",
+                output: "Step plan, policy envelope, and work item reference.",
+              }}
+            >
               {busy ? "Proposing…" : "Generate proposal"}
             </Button>
             <Muted>Creates a Work item for review.</Muted>

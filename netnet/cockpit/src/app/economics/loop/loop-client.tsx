@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { toInsightTitle } from "@/lib/insight";
 
 async function getJSON<T>(url: string): Promise<T> {
   const res = await fetch(url, { cache: "no-store" });
@@ -91,6 +92,13 @@ export default function EconomicsLoopClient() {
             className="w-full rounded-xl bg-white px-4 py-2 text-sm font-medium text-black disabled:opacity-40"
             onClick={run}
             disabled={!can}
+            title={toInsightTitle({
+              what: "Run the economics planning loop.",
+              when: "After setting revenue window and planning amount.",
+              costs: "Read and proposal API calls only.",
+              requires: "No execution approval; proposal mode.",
+              output: "Revenue report, allocation packet, retire intent, and proof payload.",
+            })}
           >
             Run loop
           </button>
@@ -102,6 +110,13 @@ export default function EconomicsLoopClient() {
           className="rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-sm hover:bg-white/15 disabled:opacity-40"
           onClick={createWork}
           disabled={!out?.ok}
+          title={toInsightTitle({
+            what: "Create a work item from loop output.",
+            when: "After a successful loop run.",
+            costs: "Single work API write.",
+            requires: "Loop output available.",
+            output: "Tracked work item for operator review.",
+          })}
         >
           Create work item
         </button>

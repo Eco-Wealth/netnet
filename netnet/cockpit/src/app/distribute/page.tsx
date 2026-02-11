@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { toInsightTitle } from "@/lib/insight";
 
 type ProofFeedItem = {
   id: string;
@@ -107,6 +108,13 @@ export default function DistributePage() {
           <a
             href="/api/proof/feed?format=rss"
             className="inline-flex h-10 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 text-sm hover:bg-[color:var(--surface-2)]"
+            title={toInsightTitle({
+              what: "Open the proof feed as RSS.",
+              when: "When syndicating updates to external readers or automations.",
+              costs: "Read-only request.",
+              requires: "No approval.",
+              output: "RSS XML stream for the current proof feed.",
+            })}
             target="_blank"
             rel="noreferrer"
           >
@@ -144,7 +152,13 @@ export default function DistributePage() {
                 <button
                   onClick={() => navigator.clipboard?.writeText(location.origin + "/distribute#" + it.id)}
                   className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-2)] px-3 py-1.5 text-xs hover:opacity-95"
-                  title="Copy share link"
+                  title={toInsightTitle({
+                    what: "Copy a deep link for this proof item.",
+                    when: "When sharing with operators, agents, or reviewers.",
+                    costs: "No network call.",
+                    requires: "Clipboard permission in browser.",
+                    output: "URL copied to clipboard.",
+                  })}
                 >
                   Copy link
                 </button>
@@ -159,7 +173,13 @@ export default function DistributePage() {
                       key={t}
                       onClick={() => setTag(t)}
                       className="rounded-full border border-[color:var(--border)] bg-[color:var(--surface-2)] px-2 py-1 text-xs text-[color:var(--muted)] hover:text-[color:var(--fg)]"
-                      title="Filter by tag"
+                      title={toInsightTitle({
+                        what: `Filter feed by tag '${t}'.`,
+                        when: "When narrowing proof history to a specific workflow.",
+                        costs: "Client-side filter only.",
+                        requires: "No approval.",
+                        output: "Filtered proof list in this page session.",
+                      })}
                     >
                       {t}
                     </button>
@@ -176,7 +196,13 @@ export default function DistributePage() {
                       target="_blank"
                       rel="noreferrer"
                       className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-2)] px-3 py-1.5 text-xs hover:opacity-95"
-                      title={l.url}
+                      title={toInsightTitle({
+                        what: `Open linked evidence: ${l.label}.`,
+                        when: "When reviewing source evidence for this proof item.",
+                        costs: "External navigation request.",
+                        requires: "Link accessibility.",
+                        output: "Evidence page/document in a new tab.",
+                      })}
                     >
                       {l.label}
                     </a>
