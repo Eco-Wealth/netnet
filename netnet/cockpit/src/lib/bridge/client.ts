@@ -36,7 +36,7 @@ export function getBridgeConfig(): BridgeConfig {
   return { baseUrl, apiKey, timeoutMs };
 }
 
-function authHeaders(cfg: BridgeConfig) {
+function authHeaders(cfg: BridgeConfig): Record<string, string> {
   // Bridge may use different auth schemes. Keep it flexible.
   // If BRIDGE_API_KEY is set, we send it as:
   // - Authorization: Bearer <key>

@@ -14,6 +14,9 @@ const db = new Map<string, WorkItem>();
 export type CreateWorkInput = {
   title: string;
   description?: string;
+  kind?: WorkItem["kind"];
+  acceptance?: string;
+  slaHours?: number;
   tags?: string[];
   status?: WorkStatus;
   priority?: WorkPriority;
@@ -38,6 +41,11 @@ export function createWorkItem(input: CreateWorkInput): WorkItem {
     id: rid("work"),
     title: input.title,
     description: input.description,
+    kind: input.kind,
+    acceptance: input.acceptance,
+    sla: input.slaHours
+      ? { hours: input.slaHours, dueAt: new Date(Date.now() + input.slaHours * 60 * 60 * 1000).toISOString() }
+      : undefined,
     tags: input.tags ?? [],
     status: input.status ?? "PROPOSED",
     priority: input.priority ?? "MEDIUM",

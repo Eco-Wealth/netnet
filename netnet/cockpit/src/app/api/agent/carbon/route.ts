@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
 import { computeIncentivesPacket } from "@/lib/economics";
+import {
   fetchProjects,
   getRetirementQuote,
   initiateRetirement,
@@ -270,7 +270,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       ...retirement,
-      economics: computeIncentivesPacket({ action: "carbon_retire_initiate", token, chain, amountToken: amount }),
+      economics: computeIncentivesPacket({ action: "carbon_retire_initiate", token, chain, amountToken: String(amount) }),
       instructions: [
         `1. Send ${amount} ${token} on ${chain} to: ${retirement.paymentAddress}`,
         "2. Save the transaction hash",

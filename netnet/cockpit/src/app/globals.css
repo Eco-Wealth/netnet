@@ -2,13 +2,48 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Unit L: Mobile action zones + compact rhythm helpers */
 :root {
-  --nw-radius: 16px;
-  --nw-border: rgba(255,255,255,0.10);
-  --nw-panel: rgba(0,0,0,0.55);
-  --nw-text: rgba(255,255,255,0.92);
-  --nw-muted: rgba(255,255,255,0.65);
+  color-scheme: dark;
+
+  /* Unit 002: dense premium token system */
+  --bg: hsl(222 27% 9%);
+  --surface: hsl(223 22% 13%);
+  --surface-2: hsl(224 20% 17%);
+  --fg: hsl(210 22% 96%);
+  --muted: hsl(214 12% 66%);
+  --primary: hsl(189 88% 59%);
+  --accent: hsl(40 95% 62%);
+  --warn: hsl(21 91% 61%);
+  --success: hsl(147 62% 46%);
+  --border: hsl(220 17% 25%);
+  --ring: hsl(189 88% 59% / 0.45);
+  --shadow: 0 18px 40px hsl(222 55% 4% / 0.45);
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+
+  --pad-2: var(--space-4);
+  --gap-2: var(--space-3);
+
+  /* Back-compat aliases */
+  --nw-radius: var(--r-lg);
+  --nw-border: hsl(220 17% 25% / 0.9);
+  --nw-panel: hsl(223 22% 13% / 0.92);
+  --nw-text: var(--fg);
+  --nw-muted: var(--muted);
+
+  --panel: 223 22% 13%;
+  --panel2: 224 20% 17%;
+  --fg-hsl: 210 22% 96%;
+  --muted-hsl: 214 12% 66%;
 }
 
 html, body {
@@ -16,10 +51,121 @@ html, body {
 }
 
 body {
-  color: var(--nw-text);
-  background: radial-gradient(1200px 700px at 20% 0%, rgba(255,255,255,0.06), transparent 55%),
-              radial-gradient(900px 600px at 80% 10%, rgba(255,255,255,0.05), transparent 60%),
-              #070708;
+  color: var(--fg);
+  background:
+    radial-gradient(1200px 700px at 8% -5%, hsl(189 88% 59% / 0.16), transparent 58%),
+    radial-gradient(900px 520px at 90% 0%, hsl(40 95% 62% / 0.09), transparent 60%),
+    var(--bg);
+}
+
+/* Unit 002: core dense components */
+.nn-panel {
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, hsl(223 22% 14% / 0.96), hsl(223 22% 12% / 0.96));
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+}
+
+.nn-muted {
+  color: var(--muted);
+}
+
+.nn-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  background: hsl(223 22% 18% / 0.9);
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--muted);
+}
+
+.nn-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border-radius: var(--r-sm);
+  border: 1px solid transparent;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0.62rem 0.85rem;
+  transition: background-color .16s ease, border-color .16s ease, transform .06s ease, color .16s ease;
+}
+
+.nn-btn:active {
+  transform: translateY(1px);
+}
+
+.nn-btn--sm {
+  padding: 0.42rem 0.7rem;
+  font-size: 12px;
+}
+
+.nn-btn--solid {
+  background: hsl(189 88% 59%);
+  color: hsl(222 27% 9%);
+  border-color: hsl(189 88% 59% / 0.7);
+}
+
+.nn-btn--solid:hover {
+  background: hsl(189 90% 54%);
+}
+
+.nn-btn--ghost {
+  background: hsl(223 20% 16% / 0.85);
+  color: var(--fg);
+  border-color: var(--border);
+}
+
+.nn-btn--ghost:hover {
+  background: hsl(224 20% 19% / 0.95);
+}
+
+.nn-input {
+  background: hsl(223 20% 15% / 0.86);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  border-radius: var(--r-sm);
+  padding: 0.55rem 0.7rem;
+  min-height: 2.2rem;
+}
+
+.nn-input::placeholder {
+  color: hsl(214 10% 60%);
+}
+
+.nn-input--sm {
+  min-height: 1.95rem;
+  padding: 0.42rem 0.62rem;
+}
+
+.nn-focus:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+.nn-tip {
+  position: relative;
+  display: inline-flex;
+}
+
+.nn-tip__bubble {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  width: 18rem;
+  border: 1px solid var(--border);
+  background: hsl(223 22% 14% / 0.98);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+  padding: 0.5rem 0.65rem;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--fg);
 }
 
 /* Compact spacing utilities */

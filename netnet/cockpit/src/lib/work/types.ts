@@ -1,4 +1,5 @@
 export type WorkStatus =
+  | "OPEN"
   | "PROPOSED"
   | "READY"
   | "IN_PROGRESS"
@@ -6,7 +7,7 @@ export type WorkStatus =
   | "DONE"
   | "CANCELED";
 
-export type WorkPriority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+export type WorkPriority = "LOW" | "MED" | "MEDIUM" | "HIGH" | "CRIT" | "CRITICAL";
 
 export type WorkEventType =
   | "NOTE"
@@ -30,6 +31,9 @@ export type WorkItem = {
   id: string;
   title: string;
   description?: string;
+  kind?: "TASK" | "BUG" | "RESEARCH" | "DOCS" | string;
+  acceptance?: string;
+  sla?: { hours?: number; dueAt?: string };
   tags?: string[];
   status: WorkStatus;
   priority: WorkPriority;

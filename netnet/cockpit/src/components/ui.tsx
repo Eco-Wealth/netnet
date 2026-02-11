@@ -38,12 +38,17 @@ export function Card({
 export function Row({
   left,
   right,
+  children,
   className,
 }: {
-  left: React.ReactNode;
+  left?: React.ReactNode;
   right?: React.ReactNode;
+  children?: React.ReactNode;
   className?: string;
 }) {
+  if (children) {
+    return <div className={cx("flex items-center justify-between gap-3", className)}>{children}</div>;
+  }
   return (
     <div className={cx("flex items-center justify-between gap-3", className)}>
       <div className="min-w-0">{left}</div>
@@ -55,12 +60,35 @@ export function Row({
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "solid" | "ghost";
   size?: "sm" | "md";
+  insight?: {
+    what: string;
+    when?: string;
+    costs?: string;
+    requires?: string;
+    output?: string;
+  };
 };
 
-export function Button({ variant = "solid", size = "md", className, ...rest }: ButtonProps) {
+export function Button({ variant = "solid", size = "md", className, insight, title, ...rest }: ButtonProps) {
+  const derivedTitle =
+    insight
+      ? [
+          `What: ${insight.what}`,
+          insight.when ? `When: ${insight.when}` : null,
+          insight.costs ? `Costs: ${insight.costs}` : null,
+          insight.requires ? `Requires: ${insight.requires}` : null,
+          insight.output ? `Output: ${insight.output}` : null,
+        ]
+          .filter(Boolean)
+          .join(" | ")
+      : variant === "solid"
+      ? "What: Primary action | When: Use after reviewing context | Costs: May consume API/compute resources | Requires: Policy and operator approval if spend-adjacent | Output: Action result and/or proof artifact"
+      : undefined;
+
   return (
     <button
       {...rest}
+      title={typeof title === "string" ? title : derivedTitle}
       className={cx(
         "nn-btn",
         size === "sm" && "nn-btn--sm",
@@ -72,7 +100,7 @@ export function Button({ variant = "solid", size = "md", className, ...rest }: B
   );
 }
 
-type InputProps = React.InputHTMLAttributes<HTMLInputElement> & {
+type InputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, "size"> & {
   size?: "sm" | "md";
 };
 export function Input({ size = "md", className, ...rest }: InputProps) {
@@ -98,6 +126,59 @@ export function TextArea({ className, ...rest }: TextAreaProps) {
         className
       )}
     />
+  );
+}
+
+// Back-compat alias for existing imports.
+export const Textarea = TextArea;
+
+export function Label({ children, htmlFor, className }: { children: React.ReactNode; htmlFor?: string; className?: string }) {
+  return (
+    <label htmlFor={htmlFor} className={cx("text-[12px] font-semibold tracking-wide text-[hsl(var(--muted))]", className)}>
+      {children}
+    </label>
+  );
+}
+
+export function Code({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <code
+      className={cx(
+        "rounded-[8px] border border-[hsl(var(--border))] bg-[hsl(var(--panel2))] px-1.5 py-0.5 font-mono text-[12px]",
+        className
+      )}
+    >
+      {children}
+    </code>
+  );
+}
+
+export function StatusChip({
+  children,
+  tone: toneVariant,
+  status,
+  className,
+}: {
+  children?: React.ReactNode;
+  tone?: "neutral" | "success" | "warn" | "danger";
+  status?: string;
+  className?: string;
+}) {
+  const text = children ?? status ?? "";
+  const normalized = String(status ?? children ?? "").toUpperCase();
+  const toneClass =
+    toneVariant === "success" || normalized === "DONE" || normalized === "PASS"
+      ? "border-emerald-500/40 text-emerald-300"
+      : toneVariant === "danger" || normalized === "BLOCKED" || normalized === "ERROR" || normalized === "FAILED"
+      ? "border-rose-500/40 text-rose-300"
+      : toneVariant === "warn" || normalized === "IN_PROGRESS" || normalized === "RUNNING"
+      ? "border-amber-500/40 text-amber-300"
+      : "border-[hsl(var(--border))] text-[hsl(var(--muted))]";
+
+  return (
+    <span className={cx("inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium", toneClass, className)}>
+      {text}
+    </span>
   );
 }
 

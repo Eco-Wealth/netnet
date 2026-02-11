@@ -88,9 +88,10 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const format = url.searchParams.get("format") || "json";
 
-  const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || "localhost:3000";
+  const requestOrigin = new URL(req.url).origin;
+  const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
   const proto = req.headers.get("x-forwarded-proto") || "http";
-  const baseUrl = `${proto}://${host}`;
+  const baseUrl = host ? `${proto}://${host}` : requestOrigin;
 
   const items = seed();
 

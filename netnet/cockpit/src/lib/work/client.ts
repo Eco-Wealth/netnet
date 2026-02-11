@@ -76,3 +76,34 @@ export async function appendWorkEvent(workId: string, ev: WorkEventInput) {
     body: JSON.stringify(body),
   });
 }
+
+export async function withWork<T>(
+  input: CreateWorkInput,
+  run: (workId?: string) => Promise<T>
+): Promise<{ workId: string | null; result: T }> {
+  let workId: string | null = null;
+  try {
+    const created = await createWork(input);
+    workId = created.id ?? null;
+  } catch {
+    // Keep caller flow alive in read-only/propose-only mode if work API is unavailable.
+    workId = null;
+  }
+
+  const result = await run(workId ?? undefined);
+
+  if (workId) {
+    try {
+      await appendWorkEvent(workId, {
+        type: "NOTE",
+        by: "agent",
+        note: "Action completed.",
+        patch: { ok: true },
+      });
+    } catch {
+      // Non-fatal for caller flow.
+    }
+  }
+
+  return { workId, result };
+}

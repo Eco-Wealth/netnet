@@ -47,11 +47,14 @@ export async function POST(req: NextRequest) {
   const item = createWorkItem({
     title,
     description: typeof body.description === "string" ? body.description : undefined,
+    kind: typeof body.kind === "string" ? body.kind : undefined,
+    acceptance: typeof body.acceptance === "string" ? body.acceptance : undefined,
+    slaHours: typeof body.slaHours === "number" ? body.slaHours : undefined,
     owner: typeof body.owner === "string" ? body.owner : undefined,
     priority: typeof body.priority === "string" ? body.priority : undefined,
     status: typeof body.status === "string" ? body.status : undefined,
     tags: Array.isArray(body.tags) ? body.tags : undefined,
-    meta: body.meta ?? undefined,
+    data: body.meta ?? undefined,
   });
 
   return NextResponse.json({ ok: true, id: item.id, item }, { status: 201 });

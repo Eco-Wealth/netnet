@@ -43,45 +43,12 @@ export type RegenProjectPacketV1 = {
   nextSteps: string[];
 };
 
-export function buildRegenProjectPacket(input: {
-  title: string;
-  summary: string;
-  buyer?: RegenProjectPacketV1["buyer"];
-  location?: RegenProjectPacketV1["location"];
-  methodology?: string;
-  assumptions?: string[];
-  requiredFields?: string[];
-  dataSources?: string[];
-  cadence?: string;
-  confidence?: RegenProjectPacketV1["mrv"]["confidence"];
-  commercial?: RegenProjectPacketV1["commercial"];
-  constraints?: RegenProjectPacketV1["constraints"];
-  nextSteps?: string[];
-}): RegenProjectPacketV1 {
-  const now = new Date().toISOString();
-
-  return {
-    schema: "netnet.regen.project.v1",
-    ts: now,
-    title: input.title,
-    summary: input.summary,
-    buyer: input.buyer,
-    location: input.location,
-    mrv: {
-      methodology: input.methodology,
-      assumptions: input.assumptions ?? [],
-      requiredFields: input.requiredFields ?? [],
-      dataSources: input.dataSources,
-      cadence: input.cadence,
-      confidence: input.confidence,
-    },
-    commercial: input.commercial,
-    constraints: input.constraints,
-    nextSteps: input.nextSteps ?? [],
-  };
-}
-
 export type RegenProjectRequest = {
+  agentId?: string;
+  wallet?: string;
+  operator?: string;
+  url?: string;
+  why?: string;
   title?: string;
   summary?: string;
   buyerClass?: string;

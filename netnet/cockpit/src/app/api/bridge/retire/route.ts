@@ -92,7 +92,15 @@ export async function POST(req: NextRequest) {
       metadata,
     });
     
-    return NextResponse.json({ ...retirement, economics: computeIncentivesPacket({ action: "bridge_retire_initiate", token, chain, amountToken: amount }) });
+    return NextResponse.json({
+      ...retirement,
+      economics: computeIncentivesPacket({
+        action: "bridge_retire_initiate",
+        token,
+        chain,
+        amountToken: String(amount),
+      }),
+    });
 } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ error: message }, { status: 500 });
