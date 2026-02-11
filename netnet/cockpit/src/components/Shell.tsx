@@ -41,6 +41,14 @@ const NAV: NavItem[] = [
     output: "proposal packet, work item, and status events.",
   },
   {
+    href: "/operator",
+    label: "Operator",
+    what: "Run the operator AI console scaffold with local message threading.",
+    when: "When coordinating plans and intent before model/execution integrations.",
+    requires: "READ_ONLY mode in Unit 016. No external APIs or execution paths.",
+    output: "In-memory thread with operator and assistant scaffold messages.",
+  },
+  {
     href: "/work",
     label: "Work",
     what: "Track tasks, ownership, and event trails.",
