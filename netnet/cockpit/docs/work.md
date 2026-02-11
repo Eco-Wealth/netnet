@@ -9,6 +9,9 @@ This adds a minimal *work queue* to netnet-cockpit:
   - `GET /api/work/:id` → fetch
   - `PATCH /api/work/:id` → update fields (status, owner, etc.)
   - `POST /api/work/:id` → append an audit event (comment/escalation/approval signal)
+  - Compat aliases:
+    - `GET|POST /api/work/items` → same as `/api/work`
+    - `POST /api/work/:id/events` → same as `POST /api/work/:id`
 
 Notes:
 - Store is in-memory (dev-friendly). Production persistence is a later unit.
