@@ -36,13 +36,6 @@
   --pad-2: var(--space-4);
   --gap-2: var(--space-3);
 
-  /* Back-compat aliases */
-  --nw-radius: var(--r-lg);
-  --nw-border: hsl(220 17% 25% / 0.9);
-  --nw-panel: hsl(223 22% 13% / 0.92);
-  --nw-text: var(--fg);
-  --nw-muted: var(--muted);
-
   --panel: 223 22% 13%;
   --panel2: 224 20% 17%;
   --fg-hsl: 210 22% 96%;
@@ -172,22 +165,6 @@ body {
   font-size: 11px;
   line-height: 1.35;
   color: var(--fg);
-}
-
-/* Compact spacing utilities */
-.nw-stack { display: grid; gap: 10px; }
-.nw-row { display: flex; gap: 10px; align-items: center; }
-.nw-panel {
-  border: 1px solid var(--nw-border);
-  background: var(--nw-panel);
-  border-radius: var(--nw-radius);
-  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
-}
-.nw-muted { color: var(--nw-muted); }
-
-/* Keep content clear of mobile dock */
-.nw-has-dock {
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 84px);
 }
 
 /* Unit 007: page-level visual coherence helpers */

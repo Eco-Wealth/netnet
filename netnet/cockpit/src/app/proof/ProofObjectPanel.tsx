@@ -85,12 +85,12 @@ export default function ProofObjectPanel() {
   }
 
   return (
-    <div className="nw-stack">
-      <div className="nw-panel p-3">
-        <div className="nw-row justify-between">
+    <div className="nn-grid">
+      <div className="nn-panel p-3">
+        <div className="flex items-center justify-between gap-2">
           <div>
             <div className="text-sm font-semibold">Proof</div>
-            <div className="text-xs nw-muted">Build a proof object and attach it to the work system.</div>
+            <div className="text-xs nn-muted">Build a proof object and attach it to the work system.</div>
           </div>
           <Button
             onClick={buildProof}
