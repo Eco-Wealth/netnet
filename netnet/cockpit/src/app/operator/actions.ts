@@ -6,6 +6,7 @@ import {
   approveProposal,
   appendOperatorEnvelope,
   appendOperatorMessage,
+  executeProposal,
   generateExecutionPlan,
   getProposal,
   lockExecutionIntent,
@@ -103,6 +104,7 @@ export async function postOperatorMessage(input: {
     status: "draft",
     createdAt: Date.now(),
     executionIntent: "none",
+    executionStatus: "idle",
   });
   const action = proposal ? "proposal" : "analysis";
   const updated = appendOperatorEnvelope({
@@ -290,6 +292,41 @@ export async function generateExecutionPlanAction(
         policySnapshot: policySnapshot(),
         action: "analysis",
         proposal: proposal || undefined,
+      },
+    });
+  }
+
+  return {
+    status: statusFromPolicy(),
+    messages: listOperatorMessages(),
+  };
+}
+
+export async function executeProposalAction(
+  id: string
+): Promise<OperatorThreadSnapshot> {
+  ensureSystemMessage();
+  const proposalId = String(id || "").trim();
+  const outcome = await executeProposal(proposalId);
+
+  if (outcome.ok) {
+    appendOperatorMessage({
+      role: "assistant",
+      content: "Execution completed successfully.",
+      metadata: {
+        policySnapshot: policySnapshot(),
+        action: "execution",
+        proposal: outcome.proposal ?? undefined,
+      },
+    });
+  } else {
+    appendOperatorMessage({
+      role: "assistant",
+      content: `Execution failed: ${outcome.error ?? "unknown_error"}`,
+      metadata: {
+        policySnapshot: policySnapshot(),
+        action: "execution",
+        proposal: outcome.proposal ?? undefined,
       },
     });
   }

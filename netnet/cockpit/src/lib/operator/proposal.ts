@@ -1,5 +1,6 @@
 export type ProposalStatus = "draft" | "approved" | "rejected";
 export type ExecutionIntentStatus = "none" | "requested" | "locked";
+export type ExecutionStatus = "idle" | "running" | "completed" | "failed";
 
 export type SkillProposalEnvelope = {
   type: "skill.proposal";
@@ -14,6 +15,11 @@ export type SkillProposalEnvelope = {
   approvedAt?: number;
   executionIntent?: ExecutionIntentStatus;
   executionRequestedAt?: number;
+  executionStatus: ExecutionStatus;
+  executionStartedAt?: number;
+  executionCompletedAt?: number;
+  executionResult?: Record<string, unknown>;
+  executionError?: string;
 };
 
 export function isSkillProposalEnvelope(
@@ -51,6 +57,35 @@ export function isSkillProposalEnvelope(
   ) {
     return false;
   }
+  if (
+    v.executionStatus !== "idle" &&
+    v.executionStatus !== "running" &&
+    v.executionStatus !== "completed" &&
+    v.executionStatus !== "failed"
+  ) {
+    return false;
+  }
+  if (
+    v.executionStartedAt !== undefined &&
+    (typeof v.executionStartedAt !== "number" || !Number.isFinite(v.executionStartedAt))
+  ) {
+    return false;
+  }
+  if (
+    v.executionCompletedAt !== undefined &&
+    (typeof v.executionCompletedAt !== "number" || !Number.isFinite(v.executionCompletedAt))
+  ) {
+    return false;
+  }
+  if (
+    v.executionResult !== undefined &&
+    (!v.executionResult || typeof v.executionResult !== "object")
+  ) {
+    return false;
+  }
+  if (v.executionError !== undefined && typeof v.executionError !== "string") {
+    return false;
+  }
   return true;
 }
 
@@ -67,6 +102,11 @@ type SkillProposalDraftShape = {
   approvedAt?: unknown;
   executionIntent?: unknown;
   executionRequestedAt?: unknown;
+  executionStatus?: unknown;
+  executionStartedAt?: unknown;
+  executionCompletedAt?: unknown;
+  executionResult?: unknown;
+  executionError?: unknown;
 };
 
 function normalizeRiskLevel(value: unknown): SkillProposalEnvelope["riskLevel"] {
@@ -90,11 +130,24 @@ function normalizeExecutionIntent(
     : fallback;
 }
 
+function normalizeExecutionStatus(
+  value: unknown,
+  fallback: ExecutionStatus
+): ExecutionStatus {
+  return value === "idle" ||
+    value === "running" ||
+    value === "completed" ||
+    value === "failed"
+    ? value
+    : fallback;
+}
+
 type CoerceOptions = {
   id?: string;
   status?: ProposalStatus;
   createdAt?: number;
   executionIntent?: ExecutionIntentStatus;
+  executionStatus?: ExecutionStatus;
 };
 
 function hashText(input: string): string {
@@ -157,6 +210,28 @@ export function coerceSkillProposalEnvelope(
         ? Date.now()
         : undefined
       : undefined;
+  const executionStatus = normalizeExecutionStatus(
+    v.executionStatus,
+    options?.executionStatus ?? "idle"
+  );
+  const executionStartedAt =
+    typeof v.executionStartedAt === "number" &&
+    Number.isFinite(v.executionStartedAt)
+      ? v.executionStartedAt
+      : undefined;
+  const executionCompletedAt =
+    typeof v.executionCompletedAt === "number" &&
+    Number.isFinite(v.executionCompletedAt)
+      ? v.executionCompletedAt
+      : undefined;
+  const executionResult =
+    v.executionResult && typeof v.executionResult === "object"
+      ? (v.executionResult as Record<string, unknown>)
+      : undefined;
+  const executionError =
+    typeof v.executionError === "string" && v.executionError.trim()
+      ? v.executionError
+      : undefined;
 
   const id =
     String(v.id ?? options?.id ?? "").trim() ||
@@ -175,6 +250,11 @@ export function coerceSkillProposalEnvelope(
     approvedAt,
     executionIntent,
     executionRequestedAt,
+    executionStatus,
+    executionStartedAt,
+    executionCompletedAt,
+    executionResult,
+    executionError,
   };
 }
 

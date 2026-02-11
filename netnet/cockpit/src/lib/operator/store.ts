@@ -8,6 +8,10 @@ import {
   isExecutionPlan,
   type ExecutionPlan,
 } from "@/lib/operator/planner";
+import {
+  executeProposal as executeWithOrchestrator,
+  type ExecutionResult,
+} from "@/lib/operator/executor";
 
 type MessageEnvelopeInput = {
   role: OperatorMessageRole;
@@ -78,6 +82,7 @@ function normalizeMetadata(metadata: MessageEnvelope["metadata"]): MessageEnvelo
       status: "draft",
       createdAt: Date.now(),
       executionIntent: "none",
+      executionStatus: "idle",
     });
     if (proposal) {
       normalized.proposal = proposal;
@@ -249,6 +254,7 @@ export function registerProposal(
       status: proposal.status,
       createdAt: proposal.createdAt,
       executionIntent: proposal.executionIntent ?? "none",
+      executionStatus: proposal.executionStatus ?? "idle",
     }) || proposal;
   syncProposalRegistryFromMessages();
   const registry = ensureProposalRegistry();
@@ -372,6 +378,79 @@ export function generateExecutionPlan(id: string): ExecutionPlan | null {
   const plans = ensurePlanRegistry();
   plans[proposalId] = plan;
   return plan;
+}
+
+export type ExecuteProposalOutcome = {
+  ok: boolean;
+  proposal: SkillProposalEnvelope | null;
+  result?: ExecutionResult;
+  error?: string;
+};
+
+export async function executeProposal(
+  id: string
+): Promise<ExecuteProposalOutcome> {
+  const proposalId = String(id || "").trim();
+  if (!proposalId) {
+    return { ok: false, proposal: null, error: "invalid_proposal_id" };
+  }
+
+  syncProposalRegistryFromMessages();
+  const registry = ensureProposalRegistry();
+  const entry = registry[proposalId];
+  if (!entry) {
+    return { ok: false, proposal: null, error: "proposal_not_found" };
+  }
+
+  if (entry.proposal.status !== "approved") {
+    return { ok: false, proposal: entry.proposal, error: "proposal_not_approved" };
+  }
+  if (entry.proposal.executionIntent !== "locked") {
+    return {
+      ok: false,
+      proposal: entry.proposal,
+      error: "execution_intent_not_locked",
+    };
+  }
+  if ((entry.proposal.executionStatus ?? "idle") !== "idle") {
+    return {
+      ok: false,
+      proposal: entry.proposal,
+      error: "execution_already_started",
+    };
+  }
+
+  const running = persistProposalUpdate(proposalId, {
+    ...entry.proposal,
+    executionStatus: "running",
+    executionStartedAt: Date.now(),
+    executionCompletedAt: undefined,
+    executionResult: undefined,
+    executionError: undefined,
+  });
+
+  const result = await executeWithOrchestrator(proposalId);
+  const completedAt = Date.now();
+
+  if (result.ok) {
+    const completed = persistProposalUpdate(proposalId, {
+      ...running,
+      executionStatus: "completed",
+      executionCompletedAt: completedAt,
+      executionResult: result as unknown as Record<string, unknown>,
+      executionError: undefined,
+    });
+    return { ok: true, proposal: completed, result };
+  }
+
+  const failed = persistProposalUpdate(proposalId, {
+    ...running,
+    executionStatus: "failed",
+    executionCompletedAt: completedAt,
+    executionResult: result as unknown as Record<string, unknown>,
+    executionError: result.error ?? "execution_failed",
+  });
+  return { ok: false, proposal: failed, result, error: failed.executionError };
 }
 
 export function isProposalEligible(id: string): boolean {

@@ -7,6 +7,7 @@ import type { SkillProposalEnvelope } from "@/lib/operator/proposal";
 import type { OperatorThreadSnapshot } from "./actions";
 import {
   approveOperatorProposal,
+  executeProposalAction,
   generateExecutionPlanAction,
   lockExecutionIntentAction,
   postOperatorMessage,
@@ -86,13 +87,25 @@ export default function OperatorConsoleClient({ initial }: OperatorConsoleClient
     });
   }
 
+  function onExecuteNow(id: string) {
+    setActiveProposalId(id);
+    startTransition(async () => {
+      const next = await executeProposalAction(id);
+      setSnapshot(next);
+      setActiveProposalId(null);
+    });
+  }
+
   function renderProposalCard(messageId: string, proposal: SkillProposalEnvelope) {
     const isDraft = proposal.status === "draft";
     const isApproved = proposal.status === "approved";
     const executionIntent = proposal.executionIntent ?? "none";
+    const executionStatus = proposal.executionStatus ?? "idle";
     const canRequestIntent = isApproved && executionIntent === "none";
     const canLockIntent = isApproved && executionIntent === "requested";
     const canGeneratePlan = isApproved && executionIntent === "locked";
+    const canExecuteNow =
+      isApproved && executionIntent === "locked" && executionStatus === "idle";
     const busy = pending && activeProposalId === messageId;
 
     return (
@@ -102,6 +115,7 @@ export default function OperatorConsoleClient({ initial }: OperatorConsoleClient
           <Pill>risk: {proposal.riskLevel}</Pill>
           <Pill>status: {proposal.status}</Pill>
           <Pill>execution intent: {executionIntent}</Pill>
+          <Pill>execution: {executionStatus}</Pill>
         </div>
         <div className="mt-2 text-xs text-[color:var(--muted)]">route: {proposal.route}</div>
         <div className="mt-1 whitespace-pre-wrap text-sm">{proposal.reasoning}</div>
@@ -186,7 +200,44 @@ export default function OperatorConsoleClient({ initial }: OperatorConsoleClient
               {busy ? "Working…" : "Generate Execution Plan"}
             </Button>
           ) : null}
+
+          {canExecuteNow ? (
+            <Button
+              size="sm"
+              onClick={() => onExecuteNow(messageId)}
+              disabled={busy}
+              insight={{
+                what: "Execute this locked proposal through the orchestrator.",
+                when: "After approval and final plan review are complete.",
+                requires: "Approved proposal, locked execution intent, and passing policy gate.",
+                output: "Execution status/result recorded in proposal metadata and audit message.",
+              }}
+            >
+              {busy ? "Working…" : "Execute Now"}
+            </Button>
+          ) : null}
         </div>
+
+        {proposal.executionResult ? (
+          <div className="mt-2 rounded-[var(--r-sm)] border border-[color:var(--border)] bg-[color:var(--surface)] p-2">
+            <div className="text-xs text-[color:var(--muted)]">execution result</div>
+            <div className="mt-1 text-xs text-[color:var(--muted)]">
+              status: {proposal.executionStatus}
+              {proposal.executionCompletedAt
+                ? ` at ${new Date(proposal.executionCompletedAt).toLocaleString()}`
+                : ""}
+            </div>
+            <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap text-xs">
+              {JSON.stringify(proposal.executionResult, null, 2)}
+            </pre>
+          </div>
+        ) : null}
+
+        {proposal.executionError ? (
+          <div className="mt-2 text-xs text-[color:var(--warn)]">
+            execution error: {proposal.executionError}
+          </div>
+        ) : null}
       </div>
     );
   }
