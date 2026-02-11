@@ -9,9 +9,12 @@
   --bg: hsl(222 27% 9%);
   --surface: hsl(223 22% 13%);
   --surface-2: hsl(224 20% 17%);
+  --surface-3: hsl(225 19% 20%);
   --fg: hsl(210 22% 96%);
   --muted: hsl(214 12% 66%);
+  --muted-2: hsl(214 10% 56%);
   --primary: hsl(189 88% 59%);
+  --primary-contrast: hsl(222 27% 9%);
   --accent: hsl(40 95% 62%);
   --warn: hsl(21 91% 61%);
   --success: hsl(147 62% 46%);
@@ -56,6 +59,9 @@ body {
     radial-gradient(1200px 700px at 8% -5%, hsl(189 88% 59% / 0.16), transparent 58%),
     radial-gradient(900px 520px at 90% 0%, hsl(40 95% 62% / 0.09), transparent 60%),
     var(--bg);
+  line-height: 1.35;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 /* Unit 002: core dense components */
@@ -182,4 +188,53 @@ body {
 /* Keep content clear of mobile dock */
 .nw-has-dock {
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 84px);
+}
+
+/* Unit 007: page-level visual coherence helpers */
+.nn-page {
+  margin: 0 auto;
+  width: 100%;
+  max-width: 80rem;
+  padding: var(--space-4);
+}
+
+.nn-page-header {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: var(--space-4);
+}
+
+.nn-page-title {
+  font-size: 1.35rem;
+  line-height: 1.2;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.nn-page-subtitle {
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.nn-grid {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.nn-grid-2 {
+  display: grid;
+  gap: var(--space-3);
+}
+
+@media (min-width: 768px) {
+  .nn-grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.nn-action-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
 }
