@@ -1,141 +1,27 @@
 import type { MessageEnvelope } from "@/lib/operator/model";
-import { getSkillContextSummary } from "@/lib/operator/skillContext";
-import {
-  parseSkillProposalEnvelopeFromContent,
-  stringifySkillProposalEnvelope,
-  type SkillProposalEnvelope,
-} from "@/lib/operator/proposal";
-
-type OpenRouterChatMessage = {
-  role: "system" | "user" | "assistant";
-  content: string;
-};
+import { getOperatorEngine } from "@/lib/operator/engine";
 
 // Execution boundary guard:
-// This module must only produce analysis/proposal text. It must never import
-// executor/db/store modules or trigger side effects.
-function assertLlmIsolation(
-  action: "analysis" | "proposal",
-  proposal: SkillProposalEnvelope | null
-) {
-  if (proposal && action !== "proposal") {
+// This module must only delegate to the deterministic operator engine layer.
+// It must not import executor/db/store or trigger side effects.
+function assertAssistantEnvelope(envelope: MessageEnvelope): MessageEnvelope {
+  if (envelope.role !== "assistant") {
+    throw new Error("invalid_operator_reply_role");
+  }
+  const action = envelope.metadata?.action;
+  if (action && action !== "analysis" && action !== "proposal") {
+    throw new Error("invalid_operator_reply_action");
+  }
+  if (action !== "proposal" && envelope.metadata?.proposal) {
     throw new Error("llm_isolation_violation");
   }
-}
-
-function hashText(input: string): string {
-  let h = 2166136261;
-  for (let i = 0; i < input.length; i += 1) {
-    h ^= input.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0).toString(16).padStart(8, "0");
-}
-
-function buildDeterministicId(history: MessageEnvelope[], content: string): string {
-  const seed = history.map((m) => `${m.role}:${m.id}:${m.content}`).join("\n");
-  const h1 = hashText(seed);
-  const h2 = hashText(content);
-  return `asst-${h1}-${h2}`;
-}
-
-function fallbackReply(reason: string, history: MessageEnvelope[]): MessageEnvelope {
-  const content =
-    reason === "no_api_key"
-      ? "OPENROUTER_API_KEY is not set. Staying in READ_ONLY mode with local assistant fallback."
-      : "OpenRouter request failed. Staying in READ_ONLY mode with local assistant fallback.";
-  return {
-    id: buildDeterministicId(history, content),
-    role: "assistant",
-    content,
-    createdAt: Date.now(),
-    metadata: {
-      action: "analysis",
-    },
-  };
-}
-
-async function toOpenRouterMessages(
-  history: MessageEnvelope[]
-): Promise<OpenRouterChatMessage[]> {
-  const conversation = history
-    .filter(
-      (m) =>
-        m.role === "system" || m.role === "operator" || m.role === "assistant"
-    )
-    .map((m): OpenRouterChatMessage => {
-      if (m.role === "system") return { role: "system", content: m.content };
-      if (m.role === "assistant") return { role: "assistant", content: m.content };
-      return { role: "user", content: m.content };
-    });
-
-  const skillSummary = await getSkillContextSummary();
-  const guardrail: OpenRouterChatMessage = {
-    role: "system",
-    content: [
-      "You are netnet operator assistant in strict READ_ONLY mode.",
-      "No route calls, no tool calls, no side effects, and no execution guidance.",
-      "You may only provide analysis and suggestions.",
-      "When suggesting a skill, return ONLY JSON with this exact structure:",
-      '{"type":"skill.proposal","skillId":"...","route":"...","reasoning":"...","proposedBody":{},"riskLevel":"low|medium|high"}',
-      "If no skill suggestion is needed, return concise plain-text analysis.",
-      "Never imply any action was executed.",
-      skillSummary,
-    ].join(" "),
-  };
-
-  return [guardrail, ...conversation];
+  return envelope;
 }
 
 export async function generateAssistantReply(
   messages: MessageEnvelope[]
 ): Promise<MessageEnvelope> {
-  const apiKey = process.env.OPENROUTER_API_KEY?.trim();
-  if (!apiKey) return fallbackReply("no_api_key", messages);
-
-  const model = process.env.OPENROUTER_MODEL?.trim() || "openai/gpt-4o-mini";
-  const promptMessages = await toOpenRouterMessages(messages);
-  const payload = {
-    model,
-    messages: promptMessages,
-    temperature: 0.2,
-  };
-
-  try {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${apiKey}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify(payload),
-      cache: "no-store",
-    });
-
-    const json = (await response.json().catch(() => ({}))) as any;
-    if (!response.ok) {
-      return fallbackReply("request_failed", messages);
-    }
-
-    const raw = String(json?.choices?.[0]?.message?.content ?? "").trim();
-    const proposal = parseSkillProposalEnvelopeFromContent(raw);
-    const content = proposal
-      ? stringifySkillProposalEnvelope(proposal)
-      : raw || "No assistant content returned.";
-    const action: "analysis" | "proposal" = proposal ? "proposal" : "analysis";
-    assertLlmIsolation(action, proposal);
-    const proposalMetadata = action === "proposal" ? proposal ?? undefined : undefined;
-    return {
-      id: buildDeterministicId(messages, content),
-      role: "assistant",
-      content,
-      createdAt: Date.now(),
-      metadata: {
-        action,
-        proposal: proposalMetadata,
-      },
-    };
-  } catch {
-    return fallbackReply("request_failed", messages);
-  }
+  const engine = getOperatorEngine();
+  const reply = await engine.generate(messages);
+  return assertAssistantEnvelope(reply);
 }
