@@ -1,5 +1,7 @@
 import type { ExecutionPlan, SkillProposalEnvelope } from "@/lib/operator/types";
 
+export type { ExecutionPlan } from "@/lib/operator/types";
+
 export function buildExecutionPlan(proposal: SkillProposalEnvelope): ExecutionPlan {
   return {
     proposalId: proposal.id,
@@ -16,4 +18,3 @@ export function buildExecutionPlan(proposal: SkillProposalEnvelope): ExecutionPl
     summary: `Would call POST ${proposal.route} with provided payload.`,
   };
 }
-

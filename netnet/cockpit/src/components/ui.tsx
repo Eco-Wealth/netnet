@@ -157,6 +157,23 @@ export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement
   );
 }
 
+// Backward-compatible alias retained for pages importing the old component name.
+export const TextArea = Textarea;
+
+export function Code(props: React.HTMLAttributes<HTMLElement>) {
+  const { className, ...rest } = props;
+  return (
+    <pre
+      {...rest}
+      className={cx(
+        "max-h-[420px] overflow-auto rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-white/90",
+        "font-mono whitespace-pre-wrap break-words",
+        className
+      )}
+    />
+  );
+}
+
 /** Used by GovernancePolicyEditor */
 export function Pill({ children }: { children: React.ReactNode }) {
   return (

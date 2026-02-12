@@ -96,3 +96,34 @@ export type ProgramStatus = {
   lastAnomaly?: { at: string; reason: string };
   recentFailures: number;
 };
+
+export type SpendPolicyEnvelope = {
+  autonomyLevel: AutonomyLevel;
+  allowlists: {
+    venues: string[];
+    chains: string[];
+    tokens: string[];
+  };
+  caps: {
+    maxUsdPerTrade: number;
+    maxUsdPerDay: number;
+  };
+};
+
+export type EnforcePolicyContext = {
+  route?: string;
+  chain?: string;
+  venue?: string;
+  fromToken?: string;
+  toToken?: string;
+  amountUsd?: number;
+};
+
+export type PolicyDecision = {
+  ok: boolean;
+  action: PolicyAction;
+  mode: "READ_ONLY" | "PROPOSE_ONLY";
+  requiresApproval: boolean;
+  reasons: string[];
+  policy: SpendPolicyEnvelope;
+};

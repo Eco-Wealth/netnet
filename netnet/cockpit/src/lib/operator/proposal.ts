@@ -2,6 +2,8 @@ import { z } from "zod";
 import type { SkillProposalEnvelope } from "@/lib/operator/types";
 import { createMessageId } from "@/lib/operator/types";
 
+export type { SkillProposalEnvelope } from "@/lib/operator/types";
+
 const BaseProposal = z.object({
   type: z.literal("skill.proposal"),
   skillId: z.string().min(1),
@@ -56,4 +58,3 @@ export function extractSkillProposalEnvelope(content: string): SkillProposalEnve
     return null;
   }
 }
-

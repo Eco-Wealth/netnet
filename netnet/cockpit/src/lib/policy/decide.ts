@@ -1,10 +1,17 @@
 import crypto from "crypto";
-import type { DecideInput, Decision } from "./types";
+import type { DecideInput, Decision, PolicyAction, ProgramId } from "./types";
 import { loadPolicyConfig } from "./config";
 import { getProgramStatus, pauseProgram } from "./circuitBreaker";
 
 function cid() {
   return crypto.randomBytes(8).toString("hex");
+}
+
+export function programForAction(action: PolicyAction): ProgramId {
+  const cfg = loadPolicyConfig();
+  const programs = Object.values(cfg.programs);
+  const match = programs.find((program) => program.allow.actions.includes(action));
+  return match?.id ?? "TRADING_LOOP";
 }
 
 export function decide(input: DecideInput): Decision {

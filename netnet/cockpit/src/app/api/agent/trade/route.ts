@@ -22,3 +22,34 @@ export async function GET(req: NextRequest) {
     error: { code: "UNSUPPORTED_ACTION", message: `Unsupported action: ${action}` },
   }, { status: 400 });
 }
+
+export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => ({}));
+  const amount =
+    typeof body?.amountUsd === "number"
+      ? body.amountUsd
+      : typeof body?.amount === "number"
+      ? body.amount
+      : 0;
+  const economics = feeRouting(amount);
+
+  return withObsJson(req, "/api/agent/trade", {
+    ok: true,
+    mode: "DRY_RUN",
+    requiresApproval: true,
+    executionPlan: {
+      action: "trade.plan",
+      route: "/api/agent/trade",
+      dryRun: true,
+      intent: {
+        from: typeof body?.from === "string" ? body.from : "USDC",
+        to: typeof body?.to === "string" ? body.to : "ETH",
+        chain: typeof body?.chain === "string" ? body.chain : "base",
+        amountUsd: amount,
+      },
+    },
+    economics,
+    nextAction:
+      "Review executionPlan and policy checks. If approved, submit to execution boundary.",
+  });
+}

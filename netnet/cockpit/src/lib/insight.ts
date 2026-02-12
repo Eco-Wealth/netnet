@@ -15,3 +15,5 @@ export function insightTitle(insight: InsightSpec): string {
   return parts.join("\n");
 }
 
+// Backward-compatible alias retained for pages importing the old helper name.
+export const toInsightTitle = insightTitle;
