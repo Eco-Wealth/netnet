@@ -12,6 +12,7 @@ import type { OperatorStrategyTemplate } from "@/lib/operator/strategies";
 import type { MessageEnvelope, SkillProposalEnvelope } from "@/lib/operator/types";
 import {
   approveProposalAction,
+  createDraftProposalFromTemplate,
   executeProposalAction,
   lockExecutionIntentAction,
   proposeStrategyFromAssistantProposal,
@@ -197,6 +198,20 @@ export default function OperatorConsoleClient({
     });
   }
 
+  async function runActionNow(
+    actionKey: string,
+    fn: () => Promise<OperatorStateResponse>,
+    targetThreadId: string | null = activeThreadId
+  ): Promise<void> {
+    setLoadingAction(actionKey);
+    try {
+      const next = await fn();
+      applyState(next, targetThreadId);
+    } finally {
+      setLoadingAction(null);
+    }
+  }
+
   function onSend() {
     const value = draft.trim();
     if (!value) return;
@@ -258,6 +273,13 @@ export default function OperatorConsoleClient({
             messages={messages}
             strategies={strategyMemory}
             policyMode={policyMode}
+            onCreateDraftProposal={(templateId, input) =>
+              runActionNow(
+                `template:${templateId}`,
+                () => createDraftProposalFromTemplate(templateId, input),
+                activeThreadId
+              )
+            }
           />
         </aside>
       </div>

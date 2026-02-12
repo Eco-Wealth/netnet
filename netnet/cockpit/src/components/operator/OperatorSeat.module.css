@@ -521,6 +521,23 @@
   gap: 6px;
 }
 
+.nn-templateSelect {
+  width: 100%;
+  margin-top: 4px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.72);
+  color: rgba(241, 245, 249, 0.96);
+  font-size: 12px;
+  padding: 6px 8px;
+}
+
+.nn-templateFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
 .nn-bankrInput {
   width: 100%;
   margin-top: 4px;
@@ -682,6 +699,10 @@
   }
 
   .nn-bankrParams {
+    grid-template-columns: 1fr;
+  }
+
+  .nn-templateFields {
     grid-template-columns: 1fr;
   }
 }

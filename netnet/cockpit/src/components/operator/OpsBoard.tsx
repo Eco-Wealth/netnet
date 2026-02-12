@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Button } from "@/components/ui";
+import { Button, Input } from "@/components/ui";
 import styles from "@/components/operator/OperatorSeat.module.css";
 import Tooltip from "@/components/operator/Tooltip";
 import {
@@ -9,6 +9,10 @@ import {
   fetchBankrWalletSnapshot,
   type BankrTokenInfoParams,
 } from "@/app/operator/actions";
+import {
+  listBankrTemplates,
+  type BankrTemplateId,
+} from "@/lib/operator/templates/bankr";
 import type { Strategy } from "@/lib/operator/strategy";
 import type { MessageEnvelope, SkillProposalEnvelope } from "@/lib/operator/types";
 
@@ -17,9 +21,14 @@ type OpsBoardProps = {
   messages: MessageEnvelope[];
   strategies: Strategy[];
   policyMode: string;
+  onCreateDraftProposal: (
+    templateId: string,
+    input: Record<string, string>
+  ) => Promise<void>;
 };
 
 type SectionKey =
+  | "bankrQuickActions"
   | "strategies"
   | "activeStrategies"
   | "pendingApprovals"
@@ -30,6 +39,7 @@ type SectionKey =
   | "bankrReadOnly";
 
 const DEFAULT_SECTIONS: Record<SectionKey, boolean> = {
+  bankrQuickActions: true,
   strategies: true,
   activeStrategies: true,
   pendingApprovals: true,
@@ -38,6 +48,33 @@ const DEFAULT_SECTIONS: Record<SectionKey, boolean> = {
   policyMode: true,
   pnl: true,
   bankrReadOnly: true,
+};
+
+const BANKR_TEMPLATE_FIELDS: Record<
+  BankrTemplateId,
+  Array<{ key: string; label: string; placeholder: string }>
+> = {
+  bankr_dca: [
+    { key: "token", label: "token", placeholder: "ECO" },
+    { key: "amount", label: "amount", placeholder: "100" },
+    { key: "cadence", label: "cadence", placeholder: "daily" },
+    { key: "venue", label: "venue", placeholder: "bankr" },
+  ],
+  bankr_lp_probe: [
+    { key: "pair", label: "pair", placeholder: "ECO/USDC" },
+    { key: "amount", label: "amount", placeholder: "200" },
+    { key: "feeTier", label: "fee tier", placeholder: "0.3%" },
+    { key: "range", label: "range", placeholder: "balanced" },
+    { key: "venue", label: "venue", placeholder: "bankr" },
+  ],
+  bankr_rebalance: [
+    { key: "portfolio", label: "portfolio", placeholder: "treasury" },
+    { key: "target", label: "target", placeholder: "40/40/20" },
+    { key: "constraints", label: "constraints", placeholder: "policy caps" },
+  ],
+  bankr_wallet_snapshot: [
+    { key: "wallet", label: "wallet", placeholder: "0x..." },
+  ],
 };
 
 function Section({
@@ -64,7 +101,13 @@ function Section({
   );
 }
 
-export default function OpsBoard({ proposals, messages, strategies, policyMode }: OpsBoardProps) {
+export default function OpsBoard({
+  proposals,
+  messages,
+  strategies,
+  policyMode,
+  onCreateDraftProposal,
+}: OpsBoardProps) {
   const [sections, setSections] = useState<Record<SectionKey, boolean>>(DEFAULT_SECTIONS);
   const [expandedProposals, setExpandedProposals] = useState<Record<string, boolean>>({});
   const [walletBusy, setWalletBusy] = useState(false);
@@ -79,6 +122,17 @@ export default function OpsBoard({ proposals, messages, strategies, policyMode }
     chain: "base",
     token: "USDC",
   });
+  const templates = useMemo(() => listBankrTemplates(), []);
+  const [selectedTemplate, setSelectedTemplate] = useState<BankrTemplateId>(
+    () => templates[0]?.id ?? "bankr_dca"
+  );
+  const [templateInput, setTemplateInput] = useState<Record<string, string>>({});
+  const [templateBusy, setTemplateBusy] = useState(false);
+  const [templateNotice, setTemplateNotice] = useState<string>("");
+  const selectedTemplateDef = useMemo(
+    () => templates.find((template) => template.id === selectedTemplate) || null,
+    [templates, selectedTemplate]
+  );
 
   const activeStrategies = useMemo(
     () =>
@@ -121,6 +175,27 @@ export default function OpsBoard({ proposals, messages, strategies, policyMode }
 
   function toggleProposal(id: string) {
     setExpandedProposals((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
+
+  function requiredFields(templateId: BankrTemplateId) {
+    return BANKR_TEMPLATE_FIELDS[templateId] || [];
+  }
+
+  function onTemplateFieldChange(key: string, value: string) {
+    setTemplateInput((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function draftTemplateProposal() {
+    setTemplateBusy(true);
+    setTemplateNotice("");
+    try {
+      await onCreateDraftProposal(selectedTemplate, templateInput);
+      setTemplateNotice("Draft proposal created.");
+    } catch {
+      setTemplateNotice("Couldn't create draft proposal.");
+    } finally {
+      setTemplateBusy(false);
+    }
   }
 
   function formatSnapshot(value: unknown): string {
@@ -225,6 +300,65 @@ export default function OpsBoard({ proposals, messages, strategies, policyMode }
       </div>
 
       <div className={styles["nn-opsBoard"]}>
+        <Section
+          title="Bankr Quick Actions"
+          open={sections.bankrQuickActions}
+          onToggle={() => toggle("bankrQuickActions")}
+        >
+          <div className={styles["nn-listItem"]}>
+            <label className={styles["nn-muted"]}>
+              template
+              <select
+                className={styles["nn-templateSelect"]}
+                value={selectedTemplate}
+                onChange={(event) => {
+                  setSelectedTemplate(event.target.value as BankrTemplateId);
+                  setTemplateNotice("");
+                }}
+              >
+                {templates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className={styles["nn-templateFields"]}>
+              {requiredFields(selectedTemplate).map((field) => (
+                <label key={field.key} className={styles["nn-muted"]}>
+                  {field.label}
+                  <Input
+                    value={templateInput[field.key] || ""}
+                    onChange={(event) =>
+                      onTemplateFieldChange(field.key, event.target.value)
+                    }
+                    placeholder={field.placeholder}
+                  />
+                </label>
+              ))}
+            </div>
+            {selectedTemplateDef ? (
+              <div className={styles["nn-muted"]}>{selectedTemplateDef.summary}</div>
+            ) : null}
+
+            <Tooltip text="Creates a proposal you must approve before anything can run.">
+              <span>
+                <Button
+                  size="sm"
+                  onClick={draftTemplateProposal}
+                  disabled={templateBusy}
+                >
+                  {templateBusy ? "Drafting..." : "Draft Proposal"}
+                </Button>
+              </span>
+            </Tooltip>
+            {templateNotice ? (
+              <div className={styles["nn-muted"]}>{templateNotice}</div>
+            ) : null}
+          </div>
+        </Section>
+
         <Section title="Strategies" open={sections.strategies} onToggle={() => toggle("strategies")}>
           {draftStrategies.length ? (
             draftStrategies.map((strategy) => (
@@ -411,7 +545,7 @@ export default function OpsBoard({ proposals, messages, strategies, policyMode }
             <div className={styles["nn-bankrParams"]}>
               <label className={styles["nn-muted"]}>
                 chain
-                <input
+                <Input
                   className={styles["nn-bankrInput"]}
                   value={tokenQuery.chain || ""}
                   onChange={(event) =>
@@ -421,7 +555,7 @@ export default function OpsBoard({ proposals, messages, strategies, policyMode }
               </label>
               <label className={styles["nn-muted"]}>
                 token
-                <input
+                <Input
                   className={styles["nn-bankrInput"]}
                   value={tokenQuery.token || ""}
                   onChange={(event) =>

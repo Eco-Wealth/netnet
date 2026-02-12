@@ -8,6 +8,11 @@ import { GET as bankrWalletGet } from "@/app/api/bankr/wallet/route";
 import { GET as bankrTokenInfoGet } from "@/app/api/bankr/token/info/route";
 import { buildBankrStrategyTemplate } from "@/lib/operator/strategyTemplates";
 import {
+  buildBankrProposalTemplate,
+  listBankrTemplates,
+  type BankrTemplateId,
+} from "@/lib/operator/templates/bankr";
+import {
   appendAuditMessage,
   appendMessage,
   approveProposal,
@@ -369,5 +374,75 @@ export async function proposeStrategyFromAssistantProposal(
     `Strategy drafted from approved proposal: ${strategy.id}`,
     "strategy.propose"
   );
+  return state();
+}
+
+export async function createDraftProposalFromTemplate(
+  templateId: string,
+  input: Record<string, string>
+): Promise<OperatorStateResponse> {
+  const validTemplateIds = new Set(listBankrTemplates().map((template) => template.id));
+  if (!validTemplateIds.has(templateId as BankrTemplateId)) {
+    appendAuditMessage("Draft proposal failed: unknown template.", "proposal.template.error");
+    return state();
+  }
+
+  try {
+    const proposal = buildBankrProposalTemplate(
+      templateId as BankrTemplateId,
+      input || {}
+    );
+
+    const action =
+      typeof proposal.proposedBody.action === "string"
+        ? proposal.proposedBody.action
+        : "bankr.plan";
+    const policyAction = action.startsWith("bankr.")
+      ? (action as
+          | "bankr.plan"
+          | "bankr.quote"
+          | "bankr.wallet.read"
+          | "bankr.token.read"
+          | "bankr.token.actions.plan")
+      : "bankr.plan";
+
+    const gate = enforcePolicy(policyAction, {
+      route: proposal.route,
+      venue: "bankr",
+      chain: String(proposal.proposedBody.chain || ""),
+      fromToken: String(
+        proposal.proposedBody.token || proposal.proposedBody.from || ""
+      ),
+    });
+    if (!gate.ok) {
+      appendAuditMessage(
+        "Draft proposal blocked: policy_denied",
+        "proposal.template.error"
+      );
+      return state();
+    }
+
+    upsertProposal(proposal);
+    ensureStrategyForProposal(proposal);
+    const proposalJson = JSON.stringify(proposal, null, 2);
+
+    appendMessage({
+      role: "assistant",
+      content: `Draft proposal generated from Bankr template.\n\n\`\`\`json\n${proposalJson}\n\`\`\``,
+      metadata: {
+        action: "proposal",
+        proposalId: proposal.id,
+        proposal,
+        tags: ["proposal", "template", "bankr", proposal.riskLevel],
+        policySnapshot: policySnapshot(),
+      },
+    });
+  } catch (error) {
+    appendAuditMessage(
+      `Draft proposal failed: ${normalizeError(error)}`,
+      "proposal.template.error"
+    );
+  }
+
   return state();
 }

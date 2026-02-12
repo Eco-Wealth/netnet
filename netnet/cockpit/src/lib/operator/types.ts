@@ -54,6 +54,7 @@ export type MessageMetadata = {
   proofId?: string;
   action?: string;
   proposalId?: string;
+  proposal?: SkillProposalEnvelope;
   tags?: string[];
   plan?: ExecutionPlan;
   executionResult?: ExecutionResultEnvelope;
