@@ -3,6 +3,7 @@
 import { Fragment, useMemo, useState } from "react";
 import Insight from "@/components/Insight";
 import Tooltip from "@/components/operator/Tooltip";
+import type { ThreadItem } from "@/components/operator/ThreadSidebar";
 import { Button, Textarea } from "@/components/ui";
 import styles from "@/components/operator/OperatorSeat.module.css";
 import type { SkillInfo } from "@/lib/operator/skillContext";
@@ -25,6 +26,10 @@ type ConversationPanelProps = {
   onLockIntent: (id: string) => void;
   onExecute: (id: string) => void;
   loadingAction: string | null;
+  threads: ThreadItem[];
+  activeThreadId: string | null;
+  onSelectThread: (id: string) => void;
+  onCreateThread: () => void;
 };
 
 function escapeHtml(input: string): string {
@@ -316,6 +321,10 @@ export default function ConversationPanel({
   onLockIntent,
   onExecute,
   loadingAction,
+  threads,
+  activeThreadId,
+  onSelectThread,
+  onCreateThread,
 }: ConversationPanelProps) {
   const ordered = useMemo(() => [...messages].sort((a, b) => a.createdAt - b.createdAt), [messages]);
   const proposalById = useMemo(
@@ -327,12 +336,40 @@ export default function ConversationPanel({
   const [showStrategies, setShowStrategies] = useState(false);
 
   return (
-    <div className={styles["nn-columnBody"]}>
-      <div className={styles["nn-sectionHeader"]}>
+    <div className={[styles["nn-columnBody"], styles.panelBody].join(" ")}>
+      <div className={[styles["nn-sectionHeader"], styles.panelHeader].join(" ")}>
         <div>
-          <div className={styles["nn-sectionTitle"]}>Conversational LLM Interface</div>
+          <div className={styles["nn-sectionTitle"]}>Operator Chat</div>
           <div className={styles["nn-muted"]}>Policy mode: {policyMode}</div>
         </div>
+        <div className={styles["nn-headerControls"]}>
+          <select
+            className={styles["nn-threadSelect"]}
+            value={activeThreadId ?? ""}
+            onChange={(event) => {
+              const next = event.target.value;
+              if (next) onSelectThread(next);
+            }}
+            aria-label="Select thread"
+          >
+            {activeThreadId ? null : <option value="">All messages</option>}
+            {threads.map((thread) => (
+              <option key={thread.id} value={thread.id}>
+                {thread.title} ({thread.messageCount})
+              </option>
+            ))}
+          </select>
+          <Tooltip text="Create a fresh conversation thread.">
+            <span>
+              <Button size="sm" onClick={onCreateThread}>
+                New
+              </Button>
+            </span>
+          </Tooltip>
+        </div>
+      </div>
+
+      <div className={styles["nn-toolbarRow"]}>
         <div className={styles["nn-chipRow"]}>
           <Button size="sm" variant="subtle" onClick={() => setShowSkills((prev) => !prev)}>
             {showSkills ? "Hide Skills" : "Skills"}
@@ -341,6 +378,7 @@ export default function ConversationPanel({
             {showStrategies ? "Hide Strategies" : "Strategies"}
           </Button>
         </div>
+        <div className={styles["nn-muted"]}>Threaded, proposal-first workflow.</div>
       </div>
 
       <div className={styles["nn-guidanceStrip"]}>
@@ -402,11 +440,14 @@ export default function ConversationPanel({
             : null;
 
           return (
-            <div key={message.id} className={styles["nn-messageRow"]}>
+            <div
+              key={message.id}
+              className={[styles["nn-messageRow"], styles.messageRow].join(" ")}
+            >
               <div
                 className={[styles["nn-message"], roleClassName(message.role)].join(" ")}
               >
-                <div className={styles["nn-messageMeta"]}>
+                <div className={[styles["nn-messageMeta"], styles.messageMeta].join(" ")}>
                   <div className={styles["nn-role"]}>{message.role}</div>
                   <div className={styles["nn-time"]}>
                     {new Date(message.createdAt).toLocaleTimeString([], {
@@ -451,7 +492,7 @@ export default function ConversationPanel({
         })}
       </div>
 
-      <div className={styles["nn-inputBar"]}>
+      <div className={[styles["nn-inputBar"], styles.composer].join(" ")}>
         <Insight
           insight={{
             what: "Write your operator instruction for analysis or proposal drafting.",

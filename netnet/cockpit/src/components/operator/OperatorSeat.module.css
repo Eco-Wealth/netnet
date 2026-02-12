@@ -1,11 +1,44 @@
 .nn-root {
+  width: 100%;
   display: grid;
-  gap: 8px;
+  gap: 12px;
   color: #f1f5f9;
+  font-size: 14px;
 }
 
 .nn-pagePad {
-  padding: 8px;
+  width: 100%;
+  padding: 12px;
+}
+
+.seat {
+  width: 100%;
+}
+
+.nn-main {
+  display: grid;
+  grid-template-columns: minmax(520px, 1fr) clamp(360px, 34vw, 420px);
+  gap: 12px;
+  min-height: calc(100vh - 200px);
+  align-items: stretch;
+}
+
+.left {
+  min-width: 0;
+  min-height: 0;
+}
+
+.right {
+  min-width: 0;
+  min-height: 0;
+}
+
+.panel {
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(2, 6, 23, 0.96));
 }
 
 .nn-topbar {
@@ -15,63 +48,63 @@
   justify-content: space-between;
   gap: 8px;
   padding: 8px 10px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 12px;
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.95), rgba(2, 6, 23, 0.96));
-  box-shadow: 0 6px 16px rgba(2, 6, 23, 0.24);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.98));
 }
 
 .nn-topbarTitle {
-  font-size: 11px;
+  font-size: 16px;
+  line-height: 1.2;
   font-weight: 600;
-  letter-spacing: 0.01em;
 }
 
 .nn-topbarSubtle {
-  font-size: 10px;
-  color: rgba(226, 232, 240, 0.66);
+  margin-top: 2px;
+  font-size: 12px;
+  color: rgba(226, 232, 240, 0.72);
+}
+
+.nn-topbarModes {
+  display: grid;
+  gap: 4px;
+  justify-items: end;
+}
+
+.nn-currentMode {
+  font-size: 12px;
+  color: rgba(226, 232, 240, 0.82);
 }
 
 .nn-modeGroup {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
 }
 
-.nn-modeWrap {
+.nn-modeChip {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 62px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0 8px;
+}
+
+.nn-modeActive {
+  border-color: rgba(56, 189, 248, 0.56);
+  background: rgba(14, 116, 144, 0.36);
+  color: rgba(241, 245, 249, 0.98);
 }
 
 .nn-modeInactive {
-  opacity: 0.78;
-}
-
-.nn-main {
-  display: grid;
-  grid-template-columns: minmax(210px, 1fr) minmax(560px, 2.6fr) minmax(240px, 1fr);
-  gap: 8px;
-  min-height: calc(100vh - 170px);
-}
-
-.nn-column {
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 12px;
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.88), rgba(2, 6, 23, 0.94));
-}
-
-.nn-threadColumn {
-  display: flex;
-}
-
-.nn-chatColumn {
-  display: flex;
-}
-
-.nn-opsColumn {
-  display: flex;
+  opacity: 0.72;
+  background: rgba(15, 23, 42, 0.66);
 }
 
 .nn-columnBody {
@@ -82,19 +115,61 @@
   flex-direction: column;
 }
 
+.panelHeader {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.panelBody {
+  min-height: 0;
+}
+
 .nn-sectionHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
-  padding: 8px 10px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+  gap: 8px;
+  padding: 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
 }
 
 .nn-sectionTitle {
-  font-size: 10px;
+  font-size: 16px;
+  line-height: 1.2;
   font-weight: 600;
   color: rgba(241, 245, 249, 0.95);
+}
+
+.nn-muted {
+  font-size: 12px;
+  color: rgba(226, 232, 240, 0.68);
+}
+
+.nn-headerControls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.nn-threadSelect {
+  width: 220px;
+  max-width: 44vw;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(15, 23, 42, 0.72);
+  color: rgba(241, 245, 249, 0.96);
+  font-size: 12px;
+  padding: 6px 8px;
+}
+
+.nn-toolbarRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
 }
 
 .nn-chipRow {
@@ -105,12 +180,12 @@
 }
 
 .nn-chip {
-  font-size: 10px;
+  font-size: 12px;
   border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.24);
+  border: 1px solid rgba(148, 163, 184, 0.25);
   background: rgba(15, 23, 42, 0.72);
-  color: rgba(226, 232, 240, 0.84);
-  padding: 1px 7px;
+  color: rgba(226, 232, 240, 0.88);
+  padding: 2px 8px;
 }
 
 .nn-statusDot {
@@ -135,107 +210,82 @@
   box-shadow: 0 0 7px rgba(248, 113, 113, 0.58);
 }
 
-.nn-sidebarList {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  display: grid;
-  gap: 5px;
-  padding: 6px;
-}
-
-.nn-threadItem {
-  width: 100%;
+.nn-guidanceStrip {
+  margin: 8px 10px 0;
   border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 9px;
-  background: rgba(15, 23, 42, 0.58);
-  padding: 8px;
-  text-align: left;
-  display: grid;
-  gap: 4px;
-  transition: opacity 120ms ease, transform 120ms ease;
-}
-
-.nn-threadItem:hover {
-  opacity: 0.92;
-  transform: translateY(-1px);
-}
-
-.nn-threadActive {
-  border-color: rgba(96, 165, 250, 0.48);
-  background: rgba(30, 58, 138, 0.28);
-}
-
-.nn-threadTitle {
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.48);
+  color: rgba(226, 232, 240, 0.8);
   font-size: 12px;
-  color: rgba(241, 245, 249, 0.96);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  padding: 7px 9px;
 }
 
-.nn-threadMeta {
-  display: flex;
-  justify-content: space-between;
+.nn-starterList {
+  display: grid;
   gap: 6px;
-  font-size: 10px;
-  color: rgba(226, 232, 240, 0.62);
+  padding: 8px 10px 0;
 }
 
-.nn-empty {
-  border: 1px dashed rgba(148, 163, 184, 0.25);
-  border-radius: 9px;
-  padding: 10px;
-  font-size: 11px;
-  color: rgba(226, 232, 240, 0.62);
+.nn-starterGrid {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .nn-conversationScroll {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 8px;
-  display: grid;
-  gap: 6px;
-  align-content: start;
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.messageRow {
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.messageRow:first-child {
+  border-top: 0;
 }
 
 .nn-messageRow {
   display: flex;
   justify-content: flex-start;
+  padding: 8px 0;
 }
 
 .nn-message {
-  width: min(100%, 720px);
+  width: 100%;
   border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 10px;
-  padding: 8px;
+  border-left-width: 2px;
+  border-radius: 8px;
+  padding: 10px;
   background: rgba(15, 23, 42, 0.56);
-  transition: opacity 120ms ease, transform 120ms ease;
-}
-
-.nn-message:hover {
-  border-color: rgba(148, 163, 184, 0.35);
-  transform: translateY(-1px);
 }
 
 .nn-messageSystem {
-  background: rgba(51, 65, 85, 0.32);
+  background: rgba(51, 65, 85, 0.26);
+  border-left-color: rgba(148, 163, 184, 0.45);
 }
 
 .nn-messageOperator {
-  background: rgba(20, 83, 45, 0.38);
-  border-color: rgba(74, 222, 128, 0.42);
+  background: rgba(20, 83, 45, 0.28);
+  border-left-color: rgba(74, 222, 128, 0.66);
 }
 
 .nn-messageAssistant {
-  background: rgba(30, 58, 138, 0.36);
-  border-color: rgba(96, 165, 250, 0.44);
+  background: rgba(30, 58, 138, 0.24);
+  border-left-color: rgba(96, 165, 250, 0.62);
 }
 
 .nn-messageSkill {
-  background: rgba(120, 53, 15, 0.34);
-  border-color: rgba(251, 191, 36, 0.42);
+  background: rgba(120, 53, 15, 0.22);
+  border-left-color: rgba(251, 191, 36, 0.6);
+}
+
+.messageMeta {
+  margin-bottom: 6px;
 }
 
 .nn-messageMeta {
@@ -243,18 +293,17 @@
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 4px;
-  margin-bottom: 4px;
 }
 
 .nn-role {
-  font-size: 10px;
-  letter-spacing: 0.07em;
+  font-size: 12px;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: rgba(226, 232, 240, 0.74);
+  color: rgba(226, 232, 240, 0.7);
 }
 
 .nn-time {
-  font-size: 10px;
+  font-size: 12px;
   color: rgba(226, 232, 240, 0.58);
 }
 
@@ -262,12 +311,12 @@
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .nn-markdown {
-  font-size: 13px;
-  line-height: 1.48;
+  font-size: 14px;
+  line-height: 1.45;
   color: rgba(241, 245, 249, 0.95);
 }
 
@@ -278,6 +327,7 @@
 .nn-markdown h3,
 .nn-markdown h4 {
   margin: 5px 0;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -290,7 +340,7 @@
 .nn-markdown code {
   border-radius: 5px;
   border: 1px solid rgba(148, 163, 184, 0.24);
-  background: rgba(15, 23, 42, 0.8);
+  background: rgba(15, 23, 42, 0.82);
   padding: 1px 4px;
   font-size: 12px;
 }
@@ -300,20 +350,34 @@
   overflow-x: auto;
   border-radius: 7px;
   border: 1px solid rgba(148, 163, 184, 0.2);
-  background: rgba(2, 6, 23, 0.95);
-  padding: 7px;
+  background: rgba(2, 6, 23, 0.94);
+  padding: 8px;
   font-size: 12px;
+}
+
+.nn-emptyCoach {
+  border: 1px dashed rgba(148, 163, 184, 0.28);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.4);
+  padding: 10px;
+  font-size: 13px;
+  color: rgba(241, 245, 249, 0.9);
+}
+
+.composer {
+  margin-top: auto;
 }
 
 .nn-inputBar {
   border-top: 1px solid rgba(148, 163, 184, 0.16);
-  padding: 8px;
+  padding: 10px;
   display: grid;
-  gap: 6px;
+  gap: 8px;
+  background: rgba(2, 6, 23, 0.5);
 }
 
 .nn-input {
-  min-height: 76px;
+  min-height: 84px;
   resize: vertical;
 }
 
@@ -326,17 +390,11 @@
 
 .nn-proposalCard {
   border: 1px solid rgba(96, 165, 250, 0.34);
-  border-radius: 9px;
-  background: linear-gradient(180deg, rgba(30, 58, 138, 0.26), rgba(15, 23, 42, 0.74));
-  padding: 8px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(30, 58, 138, 0.24), rgba(15, 23, 42, 0.74));
+  padding: 10px;
   display: grid;
-  gap: 6px;
-  transition: border-color 120ms ease, transform 120ms ease;
-}
-
-.nn-proposalCard:hover {
-  border-color: rgba(96, 165, 250, 0.56);
-  transform: translateY(-1px);
+  gap: 7px;
 }
 
 .nn-proposalHead {
@@ -348,45 +406,40 @@
 }
 
 .nn-proposalTitle {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
 }
 
 .nn-proposalRoute {
-  font-size: 11px;
+  font-size: 12px;
   color: rgba(226, 232, 240, 0.74);
 }
 
 .nn-inlineHint {
-  font-size: 11px;
-  color: rgba(226, 232, 240, 0.66);
-}
-
-.nn-starterList {
-  display: grid;
-  gap: 6px;
-  padding: 0 8px 6px;
-}
-
-.nn-starterGrid {
-  display: grid;
-  gap: 6px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  font-size: 12px;
+  color: rgba(226, 232, 240, 0.7);
 }
 
 .nn-opsBoard {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 6px;
+  padding: 8px;
   display: grid;
+  gap: 8px;
+}
+
+.nn-summaryBadges {
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
+  padding: 8px 10px 0;
 }
 
 .nn-collapsible {
   border: 1px solid rgba(148, 163, 184, 0.2);
-  border-radius: 9px;
-  background: rgba(15, 23, 42, 0.57);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.58);
   overflow: hidden;
 }
 
@@ -395,56 +448,109 @@
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  padding: 6px 8px;
+  padding: 8px 10px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.14);
 }
 
 .nn-collapseBody {
-  padding: 7px 8px;
+  padding: 8px 10px;
   display: grid;
-  gap: 5px;
+  gap: 6px;
+}
+
+.nn-listHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
 }
 
 .nn-listItem {
   border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 7px;
-  background: rgba(2, 6, 23, 0.68);
-  padding: 6px 7px;
-  font-size: 12px;
-}
-
-.nn-muted {
-  font-size: 11px;
-  color: rgba(226, 232, 240, 0.64);
-}
-
-.nn-guidanceStrip {
-  margin: 6px 8px 2px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
   border-radius: 8px;
-  background: rgba(15, 23, 42, 0.5);
-  color: rgba(226, 232, 240, 0.78);
-  font-size: 11px;
-  padding: 6px 8px;
+  background: rgba(2, 6, 23, 0.68);
+  padding: 10px;
+  font-size: 13px;
+  display: grid;
+  gap: 6px;
 }
 
-.nn-emptyCoach {
-  width: min(100%, 720px);
-  border: 1px dashed rgba(148, 163, 184, 0.28);
-  border-radius: 10px;
-  background: rgba(15, 23, 42, 0.4);
-  padding: 10px;
+.nn-previewBlock {
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 7px;
+  background: rgba(15, 23, 42, 0.5);
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.nn-previewBlock pre {
+  margin: 0;
+  max-height: 160px;
+  overflow: auto;
   font-size: 12px;
-  color: rgba(241, 245, 249, 0.9);
+  border-radius: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  padding: 7px;
+  background: rgba(2, 6, 23, 0.9);
 }
 
 .nn-statusBadge {
   border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.26);
-  background: rgba(30, 58, 138, 0.38);
-  color: rgba(241, 245, 249, 0.94);
-  font-size: 10px;
-  padding: 2px 8px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(30, 58, 138, 0.35);
+  color: rgba(241, 245, 249, 0.95);
+  font-size: 12px;
+  padding: 3px 9px;
+}
+
+.nn-sidebarList {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+}
+
+.nn-threadItem {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.58);
+  padding: 8px;
+  text-align: left;
+  display: grid;
+  gap: 4px;
+}
+
+.nn-threadActive {
+  border-color: rgba(96, 165, 250, 0.5);
+  background: rgba(30, 58, 138, 0.28);
+}
+
+.nn-threadTitle {
+  font-size: 13px;
+  color: rgba(241, 245, 249, 0.96);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nn-threadMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 12px;
+  color: rgba(226, 232, 240, 0.62);
+}
+
+.nn-empty {
+  border: 1px dashed rgba(148, 163, 184, 0.25);
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 12px;
+  color: rgba(226, 232, 240, 0.62);
 }
 
 .nn-tooltipWrap {
@@ -465,10 +571,10 @@
   border-radius: 8px;
   background: rgba(2, 6, 23, 0.97);
   color: rgba(226, 232, 240, 0.94);
-  font-size: 10px;
-  line-height: 1.35;
+  font-size: 12px;
+  line-height: 1.3;
   text-align: left;
-  padding: 5px 7px;
+  padding: 6px 7px;
   opacity: 0;
   pointer-events: none;
   transition: opacity 120ms ease, transform 120ms ease;
@@ -480,35 +586,61 @@
   transform: translate(-50%, 0);
 }
 
-@media (max-width: 1280px) {
+@media (max-width: 1200px) {
   .nn-main {
-    grid-template-columns: minmax(180px, 0.95fr) minmax(0, 2fr) minmax(210px, 0.95fr);
+    grid-template-columns: minmax(0, 1fr) clamp(360px, 38vw, 400px);
   }
 }
 
 @media (max-width: 1024px) {
+  .nn-pagePad {
+    padding: 10px;
+  }
+
   .nn-main {
     grid-template-columns: 1fr;
     min-height: auto;
   }
 
-  .nn-column {
-    min-height: 420px;
+  .right {
+    min-height: 360px;
   }
 
-  .nn-threadColumn {
-    order: 1;
+  .nn-threadSelect {
+    width: 180px;
+    max-width: 52vw;
+  }
+}
+
+@media (max-width: 768px) {
+  .nn-pagePad {
+    padding: 8px;
   }
 
-  .nn-chatColumn {
-    order: 2;
+  .nn-root {
+    gap: 8px;
   }
 
-  .nn-opsColumn {
-    order: 3;
+  .nn-sectionHeader {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .nn-topbarModes {
+    justify-items: start;
+  }
+
+  .nn-toolbarRow {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .nn-starterGrid {
     grid-template-columns: 1fr;
+  }
+
+  .nn-threadSelect {
+    width: 100%;
+    max-width: 100%;
   }
 }

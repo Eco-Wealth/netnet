@@ -4,7 +4,7 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import ConversationPanel from "@/components/operator/ConversationPanel";
 import OperatorTopBar from "@/components/operator/OperatorTopBar";
 import OpsBoard from "@/components/operator/OpsBoard";
-import ThreadSidebar, { type ThreadItem } from "@/components/operator/ThreadSidebar";
+import type { ThreadItem } from "@/components/operator/ThreadSidebar";
 import styles from "@/components/operator/OperatorSeat.module.css";
 import type { SkillInfo } from "@/lib/operator/skillContext";
 import type { Strategy } from "@/lib/operator/strategy";
@@ -215,7 +215,7 @@ export default function OperatorConsoleClient({
   }
 
   return (
-    <div className={styles["nn-root"]}>
+    <div className={[styles["nn-root"], styles.seat].join(" ")}>
       <OperatorTopBar
         policyMode={policyMode}
         dbConnected={dbConnected}
@@ -224,16 +224,7 @@ export default function OperatorConsoleClient({
       />
 
       <div className={styles["nn-main"]}>
-        <aside className={[styles["nn-column"], styles["nn-threadColumn"]].join(" ")}>
-          <ThreadSidebar
-            threads={threads}
-            activeThreadId={activeThreadId}
-            onSelectThread={onSelectThread}
-            onCreateThread={onCreateThread}
-          />
-        </aside>
-
-        <section className={[styles["nn-column"], styles["nn-chatColumn"]].join(" ")}>
+        <section className={[styles.left, styles.panel].join(" ")}>
           <ConversationPanel
             messages={filteredMessages}
             proposals={proposals}
@@ -250,10 +241,14 @@ export default function OperatorConsoleClient({
             onLockIntent={(id) => runAction(`lock:${id}`, () => lockExecutionIntentAction(id))}
             onExecute={(id) => runAction(`execute:${id}`, () => executeProposalAction(id))}
             loadingAction={loadingAction}
+            threads={threads}
+            activeThreadId={activeThreadId}
+            onSelectThread={onSelectThread}
+            onCreateThread={onCreateThread}
           />
         </section>
 
-        <aside className={[styles["nn-column"], styles["nn-opsColumn"]].join(" ")}>
+        <aside className={[styles.right, styles.panel].join(" ")}>
           <OpsBoard
             proposals={proposals}
             messages={messages}
@@ -265,4 +260,3 @@ export default function OperatorConsoleClient({
     </div>
   );
 }
-

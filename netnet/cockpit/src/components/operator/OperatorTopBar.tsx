@@ -1,6 +1,5 @@
 "use client";
 
-import { Button } from "@/components/ui";
 import styles from "@/components/operator/OperatorSeat.module.css";
 import Tooltip from "@/components/operator/Tooltip";
 
@@ -35,30 +34,27 @@ export default function OperatorTopBar({
   return (
     <div className={styles["nn-topbar"]}>
       <div>
-        <div className={styles["nn-topbarTitle"]}>Operator Seat v2 · Chat-First OS</div>
-        <div className={styles["nn-topbarSubtle"]}>One surface for analysis, proposals, and controlled execution.</div>
+        <div className={styles["nn-topbarTitle"]}>Operator Seat v3</div>
+        <div className={styles["nn-topbarSubtle"]}>Dense chat-first workspace with gated execution.</div>
       </div>
 
-      <div className={styles["nn-modeGroup"]}>
-        {(["READ", "PROPOSE", "EXECUTE"] as Mode[]).map((mode) => (
-          <Tooltip key={mode} text={modeHelp[mode]}>
-            <span
-              className={[
-                styles["nn-modeWrap"],
-                active === mode ? "" : styles["nn-modeInactive"],
-              ].join(" ")}
-            >
-              <Button
-                size="sm"
-                variant={active === mode ? "solid" : "subtle"}
-                disabled
+      <div className={styles["nn-topbarModes"]}>
+        <div className={styles["nn-currentMode"]}>Current: {active}</div>
+        <div className={styles["nn-modeGroup"]}>
+          {(["READ", "PROPOSE", "EXECUTE"] as Mode[]).map((mode) => (
+            <Tooltip key={mode} text={modeHelp[mode]}>
+              <span
+                className={[
+                  styles["nn-modeChip"],
+                  active === mode ? styles["nn-modeActive"] : styles["nn-modeInactive"],
+                ].join(" ")}
                 aria-label={`Mode ${mode}`}
               >
                 {mode}
-              </Button>
-            </span>
-          </Tooltip>
-        ))}
+              </span>
+            </Tooltip>
+          ))}
+        </div>
       </div>
 
       <div className={styles["nn-chipRow"]}>

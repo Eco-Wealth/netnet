@@ -57,6 +57,7 @@ function Section({
 
 export default function OpsBoard({ proposals, messages, strategies, policyMode }: OpsBoardProps) {
   const [sections, setSections] = useState<Record<SectionKey, boolean>>(DEFAULT_SECTIONS);
+  const [expandedProposals, setExpandedProposals] = useState<Record<string, boolean>>({});
 
   const activeStrategies = useMemo(
     () =>
@@ -94,6 +95,10 @@ export default function OpsBoard({ proposals, messages, strategies, policyMode }
     setSections((prev) => ({ ...prev, [section]: !prev[section] }));
   }
 
+  function toggleProposal(id: string) {
+    setExpandedProposals((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
+
   function strategyStatusHelp(status: Strategy["status"]): string {
     if (status === "draft") return "Draft strategy: planning stage, not actively tracked yet.";
     if (status === "active") return "Active strategy: currently being executed through linked proposals.";
@@ -103,10 +108,16 @@ export default function OpsBoard({ proposals, messages, strategies, policyMode }
   }
 
   return (
-    <div className={styles["nn-columnBody"]}>
-      <div className={styles["nn-sectionHeader"]}>
+    <div className={[styles["nn-columnBody"], styles.panelBody].join(" ")}>
+      <div className={[styles["nn-sectionHeader"], styles.panelHeader].join(" ")}>
         <div className={styles["nn-sectionTitle"]}>Live Ops Board</div>
         <div className={styles["nn-muted"]}>Reactive state</div>
+      </div>
+
+      <div className={styles["nn-summaryBadges"]}>
+        <span className={styles["nn-statusBadge"]}>Policy: {policyMode}</span>
+        <span className={styles["nn-statusBadge"]}>Pending: {pendingApprovals.length}</span>
+        <span className={styles["nn-statusBadge"]}>Running: {inProgress.length}</span>
       </div>
 
       <div className={styles["nn-opsBoard"]}>
@@ -145,8 +156,31 @@ export default function OpsBoard({ proposals, messages, strategies, policyMode }
           {pendingApprovals.length ? (
             pendingApprovals.map((proposal) => (
               <div key={proposal.id} className={styles["nn-listItem"]}>
-                <div>{proposal.skillId}</div>
-                <div className={styles["nn-muted"]}>{proposal.route}</div>
+                <div className={styles["nn-listHead"]}>
+                  <div>
+                    <div>{proposal.skillId}</div>
+                    <div className={styles["nn-muted"]}>{proposal.route}</div>
+                  </div>
+                  <Button size="sm" variant="subtle" onClick={() => toggleProposal(proposal.id)}>
+                    {expandedProposals[proposal.id] ? "Less" : "Details"}
+                  </Button>
+                </div>
+                <div className={styles["nn-chipRow"]}>
+                  <span className={styles["nn-chip"]}>status: {proposal.status}</span>
+                  <span className={styles["nn-chip"]}>intent: {proposal.executionIntent}</span>
+                  <span className={styles["nn-chip"]}>risk: {proposal.riskLevel}</span>
+                </div>
+                {expandedProposals[proposal.id] ? (
+                  <div className={styles["nn-previewBlock"]}>
+                    <div className={styles["nn-muted"]}>{proposal.reasoning}</div>
+                    <pre>{JSON.stringify(proposal.proposedBody, null, 2)}</pre>
+                  </div>
+                ) : (
+                  <div className={styles["nn-muted"]}>
+                    {proposal.reasoning.slice(0, 72)}
+                    {proposal.reasoning.length > 72 ? "..." : ""}
+                  </div>
+                )}
               </div>
             ))
           ) : (
