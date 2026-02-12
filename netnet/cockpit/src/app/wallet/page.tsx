@@ -1,5 +1,9 @@
 import { WalletStatePanel } from "@/components/WalletStatePanel";
 
 export default function WalletPage() {
-  return <WalletStatePanel />;
+  return (
+    <div className="nn-page-stack">
+      <WalletStatePanel />
+    </div>
+  );
 }

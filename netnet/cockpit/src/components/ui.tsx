@@ -20,15 +20,15 @@ export function Card({
   return (
     <div
       className={cx(
-        "rounded-2xl border border-white/10 bg-white/[0.04] shadow-sm",
-        "backdrop-blur-sm",
+        "rounded-[14px] border border-white/15 bg-white/[0.03]",
+        "backdrop-blur-sm shadow-[0_8px_22px_rgba(2,6,23,0.28)]",
         className
       )}
     >
       {title ? (
-        <div className="border-b border-white/10 px-4 py-3 md:px-5">
+        <div className="border-b border-white/10 px-4 py-3">
           <div className="text-sm font-semibold text-white">{title}</div>
-          {subtitle ? <div className="mt-1 text-xs text-white/60">{subtitle}</div> : null}
+          {subtitle ? <div className="mt-1 text-xs text-white/65">{subtitle}</div> : null}
         </div>
       ) : null}
       {children}
@@ -53,7 +53,7 @@ export function CardContent({
   className?: string;
   children: React.ReactNode;
 }) {
-  return <div className={cx("px-4 pb-4 md:px-5 md:pb-5", className)}>{children}</div>;
+  return <div className={cx("px-4 pb-4", className)}>{children}</div>;
 }
 
 export function Label({
@@ -77,7 +77,7 @@ export function Muted({
   className?: string;
   children: React.ReactNode;
 }) {
-  return <div className={cx("text-sm text-white/60", className)}>{children}</div>;
+  return <div className={cx("text-sm text-white/65", className)}>{children}</div>;
 }
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -95,18 +95,18 @@ export function Button({
 }: ButtonProps) {
   const variantClass =
     variant === "ghost"
-      ? "bg-transparent text-white border border-white/15 hover:bg-white/10"
+      ? "bg-transparent text-white border border-white/15 hover:bg-white/[0.09]"
       : variant === "subtle"
-      ? "bg-white/10 text-white hover:bg-white/15 border border-white/10"
+      ? "bg-white/[0.08] text-white hover:bg-white/[0.12] border border-white/14"
       : variant === "danger"
       ? "bg-red-500/90 text-white hover:bg-red-500 border border-red-400/40"
-      : "bg-white text-black hover:bg-neutral-200 border border-white/10";
+      : "bg-white text-black hover:bg-neutral-200 border border-white/20";
 
   const sizeClass =
     size === "sm"
       ? "px-3 py-1.5 text-xs"
       : size === "lg"
-      ? "px-5 py-3 text-sm"
+      ? "px-5 py-2.5 text-sm"
       : "px-4 py-2 text-sm";
 
   const title = rest.title || (insight ? insightTitle(insight) : undefined);
@@ -117,7 +117,7 @@ export function Button({
       title={title}
       aria-label={rest["aria-label"] || title}
       className={cx(
-        "rounded-xl font-medium transition disabled:opacity-40 disabled:cursor-not-allowed",
+        "rounded-[11px] font-medium transition disabled:opacity-40 disabled:cursor-not-allowed",
         "focus:outline-none focus:ring-2 focus:ring-white/20",
         variantClass,
         sizeClass,
@@ -133,8 +133,8 @@ export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
     <input
       {...rest}
       className={cx(
-        "w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white",
-        "placeholder:text-white/35",
+        "w-full rounded-[11px] border border-white/14 bg-white/[0.05] px-3 py-2 text-sm text-white",
+        "placeholder:text-white/40",
         "focus:outline-none focus:ring-2 focus:ring-white/15",
         className
       )}
@@ -148,8 +148,8 @@ export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement
     <textarea
       {...rest}
       className={cx(
-        "w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white",
-        "placeholder:text-white/35",
+        "w-full rounded-[11px] border border-white/14 bg-white/[0.05] px-3 py-2 text-sm text-white",
+        "placeholder:text-white/40",
         "focus:outline-none focus:ring-2 focus:ring-white/15",
         className
       )}
@@ -166,7 +166,7 @@ export function Code(props: React.HTMLAttributes<HTMLElement>) {
     <pre
       {...rest}
       className={cx(
-        "max-h-[420px] overflow-auto rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-white/90",
+        "max-h-[420px] overflow-auto rounded-[11px] border border-white/14 bg-black/30 p-3 text-xs text-white/90",
         "font-mono whitespace-pre-wrap break-words",
         className
       )}

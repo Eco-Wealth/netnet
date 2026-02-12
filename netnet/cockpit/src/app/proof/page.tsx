@@ -11,14 +11,16 @@ import ProofObjectPanel from "./ProofObjectPanel";
 
 export default function ProofPage() {
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-8">
-      {/* Existing proof UI likely lives elsewhere; this is a safe baseline page if missing. */}
-      <h1 className="text-3xl font-semibold">Proof</h1>
-      <p className="mt-2 text-sm text-white/70">
+    <main className="nn-page-stack">
+      <header className="nn-page-header">
+        <div className="nn-page-kicker">Proof</div>
+        <h1>Proof</h1>
+        <p className="nn-page-lead">
         Confirm the x402 paywall is working, and produce receipt-like proof artifacts for humans and agents.
-      </p>
+        </p>
+      </header>
 
-      <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-5">
+      <div className="nn-surface">
         <div className="text-sm text-white/80">
           If you already have an existing Proof UI, keep it. This file is a fallback page + adds Proof Objects below.
         </div>

@@ -305,7 +305,7 @@ export default function OperatorConsoleClient({
           />
         </aside>
 
-        <section className={[styles["nn-center"], styles.panel].join(" ")}>
+        <section className={[styles["nn-center"], styles.panel, styles["nn-centerColumn"]].join(" ")}>
           <OperatorTopBar
             policyMode={policyMode}
             dbConnected={dbConnected}
@@ -338,7 +338,7 @@ export default function OperatorConsoleClient({
           />
         </section>
 
-        <aside className={[styles.right, styles.panel].join(" ")}>
+        <aside className={[styles.right, styles.panel, styles["nn-opsColumn"]].join(" ")}>
           <OpsBoard
             proposals={proposals}
             messages={messages}

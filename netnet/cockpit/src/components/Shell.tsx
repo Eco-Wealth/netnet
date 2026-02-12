@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Card } from "@/components/ui";
 import Insight from "@/components/Insight";
 import type { InsightSpec } from "@/lib/insight";
 
@@ -78,28 +77,32 @@ const NAV = [
 export default function Shell({ title, subtitle, children }: ShellProps) {
   const pathname = usePathname();
   const isOperatorRoute = pathname?.startsWith("/operator");
+  const current = NAV.find((n) => pathname?.startsWith(n.href));
   const inferredTitle =
     title ||
-    NAV.find((n) => pathname?.startsWith(n.href))?.label ||
+    current?.label ||
     "Cockpit";
+  const inferredSubtitle =
+    subtitle || "Policy-gated, proposal-first operator workspace.";
 
   if (isOperatorRoute) {
     return (
-      <div className="min-h-screen bg-[#070b14] text-white">
+      <div className="nn-shell">
         <main className="h-screen">{children}</main>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white text-black">
-      <div className="mx-auto max-w-5xl px-4 py-6">
-        <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <div className="text-2xl font-semibold">{inferredTitle}</div>
-            {subtitle ? <div className="mt-1 text-sm opacity-75">{subtitle}</div> : null}
+    <div className="nn-shell">
+      <div className="nn-shell-inner">
+        <header className="nn-shell-header">
+          <div className="nn-shell-titleWrap">
+            <div className="nn-shell-eyebrow">Netnet Cockpit</div>
+            <div className="nn-shell-title">{inferredTitle}</div>
+            <div className="nn-shell-subtitle">{inferredSubtitle}</div>
           </div>
-          <nav className="flex flex-wrap gap-2">
+          <nav className="nn-shell-nav">
             {NAV.map((item) => {
               const active = pathname?.startsWith(item.href);
               return (
@@ -107,8 +110,8 @@ export default function Shell({ title, subtitle, children }: ShellProps) {
                   <Link
                     href={item.href}
                     className={[
-                      "rounded-full border px-3 py-1 text-sm transition",
-                      active ? "border-black" : "opacity-75 hover:opacity-100",
+                      "nn-shell-navLink",
+                      active ? "nn-shell-navLinkActive" : "",
                     ].join(" ")}
                   >
                     {item.label}
@@ -119,9 +122,7 @@ export default function Shell({ title, subtitle, children }: ShellProps) {
           </nav>
         </header>
 
-        <main className="mt-6">
-          <Card>{children}</Card>
-        </main>
+        <main className="nn-shell-main">{children}</main>
       </div>
     </div>
   );

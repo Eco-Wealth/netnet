@@ -64,7 +64,7 @@ export default function EconomicsLoopClient() {
   }
 
   return (
-    <div className="grid gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+    <div className="nn-surface grid gap-3">
       <div className="grid gap-2 sm:grid-cols-3">
         <label className="grid gap-1 text-sm">
           <span className="opacity-70">Revenue window (days)</span>
@@ -121,7 +121,7 @@ export default function EconomicsLoopClient() {
 
       {err ? <div className="text-sm text-red-300">{err}</div> : null}
       {out ? (
-        <pre className="max-h-[420px] overflow-auto rounded-xl border border-white/10 bg-black/30 p-3 text-xs">
+        <pre className="max-h-[420px] overflow-auto rounded-[11px] border border-white/14 bg-black/30 p-3 text-xs">
           {JSON.stringify(out, null, 2)}
         </pre>
       ) : (

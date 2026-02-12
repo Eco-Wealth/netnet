@@ -79,68 +79,63 @@ export default function WorkPage() {
   }, [items]);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <div className="text-sm text-neutral-600">Ops Console</div>
-          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">
-            Work System
-          </h1>
-          <div className="mt-2 text-sm text-neutral-600">
-            Queue + SLA metadata + audit trail. Safe-by-default; execution stays gated elsewhere.
-          </div>
-        </div>
+    <div className="nn-page-stack">
+      <header className="nn-page-header">
+        <div className="nn-page-kicker">Ops Console</div>
+        <h1>Work System</h1>
+        <p className="nn-page-lead">
+          Queue, SLA metadata, and audit trail. Execution remains policy-gated.
+        </p>
+      </header>
 
-        <div className="flex flex-wrap gap-2 text-xs text-neutral-600">
-          {Object.entries(counts).map(([k, v]) => (
-            <span
-              key={k}
-              className="rounded-full border border-neutral-200 bg-white px-2 py-1 shadow-sm"
-            >
-              {k}: {v}
-            </span>
-          ))}
-        </div>
+      <div className="flex flex-wrap gap-2 text-xs">
+        {Object.entries(counts).map(([k, v]) => (
+          <span
+            key={k}
+            className="rounded-full border border-white/15 bg-white/[0.04] px-2 py-1 text-white/80"
+          >
+            {k}: {v}
+          </span>
+        ))}
       </div>
 
-      <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
-        <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
-          <div className="text-sm font-semibold text-neutral-900">New work item</div>
-
-          <label className="mt-3 block text-xs text-neutral-600">Title</label>
+      <div className="nn-grid-2">
+        <div className="nn-surface">
+          <h3>New work item</h3>
+          <label className="mt-3 block text-xs text-white/70">Title</label>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-neutral-200"
+            className="mt-1 w-full rounded-[11px] border border-white/15 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-white/15"
             placeholder="e.g., Publish proof for weekly retirement"
           />
 
-          <label className="mt-3 block text-xs text-neutral-600">Description</label>
+          <label className="mt-3 block text-xs text-white/70">Description</label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-neutral-200"
+            className="mt-1 w-full rounded-[11px] border border-white/15 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-white/15"
             rows={4}
-            placeholder="What, why, links, acceptance criteria…"
+            placeholder="What, why, links, acceptance criteria"
           />
 
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
-              <label className="block text-xs text-neutral-600">Owner</label>
+              <label className="block text-xs text-white/70">Owner</label>
               <input
                 value={owner}
                 onChange={(e) => setOwner(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-neutral-200"
+                className="mt-1 w-full rounded-[11px] border border-white/15 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-white/15"
                 placeholder="operator / agent"
               />
             </div>
 
             <div>
-              <label className="block text-xs text-neutral-600">Priority</label>
+              <label className="block text-xs text-white/70">Priority</label>
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-neutral-200"
+                className="mt-1 w-full rounded-[11px] border border-white/15 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-white/15"
               >
                 <option>LOW</option>
                 <option>MEDIUM</option>
@@ -150,43 +145,39 @@ export default function WorkPage() {
             </div>
 
             <div>
-              <label className="block text-xs text-neutral-600">Tags</label>
+              <label className="block text-xs text-white/70">Tags</label>
               <input
                 value={tags}
                 onChange={(e) => setTags(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-neutral-200"
+                className="mt-1 w-full rounded-[11px] border border-white/15 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-white/15"
                 placeholder="comma,separated"
               />
             </div>
           </div>
 
-          {error ? <div className="mt-3 text-sm text-red-600">{error}</div> : null}
+          {error ? <div className="mt-3 text-sm text-red-300">{error}</div> : null}
 
           <div className="mt-4 flex gap-2">
             <button
               onClick={create}
-              className="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:opacity-90"
+              className="rounded-[11px] border border-white/15 bg-white px-4 py-2 text-sm font-medium text-black hover:bg-neutral-100"
             >
               Create
             </button>
             <button
               onClick={refresh}
-              className="rounded-xl border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-900 shadow-sm hover:bg-neutral-50"
+              className="rounded-[11px] border border-white/15 bg-white/[0.06] px-4 py-2 text-sm font-medium text-white hover:bg-white/[0.11]"
             >
               Refresh
             </button>
           </div>
         </div>
 
-        <div className="space-y-3">
+        <div className="grid gap-3">
           {loading ? (
-            <div className="rounded-2xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
-              Loading…
-            </div>
+            <div className="nn-surface text-sm text-white/75">Loading...</div>
           ) : items.length === 0 ? (
-            <div className="rounded-2xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
-              No work items yet.
-            </div>
+            <div className="nn-surface text-sm text-white/75">No work items yet.</div>
           ) : (
             items.map((it) => <WorkItemCard key={it.id} item={it} />)
           )}

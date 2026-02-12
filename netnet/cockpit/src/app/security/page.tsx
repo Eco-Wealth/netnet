@@ -19,23 +19,26 @@ export default async function SecurityPage() {
   const audit = data?.audit;
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-10">
+    <main className="nn-page-stack">
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold">Security</h1>
-        <div className="flex items-center gap-2 text-sm">
-          <Link className="underline opacity-80 hover:opacity-100" href="/proof">Proof</Link>
+        <div>
+          <div className="nn-page-kicker">Security</div>
+          <h1>Security</h1>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-white/75">
+          <Link className="underline hover:text-white" href="/proof">Proof</Link>
           <span className="opacity-40">/</span>
-          <Link className="underline opacity-80 hover:opacity-100" href="/execute">Execute</Link>
+          <Link className="underline hover:text-white" href="/execute">Execute</Link>
           <span className="opacity-40">/</span>
-          <Link className="underline opacity-80 hover:opacity-100" href="/retire">Retire</Link>
+          <Link className="underline hover:text-white" href="/retire">Retire</Link>
         </div>
       </div>
 
-      <p className="mt-2 text-sm opacity-80">
+      <p className="nn-page-lead">
         Read-only self-audit for configuration + guardrails. Does not reveal secrets.
       </p>
 
-      <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-5">
+      <div className="nn-surface">
         <div className="flex items-center justify-between">
           <div className="text-sm opacity-80">Status</div>
           <div className="text-sm font-medium">
@@ -46,15 +49,15 @@ export default async function SecurityPage() {
         {audit && (
           <>
             <div className="mt-3 flex flex-wrap gap-3 text-xs opacity-80">
-              <span className="rounded-full border border-white/10 px-2 py-1">pass: {audit.summary.pass}</span>
-              <span className="rounded-full border border-white/10 px-2 py-1">warn: {audit.summary.warn}</span>
-              <span className="rounded-full border border-white/10 px-2 py-1">fail: {audit.summary.fail}</span>
-              <span className="rounded-full border border-white/10 px-2 py-1">total: {audit.summary.total}</span>
+              <span className="rounded-full border border-white/15 px-2 py-1">pass: {audit.summary.pass}</span>
+              <span className="rounded-full border border-white/15 px-2 py-1">warn: {audit.summary.warn}</span>
+              <span className="rounded-full border border-white/15 px-2 py-1">fail: {audit.summary.fail}</span>
+              <span className="rounded-full border border-white/15 px-2 py-1">total: {audit.summary.total}</span>
             </div>
 
             <div className="mt-5 space-y-3">
               {audit.checks.map((c: any) => (
-                <div key={c.id} className="rounded-xl border border-white/10 bg-black/20 p-4">
+                <div key={c.id} className="rounded-[11px] border border-white/14 bg-black/20 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-sm font-medium">{c.label}</div>
@@ -94,7 +97,7 @@ export default async function SecurityPage() {
         )}
       </div>
 
-      <div className="mt-8 text-xs opacity-70">
+      <div className="text-xs opacity-70">
         Tip: keep autonomy at PROPOSE_ONLY until caps + allowlists + kill-switch wiring are proven.
       </div>
     </main>

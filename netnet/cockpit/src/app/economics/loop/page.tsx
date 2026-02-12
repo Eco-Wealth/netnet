@@ -4,13 +4,14 @@ export const dynamic = "force-dynamic";
 
 export default function EconomicsLoopPage() {
   return (
-    <div className="grid gap-4">
-      <div>
-        <div className="text-lg font-semibold">Economics Loop</div>
-        <div className="text-sm opacity-70">
+    <div className="nn-page-stack">
+      <header className="nn-page-header">
+        <div className="nn-page-kicker">Economics</div>
+        <h1>Economics Loop</h1>
+        <div className="nn-page-lead">
           Revenue → Allocation → Retire intent. Proposal-only outputs with proof + optional work item.
         </div>
-      </div>
+      </header>
       <EconomicsLoopClient />
     </div>
   );

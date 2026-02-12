@@ -22,11 +22,12 @@ export default function ExecutePage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <div className="text-2xl font-semibold">Execute</div>
+    <div className="nn-page-stack">
+      <header className="nn-page-header">
+        <div className="nn-page-kicker">Execute</div>
+        <h1>Execute</h1>
         <Muted>Operator panel for an agent to run conservative, verifiable steps (trade, BD, retire, ship code).</Muted>
-      </div>
+      </header>
 
       <Card title="Task draft">
         <div className="space-y-3">
