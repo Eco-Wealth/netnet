@@ -107,7 +107,9 @@ const BANKR_ACTION_ROUTE_MAP: Record<BankrStrategyAction, string> = {
 };
 
 function normalizeBankrPolicyAction(value: string): PolicyAction {
-  if (value === "bankr.wallet.read") return "bankr.wallet.read";
+  if (value === "bankr.wallet.read" || value === "bankr.wallet") {
+    return "bankr.wallet.read";
+  }
   if (value === "bankr.token.info" || value === "bankr.quote" || value === "bankr.token.read") {
     return "bankr.token.info";
   }

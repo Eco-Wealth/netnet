@@ -16,6 +16,7 @@ import {
   createBankrDraftAction,
   createDraftProposalFromTemplate,
   executeProposalAction,
+  generateExecutionPlanAction,
   lockExecutionIntentAction,
   proposeFromBankrDraftAction,
   proposeStrategyFromAssistantProposal,
@@ -293,6 +294,9 @@ export default function OperatorConsoleClient({
             onReject={(id) => runAction(`reject:${id}`, () => rejectProposalAction(id))}
             onRequestIntent={(id) => runAction(`request:${id}`, () => requestExecutionIntentAction(id))}
             onLockIntent={(id) => runAction(`lock:${id}`, () => lockExecutionIntentAction(id))}
+            onGeneratePlan={(id) =>
+              runAction(`plan:${id}`, () => generateExecutionPlanAction(id))
+            }
             onExecute={(id) => runAction(`execute:${id}`, () => executeProposalAction(id))}
             onDraftStrategy={(id) =>
               runAction(`strategy:${id}`, () => proposeStrategyFromAssistantProposal(id))

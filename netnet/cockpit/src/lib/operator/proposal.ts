@@ -28,6 +28,7 @@ const BANKR_ACTION_ROUTE_MAP = {
 } as const;
 
 const BANKR_ACTION_ALIASES: Record<string, keyof typeof BANKR_ACTION_ROUTE_MAP> = {
+  "bankr.wallet": "bankr.wallet.read",
   "bankr.quote": "bankr.token.info",
   "bankr.token.read": "bankr.token.info",
   "bankr.plan": "bankr.token.actions",

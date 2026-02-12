@@ -7,11 +7,19 @@ function cid() {
   return crypto.randomBytes(8).toString("hex");
 }
 
+function normalizeBankrAction(action: PolicyAction): PolicyAction {
+  if (action === "bankr.wallet") return "bankr.wallet.read";
+  return action;
+}
+
 export function programForAction(action: PolicyAction): ProgramId {
-  if (action.startsWith("bankr.")) return "TOKEN_OPS";
+  const normalized = normalizeBankrAction(action);
+  if (normalized.startsWith("bankr.")) return "TOKEN_OPS";
   const cfg = loadPolicyConfig();
   const programs = Object.values(cfg.programs);
-  const match = programs.find((program) => program.allow.actions.includes(action));
+  const match = programs.find((program) =>
+    program.allow.actions.includes(normalized)
+  );
   return match?.id ?? "TRADING_LOOP";
 }
 
@@ -19,6 +27,7 @@ export function decide(input: DecideInput): Decision {
   const correlationId = cid();
   const cfg = loadPolicyConfig();
   const program = cfg.programs[input.programId];
+  const normalizedAction = normalizeBankrAction(input.action);
 
   const reasons: string[] = [];
   const limitsApplied: Record<string, any> = {};
@@ -52,11 +61,9 @@ export function decide(input: DecideInput): Decision {
   if (input.chain && !program.allow.chains.includes(input.chain)) reasons.push("chain_not_allowed");
   if (input.token && !program.allow.tokens.includes(input.token)) reasons.push("token_not_allowed");
   if (input.venue && !program.allow.venues.includes(input.venue)) reasons.push("venue_not_allowed");
-  const actionAllowed =
-    program.allow.actions.includes(input.action) ||
-    (input.action.startsWith("bankr.") &&
-      (program.allow.actions.includes("bankr.token.actions") ||
-        program.allow.actions.includes("token.manage")));
+  const actionAllowed = normalizedAction.startsWith("bankr.")
+    ? program.allow.actions.includes(normalizedAction)
+    : program.allow.actions.includes(normalizedAction);
   if (!actionAllowed) reasons.push("action_not_allowed");
 
   const slippage = input.slippageBps ?? 0;
@@ -101,10 +108,10 @@ export function decide(input: DecideInput): Decision {
     mode,
     reasons,
     limitsApplied,
-    correlationId,
-    programId: program.id,
-    action: input.action,
-    nextAction:
+      correlationId,
+      programId: program.id,
+      action: normalizedAction,
+      nextAction:
       mode === "REQUIRE_APPROVAL"
         ? "Render approval UI; then POST to execution endpoint with approval receipt"
         : mode === "ALLOW"

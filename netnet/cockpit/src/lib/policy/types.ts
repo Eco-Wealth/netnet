@@ -18,6 +18,7 @@ export type PolicyAction =
   | "trade.plan"
   | "trade.execute"
   | "strategy.propose"
+  | "bankr.wallet"
   | "bankr.wallet.read"
   | "bankr.token.info"
   | "bankr.token.actions"

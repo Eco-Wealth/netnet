@@ -74,7 +74,11 @@ export function enforcePolicy(
 ): PolicyDecision {
   // Strategy proposal reuses existing work proposal semantics.
   const effectiveAction: PolicyAction =
-    action === "strategy.propose" ? "work.create" : action;
+    action === "strategy.propose"
+      ? "work.create"
+      : action === "bankr.wallet"
+      ? "bankr.wallet.read"
+      : action;
   const cfg = loadPolicyConfig();
   const programId = programForAction(effectiveAction);
   const program = cfg.programs[programId];

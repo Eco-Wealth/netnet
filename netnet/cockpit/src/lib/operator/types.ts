@@ -7,6 +7,8 @@ export type ExecutionStatus = "idle" | "running" | "completed" | "failed";
 export type PlannedStep = {
   stepId: string;
   skill: string;
+  action: string;
+  method: "GET" | "POST";
   route: string;
   payloadPreview: unknown;
   requiresPolicy: boolean;

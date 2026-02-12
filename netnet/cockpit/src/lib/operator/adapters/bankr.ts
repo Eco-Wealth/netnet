@@ -46,6 +46,7 @@ const BANKR_ACTION_ROUTE_MAP: Record<BankrActionId, BankrExecutionTarget> = {
 };
 
 const BANKR_ACTION_ALIASES: Record<string, BankrActionId> = {
+  "bankr.wallet": "bankr.wallet.read",
   "bankr.quote": "bankr.token.info",
   "bankr.token.read": "bankr.token.info",
   "bankr.plan": "bankr.token.actions",

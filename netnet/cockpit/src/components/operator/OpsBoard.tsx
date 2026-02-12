@@ -35,6 +35,7 @@ type OpsBoardProps = {
 
 type SectionKey =
   | "bankrQuickActions"
+  | "bankrPipeline"
   | "strategies"
   | "activeStrategies"
   | "pendingApprovals"
@@ -46,6 +47,7 @@ type SectionKey =
 
 const DEFAULT_SECTIONS: Record<SectionKey, boolean> = {
   bankrQuickActions: true,
+  bankrPipeline: true,
   strategies: true,
   activeStrategies: true,
   pendingApprovals: true,
@@ -166,6 +168,17 @@ export default function OpsBoard({
 
   const pendingApprovals = useMemo(
     () => proposals.filter((proposal) => proposal.status === "draft"),
+    [proposals]
+  );
+  const bankrPipelineProposals = useMemo(
+    () =>
+      proposals
+        .filter(
+          (proposal) =>
+            proposal.skillId === "bankr.agent" ||
+            proposal.route.startsWith("/api/bankr")
+        )
+        .sort((a, b) => b.createdAt - a.createdAt),
     [proposals]
   );
 
@@ -308,6 +321,19 @@ export default function OpsBoard({
     return usdFormatter.format(Number.isFinite(amount) ? amount : 0);
   }
 
+  function summarizeExecution(proposal: SkillProposalEnvelope): string {
+    const result = proposal.executionResult;
+    if (!result) return "No execution result yet.";
+    if (result.ok) {
+      const statusCode =
+        typeof result.result?.statusCode === "number"
+          ? `status ${result.result.statusCode}`
+          : "ok";
+      return `${statusCode} · ${result.policyDecision}`;
+    }
+    return `${result.error || "failed"} · ${result.policyDecision}`;
+  }
+
   return (
     <div className={[styles["nn-columnBody"], styles.panelBody].join(" ")}>
       <div className={[styles["nn-sectionHeader"], styles.panelHeader].join(" ")}>
@@ -379,6 +405,43 @@ export default function OpsBoard({
               <div className={styles["nn-muted"]}>{templateNotice}</div>
             ) : null}
           </div>
+        </Section>
+
+        <Section
+          title="Bankr Execution Pipeline"
+          open={sections.bankrPipeline}
+          onToggle={() => toggle("bankrPipeline")}
+        >
+          {bankrPipelineProposals.length ? (
+            bankrPipelineProposals.map((proposal) => (
+              <div key={proposal.id} className={styles["nn-listItem"]}>
+                <div className={styles["nn-listHead"]}>
+                  <div>
+                    <div>{proposal.skillId}</div>
+                    <div className={styles["nn-muted"]}>{proposal.route}</div>
+                  </div>
+                  <span className={styles["nn-statusBadge"]}>
+                    {proposal.executionStatus}
+                  </span>
+                </div>
+                <div className={styles["nn-chipRow"]}>
+                  <span className={styles["nn-chip"]}>status: {proposal.status}</span>
+                  <span className={styles["nn-chip"]}>
+                    intent: {proposal.executionIntent}
+                  </span>
+                  <span className={styles["nn-chip"]}>
+                    plan: {proposal.executionPlan ? "available" : "missing"}
+                  </span>
+                  <span className={styles["nn-chip"]}>risk: {proposal.riskLevel}</span>
+                </div>
+                <div className={styles["nn-muted"]}>
+                  result: {summarizeExecution(proposal)}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className={styles["nn-muted"]}>No Bankr proposals in pipeline yet.</div>
+          )}
         </Section>
 
         <Section title="Strategies" open={sections.strategies} onToggle={() => toggle("strategies")}>

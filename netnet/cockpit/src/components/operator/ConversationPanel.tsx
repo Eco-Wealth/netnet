@@ -24,6 +24,7 @@ type ConversationPanelProps = {
   onReject: (id: string) => void;
   onRequestIntent: (id: string) => void;
   onLockIntent: (id: string) => void;
+  onGeneratePlan: (id: string) => void;
   onExecute: (id: string) => void;
   onDraftStrategy: (id: string) => void;
   loadingAction: string | null;
@@ -174,6 +175,7 @@ function ProposalInlineCard({
   onReject,
   onRequestIntent,
   onLockIntent,
+  onGeneratePlan,
   onExecute,
   onDraftStrategy,
 }: {
@@ -183,6 +185,7 @@ function ProposalInlineCard({
   onReject: (id: string) => void;
   onRequestIntent: (id: string) => void;
   onLockIntent: (id: string) => void;
+  onGeneratePlan: (id: string) => void;
   onExecute: (id: string) => void;
   onDraftStrategy: (id: string) => void;
 }) {
@@ -208,6 +211,13 @@ function ProposalInlineCard({
           <div className={styles["nn-muted"]}>
             {proposal.executionResult.route} · {proposal.executionResult.policyDecision}
           </div>
+        </div>
+      ) : null}
+
+      {proposal.executionPlan ? (
+        <div className={styles["nn-listItem"]}>
+          <div>Plan ready</div>
+          <div className={styles["nn-muted"]}>{proposal.executionPlan.summary}</div>
         </div>
       ) : null}
 
@@ -285,6 +295,32 @@ function ProposalInlineCard({
         ) : null}
 
         {proposal.executionIntent === "locked" && proposal.executionStatus === "idle" ? (
+          <Tooltip text="Generate execution plan (dry-run) before execution.">
+            <span>
+              <Button
+                size="sm"
+                disabled={loadingAction !== null}
+                onClick={() => onGeneratePlan(proposal.id)}
+                insight={{
+                  what: "Create a deterministic dry-run plan snapshot for this proposal.",
+                  when: "Use after intent lock and before execution.",
+                  requires: "Execution intent locked.",
+                  output: "Plan persisted in proposal and emitted as skill audit message.",
+                }}
+              >
+                {loadingAction === `plan:${proposal.id}`
+                  ? "Planning..."
+                  : proposal.executionPlan
+                  ? "Rebuild Plan"
+                  : "Generate Plan"}
+              </Button>
+            </span>
+          </Tooltip>
+        ) : null}
+
+        {proposal.executionIntent === "locked" &&
+        proposal.executionStatus === "idle" &&
+        proposal.executionPlan ? (
           <Tooltip text="Run approved and locked proposal.">
             <span>
               <Button
@@ -293,7 +329,7 @@ function ProposalInlineCard({
                 onClick={() => onExecute(proposal.id)}
                 insight={{
                   what: "Execute runs through the controlled orchestrator.",
-                  when: "Use only after approval and intent lock.",
+                  when: "Use only after approval, intent lock, and plan generation.",
                   requires: "Policy gate allows execution at runtime.",
                   output: "Execution result envelope and audit message.",
                 }}
@@ -339,6 +375,7 @@ export default function ConversationPanel({
   onReject,
   onRequestIntent,
   onLockIntent,
+  onGeneratePlan,
   onExecute,
   onDraftStrategy,
   loadingAction,
@@ -519,6 +556,7 @@ export default function ConversationPanel({
                     onReject={onReject}
                     onRequestIntent={onRequestIntent}
                     onLockIntent={onLockIntent}
+                    onGeneratePlan={onGeneratePlan}
                     onExecute={onExecute}
                     onDraftStrategy={onDraftStrategy}
                   />

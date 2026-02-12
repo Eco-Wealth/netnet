@@ -26,6 +26,7 @@ type SupportedRoute =
   | "/api/bridge/retire";
 type ExecutionAction =
   | "trade.plan"
+  | "bankr.wallet"
   | "bankr.wallet.read"
   | "bankr.token.info"
   | "bankr.token.actions"
@@ -74,6 +75,13 @@ const ROUTE_EXECUTION_MAP: Record<ExecutionAction, ExecutionTarget> = {
     method: "POST",
     policyAction: "trade.plan",
     handler: tradePost as unknown as RouteHandler,
+  },
+  "bankr.wallet": {
+    action: "bankr.wallet",
+    route: "/api/bankr/wallet",
+    method: "GET",
+    policyAction: "bankr.wallet.read",
+    handler: bankrWalletGet as unknown as RouteHandler,
   },
   "bankr.wallet.read": {
     action: "bankr.wallet.read",
@@ -155,6 +163,7 @@ const ROUTE_EXECUTION_MAP: Record<ExecutionAction, ExecutionTarget> = {
 };
 
 const BANKR_READ_ACTIONS = new Set<string>([
+  "bankr.wallet",
   "bankr.wallet.read",
   "bankr.token.info",
   "bankr.token.actions",
