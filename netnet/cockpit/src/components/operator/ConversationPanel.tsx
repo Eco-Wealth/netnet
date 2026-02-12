@@ -2,6 +2,7 @@
 
 import { Fragment, useMemo, useState } from "react";
 import Insight from "@/components/Insight";
+import FirstRunTour from "@/components/operator/FirstRunTour";
 import Tooltip from "@/components/operator/Tooltip";
 import type { ThreadItem } from "@/components/operator/ThreadSidebar";
 import { Button, Textarea } from "@/components/ui";
@@ -225,7 +226,7 @@ function ProposalInlineCard({
         {proposal.status === "draft" ? (
           <Fragment>
             <Tooltip text="Approve this proposal for execution.">
-              <span>
+              <span data-tour-target="approve-button">
                 <Button
                   size="sm"
                   disabled={loadingAction !== null}
@@ -259,23 +260,27 @@ function ProposalInlineCard({
         ) : null}
 
         {proposal.status === "approved" && proposal.executionIntent === "none" ? (
-          <Button
-            size="sm"
-            disabled={loadingAction !== null}
-            onClick={() => onRequestIntent(proposal.id)}
-            insight={{
-              what: "Request Intent marks readiness for possible execution.",
-              when: "Use after proposal approval.",
-              requires: "Approved proposal.",
-              output: "executionIntent becomes requested.",
-            }}
-          >
-            {loadingAction === `request:${proposal.id}` ? "Requesting..." : "Request Intent"}
-          </Button>
+          <Tooltip text="Request intent to move this item into the locked path.">
+            <span>
+              <Button
+                size="sm"
+                disabled={loadingAction !== null}
+                onClick={() => onRequestIntent(proposal.id)}
+                insight={{
+                  what: "Request Intent marks readiness for possible execution.",
+                  when: "Use after proposal approval.",
+                  requires: "Approved proposal.",
+                  output: "executionIntent becomes requested.",
+                }}
+              >
+                {loadingAction === `request:${proposal.id}` ? "Requesting..." : "Request Intent"}
+              </Button>
+            </span>
+          </Tooltip>
         ) : null}
 
         {proposal.executionIntent === "requested" ? (
-          <Tooltip text="Lock execution intent. Enables execution planning.">
+          <Tooltip text="Lock intent so planning and execution controls are enabled.">
             <span>
               <Button
                 size="sm"
@@ -322,7 +327,7 @@ function ProposalInlineCard({
         proposal.executionStatus === "idle" &&
         proposal.executionPlan ? (
           <Tooltip text="Run approved and locked proposal.">
-            <span>
+            <span data-tour-target="execute-button">
               <Button
                 size="sm"
                 disabled={loadingAction !== null}
@@ -408,6 +413,7 @@ export default function ConversationPanel({
       id="operator-conversation-root"
       className={[styles["nn-columnBody"], styles.panelBody].join(" ")}
     >
+      <FirstRunTour />
       <div className={[styles["nn-sectionHeader"], styles.panelHeader].join(" ")}>
         <div>
           <div className={styles["nn-sectionTitle"]}>Operator Chat</div>
@@ -580,6 +586,7 @@ export default function ConversationPanel({
         >
           <div>
             <Textarea
+              data-tour-target="chat-input"
               className={styles["nn-input"]}
               rows={4}
               value={draft}

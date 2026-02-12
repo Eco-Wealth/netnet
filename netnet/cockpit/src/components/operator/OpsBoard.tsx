@@ -341,8 +341,10 @@ export default function OpsBoard({
         <div className={styles["nn-muted"]}>Reactive state</div>
       </div>
 
-      <div className={styles["nn-summaryBadges"]}>
-        <span className={styles["nn-statusBadge"]}>Policy: {policyMode}</span>
+      <div className={styles["nn-summaryBadges"]} data-tour-target="ops-status">
+        <Tooltip text="Policy mode sets what this workspace can do right now.">
+          <span className={styles["nn-statusBadge"]}>Policy: {policyMode}</span>
+        </Tooltip>
         <span className={styles["nn-statusBadge"]}>Pending: {pendingApprovals.length}</span>
         <span className={styles["nn-statusBadge"]}>Running: {inProgress.length}</span>
       </div>
@@ -463,24 +465,32 @@ export default function OpsBoard({
                     </div>
                   </div>
                   <div className={styles["nn-chipRow"]}>
-                    <Button size="sm" variant="subtle" onClick={() => openStrategyLink(strategy)}>
-                      Open
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={async () => {
-                        if (!canPropose) return;
-                        setDraftProposeError(null);
-                        try {
-                          await onProposeBankrDraft(strategy.id);
-                        } catch {
-                          setDraftProposeError("Couldn't convert draft to proposal.");
-                        }
-                      }}
-                      disabled={!canPropose || isBusy}
-                    >
-                      {isBusy ? "Proposing..." : "Propose"}
-                    </Button>
+                    <Tooltip text="Jump to the related message in chat.">
+                      <span>
+                        <Button size="sm" variant="subtle" onClick={() => openStrategyLink(strategy)}>
+                          Open
+                        </Button>
+                      </span>
+                    </Tooltip>
+                    <Tooltip text="Create a proposal from this Bankr draft.">
+                      <span>
+                        <Button
+                          size="sm"
+                          onClick={async () => {
+                            if (!canPropose) return;
+                            setDraftProposeError(null);
+                            try {
+                              await onProposeBankrDraft(strategy.id);
+                            } catch {
+                              setDraftProposeError("Couldn't convert draft to proposal.");
+                            }
+                          }}
+                          disabled={!canPropose || isBusy}
+                        >
+                          {isBusy ? "Proposing..." : "Propose"}
+                        </Button>
+                      </span>
+                    </Tooltip>
                   </div>
                 </div>
                 {!canPropose ? (
@@ -664,9 +674,13 @@ export default function OpsBoard({
                 <div>Wallet snapshot</div>
                 <div className={styles["nn-muted"]}>Last refresh: {formatTime(walletUpdatedAt)}</div>
               </div>
-              <Button size="sm" variant="subtle" onClick={refreshWallet} disabled={walletBusy}>
-                {walletBusy ? "Refreshing..." : "Refresh Wallet"}
-              </Button>
+              <Tooltip text="Refresh wallet balances and positions.">
+                <span>
+                  <Button size="sm" variant="subtle" onClick={refreshWallet} disabled={walletBusy}>
+                    {walletBusy ? "Refreshing..." : "Refresh Wallet"}
+                  </Button>
+                </span>
+              </Tooltip>
             </div>
 
             {walletError ? (
@@ -684,9 +698,13 @@ export default function OpsBoard({
                 <div>Token info snapshot</div>
                 <div className={styles["nn-muted"]}>Last refresh: {formatTime(tokenUpdatedAt)}</div>
               </div>
-              <Button size="sm" variant="subtle" onClick={refreshTokenInfo} disabled={tokenBusy}>
-                {tokenBusy ? "Refreshing..." : "Refresh Token Info"}
-              </Button>
+              <Tooltip text="Refresh token metadata for the selected chain and token.">
+                <span>
+                  <Button size="sm" variant="subtle" onClick={refreshTokenInfo} disabled={tokenBusy}>
+                    {tokenBusy ? "Refreshing..." : "Refresh Token Info"}
+                  </Button>
+                </span>
+              </Tooltip>
             </div>
 
             <div className={styles["nn-bankrParams"]}>

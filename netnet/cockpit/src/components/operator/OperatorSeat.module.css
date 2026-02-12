@@ -644,6 +644,35 @@
   transform: translate(-50%, 0);
 }
 
+.nn-tourLayer {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  pointer-events: none;
+}
+
+.nn-tourPanel {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: min(360px, calc(100vw - 24px));
+  border: 1px solid rgba(56, 189, 248, 0.5);
+  border-radius: 10px;
+  background: rgba(2, 6, 23, 0.96);
+  box-shadow: 0 14px 24px rgba(2, 6, 23, 0.45);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.nn-tourHighlight {
+  position: relative;
+  z-index: 46;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.85), 0 0 20px rgba(56, 189, 248, 0.35);
+  border-radius: 8px;
+}
+
 @media (max-width: 1200px) {
   .nn-main {
     grid-template-columns: minmax(0, 1fr) clamp(360px, 38vw, 400px);
@@ -708,5 +737,11 @@
 
   .nn-templateFields {
     grid-template-columns: 1fr;
+  }
+
+  .nn-tourPanel {
+    right: 8px;
+    bottom: 8px;
+    width: calc(100vw - 16px);
   }
 }
