@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import ConversationPanel from "@/components/operator/ConversationPanel";
 import OperatorTopBar from "@/components/operator/OperatorTopBar";
 import OpsBoard from "@/components/operator/OpsBoard";
@@ -180,7 +180,7 @@ export default function OperatorConsoleClient({
       .sort((a, b) => a.createdAt - b.createdAt);
   }, [activeThreadId, messages, threadAssignments]);
 
-  function applyState(next: OperatorStateResponse, targetThreadId: string | null) {
+  const applyState = useCallback((next: OperatorStateResponse, targetThreadId: string | null) => {
     const seen = seenMessageIdsRef.current;
     const newMessages = next.messages.filter((message) => !seen.has(message.id));
     seenMessageIdsRef.current = new Set(next.messages.map((message) => message.id));
@@ -197,13 +197,13 @@ export default function OperatorConsoleClient({
     setProposals(next.proposals);
     setStrategyMemory(next.strategies);
     setPnl(next.pnl);
-  }
+  }, []);
 
-  function runAction(
+  const runAction = useCallback((
     actionKey: string,
     fn: () => Promise<OperatorStateResponse>,
-    targetThreadId: string | null = activeThreadId
-  ) {
+    targetThreadId: string | null
+  ) => {
     setLoadingAction(actionKey);
     startTransition(async () => {
       try {
@@ -213,13 +213,13 @@ export default function OperatorConsoleClient({
         setLoadingAction(null);
       }
     });
-  }
+  }, [applyState, startTransition]);
 
-  async function runActionNow(
+  const runActionNow = useCallback(async (
     actionKey: string,
     fn: () => Promise<OperatorStateResponse>,
-    targetThreadId: string | null = activeThreadId
-  ): Promise<void> {
+    targetThreadId: string | null
+  ): Promise<void> => {
     setLoadingAction(actionKey);
     try {
       const next = await fn();
@@ -227,40 +227,60 @@ export default function OperatorConsoleClient({
     } finally {
       setLoadingAction(null);
     }
-  }
+  }, [applyState]);
 
-  function onSend() {
+  const onSend = useCallback(() => {
     const value = draft.trim();
     if (!value) return;
     setDraft("");
+    const optimisticId = `optimistic-${Date.now().toString(36)}-${Math.random()
+      .toString(36)
+      .slice(2, 7)}`;
+    const optimisticMessage: MessageEnvelope = {
+      id: optimisticId,
+      role: "operator",
+      content: value,
+      createdAt: Date.now(),
+      metadata: {
+        action: "chat",
+        tags: ["operator-input", "pending"],
+      },
+    };
+    setMessages((prev) => [...prev, optimisticMessage]);
+    if (activeThreadId?.startsWith("draft:")) {
+      setThreadAssignments((prev) => ({
+        ...prev,
+        [optimisticId]: activeThreadId,
+      }));
+    }
     runAction("send", () => sendOperatorMessageAction(value), activeThreadId);
-  }
+  }, [activeThreadId, draft, runAction]);
 
-  function onCreateThread() {
+  const onCreateThread = useCallback(() => {
     const id = `draft:${Date.now()}`;
     setDraftThreads((prev) => [{ id, createdAt: Date.now() }, ...prev]);
     setActiveThreadId(id);
     setDraft("");
-  }
+  }, []);
 
-  function onSelectThread(id: string) {
+  const onSelectThread = useCallback((id: string) => {
     setActiveThreadId(id);
-  }
+  }, []);
 
-  function resolveThreadIdForMessage(message: MessageEnvelope): string {
+  const resolveThreadIdForMessage = useCallback((message: MessageEnvelope): string => {
     const assigned = threadAssignments[message.id];
     if (assigned) return assigned;
     return `day:${dayKey(message.createdAt)}`;
-  }
+  }, [threadAssignments]);
 
-  function pulse(target: HTMLElement | null) {
+  const pulse = useCallback((target: HTMLElement | null) => {
     if (!target) return;
     target.classList.add(styles["nn-focusPulse"]);
     target.scrollIntoView({ behavior: "smooth", block: "center" });
     window.setTimeout(() => target.classList.remove(styles["nn-focusPulse"]), 1400);
-  }
+  }, []);
 
-  function focusProposal(proposalId: string) {
+  const focusProposal = useCallback((proposalId: string) => {
     const proposalMessage = messages.find((message) => message.metadata?.proposalId === proposalId);
     if (proposalMessage) {
       const nextThreadId = resolveThreadIdForMessage(proposalMessage);
@@ -278,9 +298,9 @@ export default function OperatorConsoleClient({
         pulse(messageNode);
       }
     }, 60);
-  }
+  }, [activeThreadId, messages, pulse, resolveThreadIdForMessage]);
 
-  function focusMessage(messageId: string) {
+  const focusMessage = useCallback((messageId: string) => {
     const message = messages.find((entry) => entry.id === messageId);
     if (message) {
       const nextThreadId = resolveThreadIdForMessage(message);
@@ -291,7 +311,96 @@ export default function OperatorConsoleClient({
       const node = document.getElementById(`operator-message-${messageId}`);
       pulse(node);
     }, 60);
-  }
+  }, [activeThreadId, messages, pulse, resolveThreadIdForMessage]);
+
+  const handleApprove = useCallback(
+    (id: string) => runAction(`approve:${id}`, () => approveProposalAction(id), activeThreadId),
+    [activeThreadId, runAction]
+  );
+
+  const handleReject = useCallback(
+    (id: string) => runAction(`reject:${id}`, () => rejectProposalAction(id), activeThreadId),
+    [activeThreadId, runAction]
+  );
+
+  const handleRequestIntent = useCallback(
+    (id: string) =>
+      runAction(`request:${id}`, () => requestExecutionIntentAction(id), activeThreadId),
+    [activeThreadId, runAction]
+  );
+
+  const handleLockIntent = useCallback(
+    (id: string) => runAction(`lock:${id}`, () => lockExecutionIntentAction(id), activeThreadId),
+    [activeThreadId, runAction]
+  );
+
+  const handleGeneratePlan = useCallback(
+    (id: string) => runAction(`plan:${id}`, () => generateExecutionPlanAction(id), activeThreadId),
+    [activeThreadId, runAction]
+  );
+
+  const handleExecute = useCallback(
+    (id: string) => runAction(`execute:${id}`, () => executeProposalAction(id), activeThreadId),
+    [activeThreadId, runAction]
+  );
+
+  const handleDraftStrategy = useCallback(
+    (id: string) =>
+      runAction(`strategy:${id}`, () => proposeStrategyFromAssistantProposal(id), activeThreadId),
+    [activeThreadId, runAction]
+  );
+
+  const handleCreateTemplateProposal = useCallback(
+    (templateId: string, input: Record<string, string>) =>
+      runActionNow(
+        `template:${templateId}`,
+        () => createDraftProposalFromTemplate(templateId, input),
+        activeThreadId
+      ),
+    [activeThreadId, runActionNow]
+  );
+
+  const handleCreateBankrDraft = useCallback(
+    (text: string) =>
+      runActionNow("bankr-draft:create", () => createBankrDraftAction(text), activeThreadId),
+    [activeThreadId, runActionNow]
+  );
+
+  const handleProposeBankrDraft = useCallback(
+    (strategyId: string) =>
+      runActionNow(
+        `bankr-draft:propose:${strategyId}`,
+        () => proposeFromBankrDraftAction(strategyId),
+        activeThreadId
+      ),
+    [activeThreadId, runActionNow]
+  );
+
+  const handlePinStrategy = useCallback(
+    (strategyId: string) =>
+      runActionNow(`strategy:pin:${strategyId}`, () => pinStrategyAction(strategyId), activeThreadId),
+    [activeThreadId, runActionNow]
+  );
+
+  const handleUnpinStrategy = useCallback(
+    (strategyId: string) =>
+      runActionNow(
+        `strategy:unpin:${strategyId}`,
+        () => unpinStrategyAction(strategyId),
+        activeThreadId
+      ),
+    [activeThreadId, runActionNow]
+  );
+
+  const handleUpdateRunbook = useCallback(
+    (strategyId: string, markdown: string) =>
+      runActionNow(
+        `strategy:runbook:${strategyId}`,
+        () => updateStrategyRunbookAction(strategyId, markdown),
+        activeThreadId
+      ),
+    [activeThreadId, runActionNow]
+  );
 
   return (
     <div className={[styles["nn-root"], styles.seat].join(" ")}>
@@ -323,17 +432,13 @@ export default function OperatorConsoleClient({
             policyMode={policyMode}
             skills={skills}
             strategies={strategies}
-            onApprove={(id) => runAction(`approve:${id}`, () => approveProposalAction(id))}
-            onReject={(id) => runAction(`reject:${id}`, () => rejectProposalAction(id))}
-            onRequestIntent={(id) =>
-              runAction(`request:${id}`, () => requestExecutionIntentAction(id))
-            }
-            onLockIntent={(id) => runAction(`lock:${id}`, () => lockExecutionIntentAction(id))}
-            onGeneratePlan={(id) => runAction(`plan:${id}`, () => generateExecutionPlanAction(id))}
-            onExecute={(id) => runAction(`execute:${id}`, () => executeProposalAction(id))}
-            onDraftStrategy={(id) =>
-              runAction(`strategy:${id}`, () => proposeStrategyFromAssistantProposal(id))
-            }
+            onApprove={handleApprove}
+            onReject={handleReject}
+            onRequestIntent={handleRequestIntent}
+            onLockIntent={handleLockIntent}
+            onGeneratePlan={handleGeneratePlan}
+            onExecute={handleExecute}
+            onDraftStrategy={handleDraftStrategy}
             loadingAction={loadingAction}
           />
         </section>
@@ -345,48 +450,12 @@ export default function OperatorConsoleClient({
             strategies={strategyMemory}
             pnl={pnl}
             policyMode={policyMode}
-            onCreateDraftProposal={(templateId, input) =>
-              runActionNow(
-                `template:${templateId}`,
-                () => createDraftProposalFromTemplate(templateId, input),
-                activeThreadId
-              )
-            }
-            onCreateBankrDraft={(text) =>
-              runActionNow(
-                "bankr-draft:create",
-                () => createBankrDraftAction(text),
-                activeThreadId
-              )
-            }
-            onProposeBankrDraft={(strategyId) =>
-              runActionNow(
-                `bankr-draft:propose:${strategyId}`,
-                () => proposeFromBankrDraftAction(strategyId),
-                activeThreadId
-              )
-            }
-            onPinStrategy={(strategyId) =>
-              runActionNow(
-                `strategy:pin:${strategyId}`,
-                () => pinStrategyAction(strategyId),
-                activeThreadId
-              )
-            }
-            onUnpinStrategy={(strategyId) =>
-              runActionNow(
-                `strategy:unpin:${strategyId}`,
-                () => unpinStrategyAction(strategyId),
-                activeThreadId
-              )
-            }
-            onUpdateRunbook={(strategyId, markdown) =>
-              runActionNow(
-                `strategy:runbook:${strategyId}`,
-                () => updateStrategyRunbookAction(strategyId, markdown),
-                activeThreadId
-              )
-            }
+            onCreateDraftProposal={handleCreateTemplateProposal}
+            onCreateBankrDraft={handleCreateBankrDraft}
+            onProposeBankrDraft={handleProposeBankrDraft}
+            onPinStrategy={handlePinStrategy}
+            onUnpinStrategy={handleUnpinStrategy}
+            onUpdateRunbook={handleUpdateRunbook}
             onFocusProposal={focusProposal}
             onFocusMessage={focusMessage}
             loadingAction={loadingAction}

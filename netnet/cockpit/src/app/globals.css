@@ -8,9 +8,9 @@
   --nn-operator-max-width: 1860px;
   --nn-pad-x: clamp(12px, 2.2vw, 24px);
   --nn-pad-y: clamp(12px, 1.6vw, 20px);
-  --nn-section-gap: 14px;
+  --nn-section-gap: 12px;
   --nn-radius: 14px;
-  --nn-border: rgba(148, 163, 184, 0.22);
+  --nn-border: rgba(148, 163, 184, 0.18);
   --nn-surface: linear-gradient(180deg, rgba(10, 16, 30, 0.96), rgba(5, 9, 18, 0.98));
   --nn-muted: rgba(148, 163, 184, 0.95);
   --nn-text: rgba(226, 232, 240, 0.98);
@@ -26,7 +26,7 @@ body {
   background: #060b14;
   color: var(--nn-text);
   font-size: 14px;
-  line-height: 1.45;
+  line-height: 1.42;
   font-family: "Inter", "Segoe UI", system-ui, sans-serif;
   text-rendering: optimizeLegibility;
 }
@@ -84,7 +84,7 @@ h3 {
   border: 1px solid var(--nn-border);
   border-radius: var(--nn-radius);
   background: var(--nn-surface);
-  padding: 10px 12px;
+  padding: 9px 11px;
 }
 
 .nn-shell-titleWrap {
@@ -126,11 +126,20 @@ h3 {
   padding: 4px 10px;
   font-size: 12px;
   text-decoration: none;
-  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
 }
 
 .nn-shell-navLink:hover {
   background: rgba(30, 41, 59, 0.72);
+  transform: translateY(-1px);
+}
+
+.nn-shell-navLink:active {
+  transform: translateY(0);
 }
 
 .nn-shell-navLinkActive {
@@ -171,13 +180,32 @@ h3 {
   border: 1px solid var(--nn-border);
   border-radius: var(--nn-radius);
   background: var(--nn-surface);
-  padding: 12px;
+  padding: 10px;
+  transition: border-color 140ms ease, background-color 140ms ease;
 }
 
 .nn-grid-2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
+}
+
+:where(button, [role="button"], a, input, textarea, select) {
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
+}
+
+:where(button, [role="button"], a, input, textarea, select):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(125, 211, 252, 0.35);
+}
+
+:where(button, [role="button"]):active {
+  transform: translateY(0.5px);
 }
 
 @media (max-width: 860px) {

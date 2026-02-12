@@ -95,12 +95,12 @@ export function Button({
 }: ButtonProps) {
   const variantClass =
     variant === "ghost"
-      ? "bg-transparent text-white border border-white/15 hover:bg-white/[0.09]"
+      ? "bg-transparent text-white border border-white/15 hover:bg-white/[0.08] active:bg-white/[0.11]"
       : variant === "subtle"
-      ? "bg-white/[0.08] text-white hover:bg-white/[0.12] border border-white/14"
+      ? "bg-white/[0.07] text-white hover:bg-white/[0.11] active:bg-white/[0.14] border border-white/14"
       : variant === "danger"
-      ? "bg-red-500/90 text-white hover:bg-red-500 border border-red-400/40"
-      : "bg-white text-black hover:bg-neutral-200 border border-white/20";
+      ? "bg-red-500/90 text-white hover:bg-red-500 active:bg-red-600 border border-red-400/40"
+      : "bg-white text-black hover:bg-neutral-200 active:bg-neutral-300 border border-white/20";
 
   const sizeClass =
     size === "sm"
@@ -135,7 +135,7 @@ export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
       className={cx(
         "w-full rounded-[11px] border border-white/14 bg-white/[0.05] px-3 py-2 text-sm text-white",
         "placeholder:text-white/40",
-        "focus:outline-none focus:ring-2 focus:ring-white/15",
+        "focus:outline-none focus:ring-2 focus:ring-white/15 focus:border-sky-300/35",
         className
       )}
     />
@@ -150,7 +150,7 @@ export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement
       className={cx(
         "w-full rounded-[11px] border border-white/14 bg-white/[0.05] px-3 py-2 text-sm text-white",
         "placeholder:text-white/40",
-        "focus:outline-none focus:ring-2 focus:ring-white/15",
+        "focus:outline-none focus:ring-2 focus:ring-white/15 focus:border-sky-300/35",
         className
       )}
     />

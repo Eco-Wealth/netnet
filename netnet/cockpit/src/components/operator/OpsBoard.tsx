@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { Button, Input, Textarea } from "@/components/ui";
 import Tooltip from "@/components/operator/Tooltip";
 import styles from "@/components/operator/OperatorSeat.module.css";
@@ -78,7 +78,7 @@ const BANKR_TEMPLATE_FIELDS: Record<
   bankr_wallet_snapshot: [{ key: "wallet", label: "wallet", placeholder: "0x..." }],
 };
 
-function Section({
+const Section = memo(function Section({
   id,
   title,
   help,
@@ -106,7 +106,7 @@ function Section({
       {open ? <div className={styles["nn-collapseBody"]}>{children}</div> : null}
     </section>
   );
-}
+});
 
 function renderRunbookMarkdown(markdown: string): JSX.Element {
   const lines = markdown.split("\n");
@@ -252,9 +252,9 @@ export default function OpsBoard({
     [messages]
   );
 
-  function toggle(section: SectionKey) {
+  const toggle = useCallback((section: SectionKey) => {
     setOpen((prev) => ({ ...prev, [section]: !prev[section] }));
-  }
+  }, []);
 
   function formatUsd(value: number): string {
     return usdFormatter.format(Number.isFinite(value) ? value : 0);

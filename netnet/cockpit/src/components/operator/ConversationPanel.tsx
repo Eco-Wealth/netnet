@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import FirstRunTour from "@/components/operator/FirstRunTour";
 import Tooltip from "@/components/operator/Tooltip";
 import { Button, Textarea } from "@/components/ui";
@@ -147,7 +147,7 @@ function roleClassName(role: MessageEnvelope["role"]): string {
   return styles["nn-messageSystem"];
 }
 
-function ProposalInlineCard({
+const ProposalInlineCard = memo(function ProposalInlineCard({
   proposal,
   loadingAction,
   onApprove,
@@ -212,6 +212,7 @@ function ProposalInlineCard({
               <span data-tour-target="approve-button">
                 <Button
                   size="sm"
+                  className={styles["nn-primaryAction"]}
                   onClick={() => onApprove(proposal.id)}
                   disabled={loadingAction !== null}
                 >
@@ -284,6 +285,7 @@ function ProposalInlineCard({
             <span data-tour-target="execute-button">
               <Button
                 size="sm"
+                className={styles["nn-primaryAction"]}
                 onClick={() => onExecute(proposal.id)}
                 disabled={loadingAction !== null}
               >
@@ -310,7 +312,85 @@ function ProposalInlineCard({
       </div>
     </div>
   );
-}
+});
+
+type MessageRowProps = {
+  message: MessageEnvelope;
+  proposal: SkillProposalEnvelope | null;
+  renderedMarkdown: JSX.Element | null;
+  loadingAction: string | null;
+  onApprove: (id: string) => void;
+  onReject: (id: string) => void;
+  onRequestIntent: (id: string) => void;
+  onLockIntent: (id: string) => void;
+  onGeneratePlan: (id: string) => void;
+  onExecute: (id: string) => void;
+  onDraftStrategy: (id: string) => void;
+};
+
+const MessageRow = memo(function MessageRow({
+  message,
+  proposal,
+  renderedMarkdown,
+  loadingAction,
+  onApprove,
+  onReject,
+  onRequestIntent,
+  onLockIntent,
+  onGeneratePlan,
+  onExecute,
+  onDraftStrategy,
+}: MessageRowProps) {
+  const tags = message.metadata?.tags || [];
+  const showTags = Boolean(message.metadata?.action || tags.length);
+  return (
+    <div
+      id={`operator-message-${message.id}`}
+      className={[styles["nn-messageRow"], styles.messageRow].join(" ")}
+    >
+      <div className={[styles["nn-message"], roleClassName(message.role)].join(" ")}>
+        <div className={[styles["nn-messageMeta"], styles.messageMeta].join(" ")}>
+          <div className={styles["nn-role"]}>{message.role}</div>
+          <div className={styles["nn-time"]}>
+            {new Date(message.createdAt).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </div>
+        </div>
+
+        {showTags ? (
+          <div className={styles["nn-tags"]}>
+            {message.metadata?.action ? (
+              <span className={styles["nn-chip"]}>{message.metadata.action}</span>
+            ) : null}
+            {tags.slice(0, 3).map((tag) => (
+              <span key={`${message.id}-${tag}`} className={styles["nn-chip"]}>
+                {tag}
+              </span>
+            ))}
+          </div>
+        ) : null}
+
+        {proposal ? (
+          <ProposalInlineCard
+            proposal={proposal}
+            loadingAction={loadingAction}
+            onApprove={onApprove}
+            onReject={onReject}
+            onRequestIntent={onRequestIntent}
+            onLockIntent={onLockIntent}
+            onGeneratePlan={onGeneratePlan}
+            onExecute={onExecute}
+            onDraftStrategy={onDraftStrategy}
+          />
+        ) : (
+          renderedMarkdown
+        )}
+      </div>
+    </div>
+  );
+});
 
 export default function ConversationPanel({
   messages,
@@ -336,6 +416,18 @@ export default function ConversationPanel({
     () => new Map(proposals.map((proposal) => [proposal.id, proposal])),
     [proposals]
   );
+  const markdownById = useMemo(() => {
+    const rendered = new Map<string, JSX.Element>();
+    for (const message of ordered) {
+      const hasProposal = Boolean(
+        message.metadata?.proposalId && proposalById.get(message.metadata.proposalId)
+      );
+      if (!hasProposal) {
+        rendered.set(message.id, renderMarkdown(message.content));
+      }
+    }
+    return rendered;
+  }, [ordered, proposalById]);
   const activeMode = modeForPolicy(policyMode);
 
   return (
@@ -394,52 +486,20 @@ export default function ConversationPanel({
             : null;
 
           return (
-            <div
+            <MessageRow
               key={message.id}
-              id={`operator-message-${message.id}`}
-              className={[styles["nn-messageRow"], styles.messageRow].join(" ")}
-            >
-              <div className={[styles["nn-message"], roleClassName(message.role)].join(" ")}>
-                <div className={[styles["nn-messageMeta"], styles.messageMeta].join(" ")}>
-                  <div className={styles["nn-role"]}>{message.role}</div>
-                  <div className={styles["nn-time"]}>
-                    {new Date(message.createdAt).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </div>
-                </div>
-
-                {message.metadata ? (
-                  <div className={styles["nn-tags"]}>
-                    {message.metadata.action ? (
-                      <span className={styles["nn-chip"]}>{message.metadata.action}</span>
-                    ) : null}
-                    {(message.metadata.tags || []).slice(0, 4).map((tag) => (
-                      <span key={`${message.id}-${tag}`} className={styles["nn-chip"]}>
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-
-                {proposal ? (
-                  <ProposalInlineCard
-                    proposal={proposal}
-                    loadingAction={loadingAction}
-                    onApprove={onApprove}
-                    onReject={onReject}
-                    onRequestIntent={onRequestIntent}
-                    onLockIntent={onLockIntent}
-                    onGeneratePlan={onGeneratePlan}
-                    onExecute={onExecute}
-                    onDraftStrategy={onDraftStrategy}
-                  />
-                ) : (
-                  renderMarkdown(message.content)
-                )}
-              </div>
-            </div>
+              message={message}
+              proposal={proposal || null}
+              renderedMarkdown={markdownById.get(message.id) || null}
+              loadingAction={proposal ? loadingAction : null}
+              onApprove={onApprove}
+              onReject={onReject}
+              onRequestIntent={onRequestIntent}
+              onLockIntent={onLockIntent}
+              onGeneratePlan={onGeneratePlan}
+              onExecute={onExecute}
+              onDraftStrategy={onDraftStrategy}
+            />
           );
         })}
       </div>
@@ -501,7 +561,11 @@ export default function ConversationPanel({
           <div className={styles["nn-muted"]}>Ctrl/Cmd + Enter to send</div>
           <Tooltip text="Send your message to the operator assistant.">
             <span>
-              <Button onClick={onSend} disabled={loading || !draft.trim()}>
+              <Button
+                className={styles["nn-sendPrimary"]}
+                onClick={onSend}
+                disabled={loading || !draft.trim()}
+              >
                 {loading ? "Sending..." : "Send"}
               </Button>
             </span>
