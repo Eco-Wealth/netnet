@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import ConversationPanel from "@/components/operator/ConversationPanel";
 import OperatorTopBar from "@/components/operator/OperatorTopBar";
 import OpsBoard from "@/components/operator/OpsBoard";
+import ThreadSidebar, { type ThreadItem } from "@/components/operator/ThreadSidebar";
 import styles from "@/components/operator/OperatorSeat.module.css";
 import type { SkillInfo } from "@/lib/operator/skillContext";
 import type { Strategy } from "@/lib/operator/strategy";
@@ -31,6 +32,76 @@ type Props = {
   engineType: "openrouter" | "local";
 };
 
+type DraftThread = {
+  id: string;
+  createdAt: number;
+};
+
+function dayKey(timestamp: number): string {
+  return new Date(timestamp).toISOString().slice(0, 10);
+}
+
+function trimLine(input: string): string {
+  const oneLine = input.replace(/\s+/g, " ").trim();
+  if (!oneLine) return "Untitled thread";
+  return oneLine.length > 60 ? `${oneLine.slice(0, 60)}...` : oneLine;
+}
+
+function buildPersistedThreads(
+  messages: MessageEnvelope[],
+  assignments: Record<string, string>
+): ThreadItem[] {
+  const groups = new Map<string, MessageEnvelope[]>();
+  const ordered = [...messages].sort((a, b) => a.createdAt - b.createdAt);
+
+  for (const message of ordered) {
+    if (assignments[message.id]) continue;
+    const id = `day:${dayKey(message.createdAt)}`;
+    const existing = groups.get(id);
+    if (existing) existing.push(message);
+    else groups.set(id, [message]);
+  }
+
+  return [...groups.entries()]
+    .map(([id, threadMessages]) => {
+      const first = threadMessages.find(
+        (message) => message.role === "operator" || message.role === "assistant" || message.role === "system"
+      );
+      const last = threadMessages[threadMessages.length - 1];
+      return {
+        id,
+        title: trimLine(first?.content || "Thread"),
+        updatedAt: last?.createdAt || Date.now(),
+        messageCount: threadMessages.length,
+      };
+    })
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+function buildDraftThreads(
+  drafts: DraftThread[],
+  messages: MessageEnvelope[],
+  assignments: Record<string, string>
+): ThreadItem[] {
+  return drafts
+    .map((draft) => {
+      const assigned = messages
+        .filter((message) => assignments[message.id] === draft.id)
+        .sort((a, b) => a.createdAt - b.createdAt);
+
+      const first = assigned.find((message) => message.role === "operator" || message.role === "assistant");
+      const last = assigned[assigned.length - 1];
+
+      return {
+        id: draft.id,
+        title: trimLine(first?.content || "New thread"),
+        updatedAt: last?.createdAt || draft.createdAt,
+        messageCount: assigned.length,
+      };
+    })
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
 export default function OperatorConsoleClient({
   initialMessages,
   initialProposals,
@@ -47,20 +118,78 @@ export default function OperatorConsoleClient({
   const [strategyMemory, setStrategyMemory] = useState<Strategy[]>(initialStrategies);
   const [draft, setDraft] = useState("");
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const [threadAssignments, setThreadAssignments] = useState<Record<string, string>>({});
+  const [draftThreads, setDraftThreads] = useState<DraftThread[]>([]);
   const [pending, startTransition] = useTransition();
+  const seenMessageIdsRef = useRef<Set<string>>(
+    new Set(initialMessages.map((message) => message.id))
+  );
 
-  function applyState(next: OperatorStateResponse) {
+  const persistedThreads = useMemo(
+    () => buildPersistedThreads(messages, threadAssignments),
+    [messages, threadAssignments]
+  );
+
+  const syntheticThreads = useMemo(
+    () => buildDraftThreads(draftThreads, messages, threadAssignments),
+    [draftThreads, messages, threadAssignments]
+  );
+
+  const threads = useMemo(
+    () => [...syntheticThreads, ...persistedThreads].sort((a, b) => b.updatedAt - a.updatedAt),
+    [persistedThreads, syntheticThreads]
+  );
+
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(
+    () => buildPersistedThreads(initialMessages, {})[0]?.id || null
+  );
+
+  const filteredMessages = useMemo(() => {
+    if (!activeThreadId) return [...messages].sort((a, b) => a.createdAt - b.createdAt);
+
+    if (activeThreadId.startsWith("draft:")) {
+      return messages
+        .filter((message) => threadAssignments[message.id] === activeThreadId)
+        .sort((a, b) => a.createdAt - b.createdAt);
+    }
+
+    const selectedDay = activeThreadId.replace("day:", "");
+    return messages
+      .filter(
+        (message) =>
+          !threadAssignments[message.id] && dayKey(message.createdAt) === selectedDay
+      )
+      .sort((a, b) => a.createdAt - b.createdAt);
+  }, [activeThreadId, messages, threadAssignments]);
+
+  function applyState(next: OperatorStateResponse, targetThreadId: string | null) {
+    const seen = seenMessageIdsRef.current;
+    const newMessages = next.messages.filter((message) => !seen.has(message.id));
+    seenMessageIdsRef.current = new Set(next.messages.map((message) => message.id));
+
+    if (targetThreadId && targetThreadId.startsWith("draft:") && newMessages.length > 0) {
+      setThreadAssignments((prev) => {
+        const updated = { ...prev };
+        for (const message of newMessages) updated[message.id] = targetThreadId;
+        return updated;
+      });
+    }
+
     setMessages(next.messages);
     setProposals(next.proposals);
     setStrategyMemory(next.strategies);
   }
 
-  function runAction(actionKey: string, fn: () => Promise<OperatorStateResponse>) {
+  function runAction(
+    actionKey: string,
+    fn: () => Promise<OperatorStateResponse>,
+    targetThreadId: string | null = activeThreadId
+  ) {
     setLoadingAction(actionKey);
     startTransition(async () => {
       try {
         const next = await fn();
-        applyState(next);
+        applyState(next, targetThreadId);
       } finally {
         setLoadingAction(null);
       }
@@ -71,7 +200,18 @@ export default function OperatorConsoleClient({
     const value = draft.trim();
     if (!value) return;
     setDraft("");
-    runAction("send", () => sendOperatorMessageAction(value));
+    runAction("send", () => sendOperatorMessageAction(value), activeThreadId);
+  }
+
+  function onCreateThread() {
+    const id = `draft:${Date.now()}`;
+    setDraftThreads((prev) => [{ id, createdAt: Date.now() }, ...prev]);
+    setActiveThreadId(id);
+    setDraft("");
+  }
+
+  function onSelectThread(id: string) {
+    setActiveThreadId(id);
   }
 
   return (
@@ -84,9 +224,18 @@ export default function OperatorConsoleClient({
       />
 
       <div className={styles["nn-main"]}>
-        <section className={styles["nn-column"]}>
+        <aside className={[styles["nn-column"], styles["nn-threadColumn"]].join(" ")}>
+          <ThreadSidebar
+            threads={threads}
+            activeThreadId={activeThreadId}
+            onSelectThread={onSelectThread}
+            onCreateThread={onCreateThread}
+          />
+        </aside>
+
+        <section className={[styles["nn-column"], styles["nn-chatColumn"]].join(" ")}>
           <ConversationPanel
-            messages={messages}
+            messages={filteredMessages}
             proposals={proposals}
             draft={draft}
             setDraft={setDraft}
@@ -104,7 +253,7 @@ export default function OperatorConsoleClient({
           />
         </section>
 
-        <aside className={styles["nn-column"]}>
+        <aside className={[styles["nn-column"], styles["nn-opsColumn"]].join(" ")}>
           <OpsBoard
             proposals={proposals}
             messages={messages}
@@ -116,3 +265,4 @@ export default function OperatorConsoleClient({
     </div>
   );
 }
+

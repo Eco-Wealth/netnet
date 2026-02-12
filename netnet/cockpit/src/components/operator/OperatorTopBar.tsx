@@ -1,8 +1,8 @@
 "use client";
 
-import Insight from "@/components/Insight";
 import { Button } from "@/components/ui";
 import styles from "@/components/operator/OperatorSeat.module.css";
+import Tooltip from "@/components/operator/Tooltip";
 
 type Mode = "READ" | "PROPOSE" | "EXECUTE";
 
@@ -26,6 +26,11 @@ export default function OperatorTopBar({
   policyHealthy,
 }: OperatorTopBarProps) {
   const active = toMode(policyMode);
+  const modeHelp: Record<Mode, string> = {
+    READ: "Assistant can analyze only.",
+    PROPOSE: "Assistant can suggest structured actions.",
+    EXECUTE: "Locked proposals may run after approval.",
+  };
 
   return (
     <div className={styles["nn-topbar"]}>
@@ -36,15 +41,7 @@ export default function OperatorTopBar({
 
       <div className={styles["nn-modeGroup"]}>
         {(["READ", "PROPOSE", "EXECUTE"] as Mode[]).map((mode) => (
-          <Insight
-            key={mode}
-            insight={{
-              what: `${mode} mode preview reflects current policy level.`,
-              when: "Use Governance to change actual policy mode.",
-              requires: "Operator policy permissions.",
-              output: "Mode chip updates after policy change.",
-            }}
-          >
+          <Tooltip key={mode} text={modeHelp[mode]}>
             <span
               className={[
                 styles["nn-modeWrap"],
@@ -60,7 +57,7 @@ export default function OperatorTopBar({
                 {mode}
               </Button>
             </span>
-          </Insight>
+          </Tooltip>
         ))}
       </div>
 

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui";
 import styles from "@/components/operator/OperatorSeat.module.css";
+import Tooltip from "@/components/operator/Tooltip";
 import type { Strategy } from "@/lib/operator/strategy";
 import type { MessageEnvelope, SkillProposalEnvelope } from "@/lib/operator/types";
 
@@ -93,6 +94,14 @@ export default function OpsBoard({ proposals, messages, strategies, policyMode }
     setSections((prev) => ({ ...prev, [section]: !prev[section] }));
   }
 
+  function strategyStatusHelp(status: Strategy["status"]): string {
+    if (status === "draft") return "Draft strategy: planning stage, not actively tracked yet.";
+    if (status === "active") return "Active strategy: currently being executed through linked proposals.";
+    if (status === "paused") return "Paused strategy: temporarily on hold by operator choice.";
+    if (status === "completed") return "Completed strategy: goals achieved and execution is done.";
+    return "Archived strategy: kept for historical context only.";
+  }
+
   return (
     <div className={styles["nn-columnBody"]}>
       <div className={styles["nn-sectionHeader"]}>
@@ -111,13 +120,20 @@ export default function OpsBoard({ proposals, messages, strategies, policyMode }
               <div key={strategy.id} className={styles["nn-listItem"]}>
                 <div>{strategy.name}</div>
                 <div className={styles["nn-muted"]}>{strategy.description}</div>
-                <div className={styles["nn-muted"]}>
-                  status: {strategy.status} · linked proposals: {strategy.linkedProposalIds.length}
+                <div className={styles["nn-chipRow"]}>
+                  <Tooltip text={strategyStatusHelp(strategy.status)}>
+                    <span className={styles["nn-statusBadge"]}>status: {strategy.status}</span>
+                  </Tooltip>
+                  <span className={styles["nn-muted"]}>linked proposals: {strategy.linkedProposalIds.length}</span>
                 </div>
               </div>
             ))
           ) : (
-            <div className={styles["nn-muted"]}>No active strategies yet.</div>
+            <div className={styles["nn-muted"]}>
+              No active strategies.
+              <br />
+              Propose a plan to begin tracking one.
+            </div>
           )}
         </Section>
 

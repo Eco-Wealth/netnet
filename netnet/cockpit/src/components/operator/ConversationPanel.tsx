@@ -2,6 +2,7 @@
 
 import { Fragment, useMemo, useState } from "react";
 import Insight from "@/components/Insight";
+import Tooltip from "@/components/operator/Tooltip";
 import { Button, Textarea } from "@/components/ui";
 import styles from "@/components/operator/OperatorSeat.module.css";
 import type { SkillInfo } from "@/lib/operator/skillContext";
@@ -205,19 +206,23 @@ function ProposalInlineCard({
       <div className={styles["nn-actions"]}>
         {proposal.status === "draft" ? (
           <Fragment>
-            <Button
-              size="sm"
-              disabled={loadingAction !== null}
-              onClick={() => onApprove(proposal.id)}
-              insight={{
-                what: "Approve confirms this proposal can move to intent stage.",
-                when: "Use after checking route, payload, and risk level.",
-                requires: "Operator decision.",
-                output: "Proposal status changes to approved.",
-              }}
-            >
-              {loadingAction === `approve:${proposal.id}` ? "Approving..." : "Approve"}
-            </Button>
+            <Tooltip text="Approve this proposal for execution.">
+              <span>
+                <Button
+                  size="sm"
+                  disabled={loadingAction !== null}
+                  onClick={() => onApprove(proposal.id)}
+                  insight={{
+                    what: "Approve confirms this proposal can move to intent stage.",
+                    when: "Use after checking route, payload, and risk level.",
+                    requires: "Operator decision.",
+                    output: "Proposal status changes to approved.",
+                  }}
+                >
+                  {loadingAction === `approve:${proposal.id}` ? "Approving..." : "Approve"}
+                </Button>
+              </span>
+            </Tooltip>
             <Button
               size="sm"
               variant="danger"
@@ -252,35 +257,43 @@ function ProposalInlineCard({
         ) : null}
 
         {proposal.executionIntent === "requested" ? (
-          <Button
-            size="sm"
-            disabled={loadingAction !== null}
-            onClick={() => onLockIntent(proposal.id)}
-            insight={{
-              what: "Lock prevents accidental intent drift before execution.",
-              when: "Use after final operator review.",
-              requires: "Intent must be requested.",
-              output: "executionIntent becomes locked.",
-            }}
-          >
-            {loadingAction === `lock:${proposal.id}` ? "Locking..." : "Lock Intent"}
-          </Button>
+          <Tooltip text="Lock execution intent. Enables execution planning.">
+            <span>
+              <Button
+                size="sm"
+                disabled={loadingAction !== null}
+                onClick={() => onLockIntent(proposal.id)}
+                insight={{
+                  what: "Lock prevents accidental intent drift before execution.",
+                  when: "Use after final operator review.",
+                  requires: "Intent must be requested.",
+                  output: "executionIntent becomes locked.",
+                }}
+              >
+                {loadingAction === `lock:${proposal.id}` ? "Locking..." : "Lock Intent"}
+              </Button>
+            </span>
+          </Tooltip>
         ) : null}
 
         {proposal.executionIntent === "locked" && proposal.executionStatus === "idle" ? (
-          <Button
-            size="sm"
-            disabled={loadingAction !== null}
-            onClick={() => onExecute(proposal.id)}
-            insight={{
-              what: "Execute runs through the controlled orchestrator.",
-              when: "Use only after approval and intent lock.",
-              requires: "Policy gate allows execution at runtime.",
-              output: "Execution result envelope and audit message.",
-            }}
-          >
-            {loadingAction === `execute:${proposal.id}` ? "Executing..." : "Execute"}
-          </Button>
+          <Tooltip text="Run approved and locked proposal.">
+            <span>
+              <Button
+                size="sm"
+                disabled={loadingAction !== null}
+                onClick={() => onExecute(proposal.id)}
+                insight={{
+                  what: "Execute runs through the controlled orchestrator.",
+                  when: "Use only after approval and intent lock.",
+                  requires: "Policy gate allows execution at runtime.",
+                  output: "Execution result envelope and audit message.",
+                }}
+              >
+                {loadingAction === `execute:${proposal.id}` ? "Executing..." : "Execute"}
+              </Button>
+            </span>
+          </Tooltip>
         ) : null}
       </div>
     </div>
@@ -330,6 +343,10 @@ export default function ConversationPanel({
         </div>
       </div>
 
+      <div className={styles["nn-guidanceStrip"]}>
+        You can: ask questions, propose strategies, draft actions, and approve then execute proposals.
+      </div>
+
       {showSkills ? (
         <div className={styles["nn-starterList"]}>
           <div className={styles["nn-muted"]}>Skill starters</div>
@@ -371,55 +388,64 @@ export default function ConversationPanel({
       ) : null}
 
       <div className={styles["nn-conversationScroll"]}>
+        {ordered.length === 0 ? (
+          <div className={styles["nn-emptyCoach"]}>
+            <div>Start by describing what you want to accomplish.</div>
+            <div className={styles["nn-muted"]}>
+              The Operator will analyze, propose structured actions, and wait for approval.
+            </div>
+          </div>
+        ) : null}
         {ordered.map((message) => {
           const proposal = message.metadata?.proposalId
             ? proposalById.get(message.metadata.proposalId)
             : null;
 
           return (
-            <div
-              key={message.id}
-              className={[styles["nn-message"], roleClassName(message.role)].join(" ")}
-            >
-              <div className={styles["nn-messageMeta"]}>
-                <div className={styles["nn-role"]}>{message.role}</div>
-                <div className={styles["nn-time"]}>
-                  {new Date(message.createdAt).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
+            <div key={message.id} className={styles["nn-messageRow"]}>
+              <div
+                className={[styles["nn-message"], roleClassName(message.role)].join(" ")}
+              >
+                <div className={styles["nn-messageMeta"]}>
+                  <div className={styles["nn-role"]}>{message.role}</div>
+                  <div className={styles["nn-time"]}>
+                    {new Date(message.createdAt).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </div>
                 </div>
+
+                {message.metadata ? (
+                  <div className={styles["nn-tags"]}>
+                    {message.metadata.action ? (
+                      <span className={styles["nn-chip"]}>{message.metadata.action}</span>
+                    ) : null}
+                    {message.metadata.policySnapshot ? (
+                      <span className={styles["nn-chip"]}>policy snapshot</span>
+                    ) : null}
+                    {(message.metadata.tags || []).map((tag) => (
+                      <span key={`${message.id}-${tag}`} className={styles["nn-chip"]}>
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+
+                {proposal ? (
+                  <ProposalInlineCard
+                    proposal={proposal}
+                    loadingAction={loadingAction}
+                    onApprove={onApprove}
+                    onReject={onReject}
+                    onRequestIntent={onRequestIntent}
+                    onLockIntent={onLockIntent}
+                    onExecute={onExecute}
+                  />
+                ) : (
+                  renderMarkdown(message.content)
+                )}
               </div>
-
-              {message.metadata ? (
-                <div className={styles["nn-tags"]}>
-                  {message.metadata.action ? (
-                    <span className={styles["nn-chip"]}>{message.metadata.action}</span>
-                  ) : null}
-                  {message.metadata.policySnapshot ? (
-                    <span className={styles["nn-chip"]}>policy snapshot</span>
-                  ) : null}
-                  {(message.metadata.tags || []).map((tag) => (
-                    <span key={`${message.id}-${tag}`} className={styles["nn-chip"]}>
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-
-              {proposal ? (
-                <ProposalInlineCard
-                  proposal={proposal}
-                  loadingAction={loadingAction}
-                  onApprove={onApprove}
-                  onReject={onReject}
-                  onRequestIntent={onRequestIntent}
-                  onLockIntent={onLockIntent}
-                  onExecute={onExecute}
-                />
-              ) : (
-                renderMarkdown(message.content)
-              )}
             </div>
           );
         })}
@@ -446,9 +472,13 @@ export default function ConversationPanel({
         </Insight>
 
         <div className={styles["nn-actions"]}>
-          <Button onClick={onSend} disabled={loading || !draft.trim()}>
-            {loading ? "Sending..." : "Send"}
-          </Button>
+          <Tooltip text="Send instruction to Operator AI.">
+            <span>
+              <Button onClick={onSend} disabled={loading || !draft.trim()}>
+                {loading ? "Sending..." : "Send"}
+              </Button>
+            </span>
+          </Tooltip>
         </div>
       </div>
     </div>
