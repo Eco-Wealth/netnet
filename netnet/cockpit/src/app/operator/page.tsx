@@ -15,6 +15,10 @@ export default function OperatorPage() {
   const engineType = (process.env.OPERATOR_ENGINE === "local" ? "local" : "openrouter") as
     | "openrouter"
     | "local";
+  const engineModel =
+    engineType === "local"
+      ? process.env.LOCAL_LLM_ENDPOINT || "local endpoint"
+      : process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini";
 
   return (
     <div className={styles["nn-pagePad"]}>
@@ -29,6 +33,7 @@ export default function OperatorPage() {
         policyHealthy={!policy.kill.all}
         dbConnected
         engineType={engineType}
+        engineModel={engineModel}
       />
     </div>
   );

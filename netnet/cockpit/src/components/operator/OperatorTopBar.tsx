@@ -1,8 +1,8 @@
 "use client";
 
-import styles from "@/components/operator/OperatorSeat.module.css";
-import Tooltip from "@/components/operator/Tooltip";
 import { Button } from "@/components/ui";
+import Tooltip from "@/components/operator/Tooltip";
+import styles from "@/components/operator/OperatorSeat.module.css";
 
 type Mode = "READ" | "PROPOSE" | "EXECUTE";
 
@@ -10,6 +10,7 @@ type OperatorTopBarProps = {
   policyMode: string;
   dbConnected: boolean;
   engineType: "openrouter" | "local";
+  engineModel: string;
   policyHealthy: boolean;
 };
 
@@ -19,17 +20,24 @@ function toMode(policyMode: string): Mode {
   return "PROPOSE";
 }
 
+function compactModelLabel(engineType: "openrouter" | "local", engineModel: string): string {
+  const trimmed = String(engineModel || "").trim();
+  if (!trimmed) return engineType;
+  return trimmed.length > 44 ? `${trimmed.slice(0, 44)}...` : trimmed;
+}
+
 export default function OperatorTopBar({
   policyMode,
   dbConnected,
   engineType,
+  engineModel,
   policyHealthy,
 }: OperatorTopBarProps) {
   const active = toMode(policyMode);
   const modeHelp: Record<Mode, string> = {
-    READ: "Assistant can analyze only.",
-    PROPOSE: "Assistant can suggest structured actions.",
-    EXECUTE: "Locked proposals may run after approval.",
+    READ: "Read analyzes only.",
+    PROPOSE: "Propose drafts actions.",
+    EXECUTE: "Execute requires locked approval path.",
   };
 
   function reopenTour() {
@@ -40,44 +48,51 @@ export default function OperatorTopBar({
 
   return (
     <div className={styles["nn-topbar"]}>
-      <div>
-        <div className={styles["nn-topbarTitle"]}>Operator Seat v3</div>
-        <div className={styles["nn-topbarSubtle"]}>Dense chat-first workspace with gated execution.</div>
+      <div className={styles["nn-topbarLeft"]}>
+        <div className={styles["nn-topbarTitle"]}>Operator Seat</div>
+        <div className={styles["nn-topbarSubtle"]}>
+          Engine: {engineType} · {compactModelLabel(engineType, engineModel)}
+        </div>
       </div>
 
-      <div className={styles["nn-topbarModes"]}>
-        <div className={styles["nn-currentMode"]}>Current: {active}</div>
-        <div className={styles["nn-modeGroup"]} data-tour-target="mode-toggle">
-          {(["READ", "PROPOSE", "EXECUTE"] as Mode[]).map((mode) => (
-            <Tooltip key={mode} text={modeHelp[mode]}>
-              <span
-                className={[
-                  styles["nn-modeChip"],
-                  active === mode ? styles["nn-modeActive"] : styles["nn-modeInactive"],
-                ].join(" ")}
-                aria-label={`Mode ${mode}`}
-              >
-                {mode}
-              </span>
-            </Tooltip>
-          ))}
-        </div>
+      <div className={styles["nn-topbarModes"]} data-tour-target="mode-toggle">
+        {(["READ", "PROPOSE", "EXECUTE"] as Mode[]).map((mode) => (
+          <Tooltip key={mode} text={modeHelp[mode]}>
+            <span
+              className={[
+                styles["nn-modeChip"],
+                active === mode ? styles["nn-modeActive"] : styles["nn-modeInactive"],
+                mode === "EXECUTE" ? styles["nn-modeLocked"] : "",
+              ].join(" ")}
+            >
+              {mode}
+            </span>
+          </Tooltip>
+        ))}
       </div>
 
       <div className={styles["nn-chipRow"]}>
         <span className={styles["nn-chip"]}>
-          <span className={[styles["nn-statusDot"], dbConnected ? styles["nn-ok"] : styles["nn-fail"]].join(" ")} />{" "}
-          DB {dbConnected ? "connected" : "offline"}
+          <span
+            className={[
+              styles["nn-statusDot"],
+              dbConnected ? styles["nn-ok"] : styles["nn-fail"],
+            ].join(" ")}
+          />{" "}
+          DB
         </span>
-        <span className={styles["nn-chip"]}>
-          <span className={[styles["nn-statusDot"], styles["nn-ok"]].join(" ")} /> Engine {engineType}
-        </span>
-        <Tooltip text="Policy mode controls what actions the seat can run.">
+        <Tooltip text="Policy mode controls run permission.">
           <span className={styles["nn-chip"]}>
-            <span className={[styles["nn-statusDot"], policyHealthy ? styles["nn-ok"] : styles["nn-warn"]].join(" ")} /> Policy {policyMode}
+            <span
+              className={[
+                styles["nn-statusDot"],
+                policyHealthy ? styles["nn-ok"] : styles["nn-warn"],
+              ].join(" ")}
+            />{" "}
+            {policyMode}
           </span>
         </Tooltip>
-        <Tooltip text="Reopen the first-run tour at any time.">
+        <Tooltip text="Reopen first-run walkthrough.">
           <span>
             <Button size="sm" variant="subtle" onClick={reopenTour}>
               Help

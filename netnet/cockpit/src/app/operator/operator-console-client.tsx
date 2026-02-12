@@ -4,8 +4,7 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import ConversationPanel from "@/components/operator/ConversationPanel";
 import OperatorTopBar from "@/components/operator/OperatorTopBar";
 import OpsBoard from "@/components/operator/OpsBoard";
-import type { ThreadItem } from "@/components/operator/ThreadSidebar";
-import { Button, Textarea } from "@/components/ui";
+import ThreadSidebar, { type ThreadItem } from "@/components/operator/ThreadSidebar";
 import styles from "@/components/operator/OperatorSeat.module.css";
 import type { SkillInfo } from "@/lib/operator/skillContext";
 import type { Strategy } from "@/lib/operator/strategy";
@@ -40,6 +39,7 @@ type Props = {
   policyHealthy: boolean;
   dbConnected: boolean;
   engineType: "openrouter" | "local";
+  engineModel: string;
 };
 
 type DraftThread = {
@@ -53,7 +53,7 @@ function dayKey(timestamp: number): string {
 
 function trimLine(input: string): string {
   const oneLine = input.replace(/\s+/g, " ").trim();
-  if (!oneLine) return "Untitled thread";
+  if (!oneLine) return "Untitled session";
   return oneLine.length > 60 ? `${oneLine.slice(0, 60)}...` : oneLine;
 }
 
@@ -75,12 +75,15 @@ function buildPersistedThreads(
   return [...groups.entries()]
     .map(([id, threadMessages]) => {
       const first = threadMessages.find(
-        (message) => message.role === "operator" || message.role === "assistant" || message.role === "system"
+        (message) =>
+          message.role === "operator" ||
+          message.role === "assistant" ||
+          message.role === "system"
       );
       const last = threadMessages[threadMessages.length - 1];
       return {
         id,
-        title: trimLine(first?.content || "Thread"),
+        title: trimLine(first?.content || "Session"),
         updatedAt: last?.createdAt || Date.now(),
         messageCount: threadMessages.length,
       };
@@ -99,12 +102,14 @@ function buildDraftThreads(
         .filter((message) => assignments[message.id] === draft.id)
         .sort((a, b) => a.createdAt - b.createdAt);
 
-      const first = assigned.find((message) => message.role === "operator" || message.role === "assistant");
+      const first = assigned.find(
+        (message) => message.role === "operator" || message.role === "assistant"
+      );
       const last = assigned[assigned.length - 1];
 
       return {
         id: draft.id,
-        title: trimLine(first?.content || "New thread"),
+        title: trimLine(first?.content || "New chat"),
         updatedAt: last?.createdAt || draft.createdAt,
         messageCount: assigned.length,
       };
@@ -123,13 +128,13 @@ export default function OperatorConsoleClient({
   policyHealthy,
   dbConnected,
   engineType,
+  engineModel,
 }: Props) {
   const [messages, setMessages] = useState<MessageEnvelope[]>(initialMessages);
   const [proposals, setProposals] = useState<SkillProposalEnvelope[]>(initialProposals);
   const [strategyMemory, setStrategyMemory] = useState<Strategy[]>(initialStrategies);
   const [pnl, setPnl] = useState(initialPnl);
   const [draft, setDraft] = useState("");
-  const [bankrDraftText, setBankrDraftText] = useState("");
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [threadAssignments, setThreadAssignments] = useState<Record<string, string>>({});
   const [draftThreads, setDraftThreads] = useState<DraftThread[]>([]);
@@ -238,51 +243,76 @@ export default function OperatorConsoleClient({
     setDraft("");
   }
 
-  function onCreateBankrDraft() {
-    const text = bankrDraftText.trim();
-    if (!text) return;
-    setBankrDraftText("");
-    runAction("bankr-draft:create", () => createBankrDraftAction(text), activeThreadId);
-  }
-
   function onSelectThread(id: string) {
     setActiveThreadId(id);
   }
 
+  function resolveThreadIdForMessage(message: MessageEnvelope): string {
+    const assigned = threadAssignments[message.id];
+    if (assigned) return assigned;
+    return `day:${dayKey(message.createdAt)}`;
+  }
+
+  function pulse(target: HTMLElement | null) {
+    if (!target) return;
+    target.classList.add(styles["nn-focusPulse"]);
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    window.setTimeout(() => target.classList.remove(styles["nn-focusPulse"]), 1400);
+  }
+
+  function focusProposal(proposalId: string) {
+    const proposalMessage = messages.find((message) => message.metadata?.proposalId === proposalId);
+    if (proposalMessage) {
+      const nextThreadId = resolveThreadIdForMessage(proposalMessage);
+      if (activeThreadId !== nextThreadId) setActiveThreadId(nextThreadId);
+    }
+
+    window.setTimeout(() => {
+      const proposalNode = document.getElementById(`operator-proposal-${proposalId}`);
+      if (proposalNode) {
+        pulse(proposalNode);
+        return;
+      }
+      if (proposalMessage) {
+        const messageNode = document.getElementById(`operator-message-${proposalMessage.id}`);
+        pulse(messageNode);
+      }
+    }, 60);
+  }
+
+  function focusMessage(messageId: string) {
+    const message = messages.find((entry) => entry.id === messageId);
+    if (message) {
+      const nextThreadId = resolveThreadIdForMessage(message);
+      if (activeThreadId !== nextThreadId) setActiveThreadId(nextThreadId);
+    }
+
+    window.setTimeout(() => {
+      const node = document.getElementById(`operator-message-${messageId}`);
+      pulse(node);
+    }, 60);
+  }
+
   return (
     <div className={[styles["nn-root"], styles.seat].join(" ")}>
-      <OperatorTopBar
-        policyMode={policyMode}
-        dbConnected={dbConnected}
-        engineType={engineType}
-        policyHealthy={policyHealthy}
-      />
-
       <div className={styles["nn-main"]}>
-        <section className={[styles.left, styles.panel].join(" ")}>
-          <div className={styles["nn-listItem"]}>
-            <div className={styles["nn-listHead"]}>
-              <div>
-                <div>Bankr Draft</div>
-                <div className={styles["nn-muted"]}>
-                  Draft strategy intent from chat text, then propose from Ops Board.
-                </div>
-              </div>
-              <Button
-                size="sm"
-                onClick={onCreateBankrDraft}
-                disabled={!bankrDraftText.trim() || loadingAction !== null}
-              >
-                {loadingAction === "bankr-draft:create" ? "Creating..." : "Create Draft"}
-              </Button>
-            </div>
-            <Textarea
-              rows={2}
-              value={bankrDraftText}
-              onChange={(event) => setBankrDraftText(event.target.value)}
-              placeholder="Example: Draft a daily DCA for ECO on base with conservative sizing."
-            />
-          </div>
+        <aside className={[styles.left, styles.panel, styles["nn-sidebar"]].join(" ")}>
+          <ThreadSidebar
+            threads={threads}
+            activeThreadId={activeThreadId}
+            onSelectThread={onSelectThread}
+            onCreateThread={onCreateThread}
+          />
+        </aside>
+
+        <section className={[styles["nn-center"], styles.panel].join(" ")}>
+          <OperatorTopBar
+            policyMode={policyMode}
+            dbConnected={dbConnected}
+            engineType={engineType}
+            engineModel={engineModel}
+            policyHealthy={policyHealthy}
+          />
           <ConversationPanel
             messages={filteredMessages}
             proposals={proposals}
@@ -295,20 +325,16 @@ export default function OperatorConsoleClient({
             strategies={strategies}
             onApprove={(id) => runAction(`approve:${id}`, () => approveProposalAction(id))}
             onReject={(id) => runAction(`reject:${id}`, () => rejectProposalAction(id))}
-            onRequestIntent={(id) => runAction(`request:${id}`, () => requestExecutionIntentAction(id))}
-            onLockIntent={(id) => runAction(`lock:${id}`, () => lockExecutionIntentAction(id))}
-            onGeneratePlan={(id) =>
-              runAction(`plan:${id}`, () => generateExecutionPlanAction(id))
+            onRequestIntent={(id) =>
+              runAction(`request:${id}`, () => requestExecutionIntentAction(id))
             }
+            onLockIntent={(id) => runAction(`lock:${id}`, () => lockExecutionIntentAction(id))}
+            onGeneratePlan={(id) => runAction(`plan:${id}`, () => generateExecutionPlanAction(id))}
             onExecute={(id) => runAction(`execute:${id}`, () => executeProposalAction(id))}
             onDraftStrategy={(id) =>
               runAction(`strategy:${id}`, () => proposeStrategyFromAssistantProposal(id))
             }
             loadingAction={loadingAction}
-            threads={threads}
-            activeThreadId={activeThreadId}
-            onSelectThread={onSelectThread}
-            onCreateThread={onCreateThread}
           />
         </section>
 
@@ -323,6 +349,13 @@ export default function OperatorConsoleClient({
               runActionNow(
                 `template:${templateId}`,
                 () => createDraftProposalFromTemplate(templateId, input),
+                activeThreadId
+              )
+            }
+            onCreateBankrDraft={(text) =>
+              runActionNow(
+                "bankr-draft:create",
+                () => createBankrDraftAction(text),
                 activeThreadId
               )
             }
@@ -354,6 +387,8 @@ export default function OperatorConsoleClient({
                 activeThreadId
               )
             }
+            onFocusProposal={focusProposal}
+            onFocusMessage={focusMessage}
             loadingAction={loadingAction}
           />
         </aside>

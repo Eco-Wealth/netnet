@@ -37,7 +37,7 @@ const TOUR_STEPS: TourStep[] = [
     id: "ops-status",
     title: "Ops status",
     text: "This board summarizes policy mode, pending approvals, and running work.",
-    selector: '[data-tour-target="ops-status"]',
+    selector: "#ops-status",
   },
   {
     id: "execute-button",

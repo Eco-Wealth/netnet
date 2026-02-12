@@ -77,10 +77,19 @@ const NAV = [
 
 export default function Shell({ title, subtitle, children }: ShellProps) {
   const pathname = usePathname();
+  const isOperatorRoute = pathname?.startsWith("/operator");
   const inferredTitle =
     title ||
     NAV.find((n) => pathname?.startsWith(n.href))?.label ||
     "Cockpit";
+
+  if (isOperatorRoute) {
+    return (
+      <div className="min-h-screen bg-[#070b14] text-white">
+        <main className="h-screen">{children}</main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white text-black">

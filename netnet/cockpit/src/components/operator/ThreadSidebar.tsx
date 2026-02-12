@@ -38,12 +38,12 @@ export default function ThreadSidebar({
       <div className={styles["nn-sectionHeader"]}>
         <div>
           <div className={styles["nn-sectionTitle"]}>Threads</div>
-          <div className={styles["nn-muted"]}>Conversation list</div>
+          <div className={styles["nn-muted"]}>Sessions</div>
         </div>
-        <Tooltip text="Create a fresh conversation thread.">
+        <Tooltip text="Start a fresh chat session.">
           <span>
             <Button size="sm" onClick={onCreateThread}>
-              New Thread
+              New chat
             </Button>
           </span>
         </Tooltip>
@@ -51,7 +51,7 @@ export default function ThreadSidebar({
 
       <div className={styles["nn-sidebarList"]}>
         {threads.length === 0 ? (
-          <div className={styles["nn-empty"]}>No threads yet.</div>
+          <div className={styles["nn-empty"]}>No sessions yet.</div>
         ) : (
           threads.map((thread) => (
             <Tooltip key={thread.id} text="Open this thread.">

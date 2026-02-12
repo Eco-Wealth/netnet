@@ -1,10 +1,8 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
-import Insight from "@/components/Insight";
+import { useMemo } from "react";
 import FirstRunTour from "@/components/operator/FirstRunTour";
 import Tooltip from "@/components/operator/Tooltip";
-import type { ThreadItem } from "@/components/operator/ThreadSidebar";
 import { Button, Textarea } from "@/components/ui";
 import styles from "@/components/operator/OperatorSeat.module.css";
 import type { SkillInfo } from "@/lib/operator/skillContext";
@@ -29,10 +27,6 @@ type ConversationPanelProps = {
   onExecute: (id: string) => void;
   onDraftStrategy: (id: string) => void;
   loadingAction: string | null;
-  threads: ThreadItem[];
-  activeThreadId: string | null;
-  onSelectThread: (id: string) => void;
-  onCreateThread: () => void;
 };
 
 function escapeHtml(input: string): string {
@@ -56,7 +50,7 @@ function renderMarkdown(content: string): JSX.Element {
   const blocks: JSX.Element[] = [];
   const parts = content.split(/```([\s\S]*?)```/g);
 
-  for (let i = 0; i < parts.length; i++) {
+  for (let i = 0; i < parts.length; i += 1) {
     const part = parts[i];
     if (!part) continue;
 
@@ -74,38 +68,16 @@ function renderMarkdown(content: string): JSX.Element {
 
     const flushParagraph = (key: string) => {
       if (!buffer.length) return;
-      const paragraph = buffer.join(" ").trim();
-      if (!paragraph) {
-        buffer.length = 0;
-        return;
-      }
-      blocks.push(
-        <p key={key} dangerouslySetInnerHTML={{ __html: renderInline(paragraph) }} />
-      );
+      const text = buffer.join(" ").trim();
       buffer.length = 0;
+      if (!text) return;
+      blocks.push(<p key={key} dangerouslySetInnerHTML={{ __html: renderInline(text) }} />);
     };
 
-    for (let idx = 0; idx < lines.length; idx++) {
+    for (let idx = 0; idx < lines.length; idx += 1) {
       const line = lines[idx].trim();
-
       if (!line) {
         flushParagraph(`p-${i}-${idx}`);
-        continue;
-      }
-
-      if (line.startsWith("### ")) {
-        flushParagraph(`p-${i}-${idx}-before-h3`);
-        blocks.push(
-          <h3 key={`h3-${i}-${idx}`} dangerouslySetInnerHTML={{ __html: renderInline(line.slice(4)) }} />
-        );
-        continue;
-      }
-
-      if (line.startsWith("## ")) {
-        flushParagraph(`p-${i}-${idx}-before-h2`);
-        blocks.push(
-          <h4 key={`h4-${i}-${idx}`} dangerouslySetInnerHTML={{ __html: renderInline(line.slice(3)) }} />
-        );
         continue;
       }
 
@@ -162,6 +134,12 @@ function renderMarkdown(content: string): JSX.Element {
   return <div className={styles["nn-markdown"]}>{blocks}</div>;
 }
 
+function modeForPolicy(policyMode: string): "READ" | "PROPOSE" | "EXECUTE" {
+  if (policyMode === "READ_ONLY") return "READ";
+  if (policyMode === "EXECUTE_WITH_LIMITS") return "EXECUTE";
+  return "PROPOSE";
+}
+
 function roleClassName(role: MessageEnvelope["role"]): string {
   if (role === "operator") return styles["nn-messageOperator"];
   if (role === "assistant") return styles["nn-messageAssistant"];
@@ -190,88 +168,80 @@ function ProposalInlineCard({
   onExecute: (id: string) => void;
   onDraftStrategy: (id: string) => void;
 }) {
+  const canExecute =
+    proposal.status === "approved" &&
+    proposal.executionIntent === "locked" &&
+    proposal.executionStatus === "idle" &&
+    Boolean(proposal.executionPlan);
+
   return (
-    <div className={styles["nn-proposalCard"]}>
+    <div
+      id={`operator-proposal-${proposal.id}`}
+      data-proposal-id={proposal.id}
+      className={styles["nn-proposalCard"]}
+    >
       <div className={styles["nn-proposalHead"]}>
         <div>
           <div className={styles["nn-proposalTitle"]}>{proposal.skillId}</div>
           <div className={styles["nn-proposalRoute"]}>{proposal.route}</div>
         </div>
         <div className={styles["nn-chipRow"]}>
-          <span className={styles["nn-chip"]}>status: {proposal.status}</span>
-          <span className={styles["nn-chip"]}>intent: {proposal.executionIntent}</span>
           <span className={styles["nn-chip"]}>risk: {proposal.riskLevel}</span>
+          <span className={styles["nn-chip"]}>status: {proposal.status}</span>
         </div>
       </div>
 
       <div className={styles["nn-inlineHint"]}>{proposal.reasoning}</div>
-
-      {proposal.executionResult ? (
-        <div className={styles["nn-listItem"]}>
-          <div>Execution {proposal.executionResult.ok ? "succeeded" : "failed"}</div>
-          <div className={styles["nn-muted"]}>
-            {proposal.executionResult.route} · {proposal.executionResult.policyDecision}
-          </div>
-        </div>
-      ) : null}
-
-      {proposal.executionPlan ? (
-        <div className={styles["nn-listItem"]}>
-          <div>Plan ready</div>
-          <div className={styles["nn-muted"]}>{proposal.executionPlan.summary}</div>
-        </div>
-      ) : null}
+      <div className={styles["nn-proposalMeta"]}>
+        <span>intent: {proposal.executionIntent}</span>
+        <span>plan: {proposal.executionPlan ? proposal.executionPlan.summary : "none"}</span>
+        <span>
+          result:{" "}
+          {proposal.executionResult
+            ? proposal.executionResult.ok
+              ? "success"
+              : "failed"
+            : "none"}
+        </span>
+      </div>
 
       <div className={styles["nn-actions"]}>
         {proposal.status === "draft" ? (
-          <Fragment>
-            <Tooltip text="Approve this proposal for execution.">
+          <>
+            <Tooltip text="Approve this draft proposal.">
               <span data-tour-target="approve-button">
                 <Button
                   size="sm"
-                  disabled={loadingAction !== null}
                   onClick={() => onApprove(proposal.id)}
-                  insight={{
-                    what: "Approve confirms this proposal can move to intent stage.",
-                    when: "Use after checking route, payload, and risk level.",
-                    requires: "Operator decision.",
-                    output: "Proposal status changes to approved.",
-                  }}
+                  disabled={loadingAction !== null}
                 >
                   {loadingAction === `approve:${proposal.id}` ? "Approving..." : "Approve"}
                 </Button>
               </span>
             </Tooltip>
-            <Button
-              size="sm"
-              variant="danger"
-              disabled={loadingAction !== null}
-              onClick={() => onReject(proposal.id)}
-              insight={{
-                what: "Reject ends this proposal path.",
-                when: "Use if proposal is unsafe or out of scope.",
-                requires: "Operator decision.",
-                output: "Proposal status changes to rejected.",
-              }}
-            >
-              {loadingAction === `reject:${proposal.id}` ? "Rejecting..." : "Reject"}
-            </Button>
-          </Fragment>
+            <Tooltip text="Reject this proposal and stop its flow.">
+              <span>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  onClick={() => onReject(proposal.id)}
+                  disabled={loadingAction !== null}
+                >
+                  {loadingAction === `reject:${proposal.id}` ? "Rejecting..." : "Reject"}
+                </Button>
+              </span>
+            </Tooltip>
+          </>
         ) : null}
 
         {proposal.status === "approved" && proposal.executionIntent === "none" ? (
-          <Tooltip text="Request intent to move this item into the locked path.">
+          <Tooltip text="Request intent before lock.">
             <span>
               <Button
                 size="sm"
-                disabled={loadingAction !== null}
+                variant="subtle"
                 onClick={() => onRequestIntent(proposal.id)}
-                insight={{
-                  what: "Request Intent marks readiness for possible execution.",
-                  when: "Use after proposal approval.",
-                  requires: "Approved proposal.",
-                  output: "executionIntent becomes requested.",
-                }}
+                disabled={loadingAction !== null}
               >
                 {loadingAction === `request:${proposal.id}` ? "Requesting..." : "Request Intent"}
               </Button>
@@ -280,18 +250,13 @@ function ProposalInlineCard({
         ) : null}
 
         {proposal.executionIntent === "requested" ? (
-          <Tooltip text="Lock intent so planning and execution controls are enabled.">
+          <Tooltip text="Lock intent for execution path.">
             <span>
               <Button
                 size="sm"
-                disabled={loadingAction !== null}
+                variant="subtle"
                 onClick={() => onLockIntent(proposal.id)}
-                insight={{
-                  what: "Lock prevents accidental intent drift before execution.",
-                  when: "Use after final operator review.",
-                  requires: "Intent must be requested.",
-                  output: "executionIntent becomes locked.",
-                }}
+                disabled={loadingAction !== null}
               >
                 {loadingAction === `lock:${proposal.id}` ? "Locking..." : "Lock Intent"}
               </Button>
@@ -300,44 +265,27 @@ function ProposalInlineCard({
         ) : null}
 
         {proposal.executionIntent === "locked" && proposal.executionStatus === "idle" ? (
-          <Tooltip text="Generate execution plan (dry-run) before execution.">
+          <Tooltip text="Generate dry-run execution plan.">
             <span>
               <Button
                 size="sm"
-                disabled={loadingAction !== null}
+                variant="subtle"
                 onClick={() => onGeneratePlan(proposal.id)}
-                insight={{
-                  what: "Create a deterministic dry-run plan snapshot for this proposal.",
-                  when: "Use after intent lock and before execution.",
-                  requires: "Execution intent locked.",
-                  output: "Plan persisted in proposal and emitted as skill audit message.",
-                }}
+                disabled={loadingAction !== null}
               >
-                {loadingAction === `plan:${proposal.id}`
-                  ? "Planning..."
-                  : proposal.executionPlan
-                  ? "Rebuild Plan"
-                  : "Generate Plan"}
+                {loadingAction === `plan:${proposal.id}` ? "Planning..." : "Generate Plan"}
               </Button>
             </span>
           </Tooltip>
         ) : null}
 
-        {proposal.executionIntent === "locked" &&
-        proposal.executionStatus === "idle" &&
-        proposal.executionPlan ? (
-          <Tooltip text="Run approved and locked proposal.">
+        {canExecute ? (
+          <Tooltip text="Execute approved, locked, planned proposal.">
             <span data-tour-target="execute-button">
               <Button
                 size="sm"
-                disabled={loadingAction !== null}
                 onClick={() => onExecute(proposal.id)}
-                insight={{
-                  what: "Execute runs through the controlled orchestrator.",
-                  when: "Use only after approval, intent lock, and plan generation.",
-                  requires: "Policy gate allows execution at runtime.",
-                  output: "Execution result envelope and audit message.",
-                }}
+                disabled={loadingAction !== null}
               >
                 {loadingAction === `execute:${proposal.id}` ? "Executing..." : "Execute"}
               </Button>
@@ -346,20 +294,18 @@ function ProposalInlineCard({
         ) : null}
 
         {proposal.status === "approved" ? (
-          <Button
-            size="sm"
-            variant="subtle"
-            disabled={loadingAction !== null}
-            onClick={() => onDraftStrategy(proposal.id)}
-            insight={{
-              what: "Create a draft strategy memory from an approved proposal.",
-              when: "Use after proposal approval to capture long-running intent.",
-              requires: "Policy gate for strategy proposal path.",
-              output: "Draft strategy linked to proposal and assistant audit message.",
-            }}
-          >
-            {loadingAction === `strategy:${proposal.id}` ? "Drafting..." : "Draft Strategy"}
-          </Button>
+          <Tooltip text="Create a strategy draft from this proposal.">
+            <span>
+              <Button
+                size="sm"
+                variant="subtle"
+                onClick={() => onDraftStrategy(proposal.id)}
+                disabled={loadingAction !== null}
+              >
+                {loadingAction === `strategy:${proposal.id}` ? "Drafting..." : "Draft Strategy"}
+              </Button>
+            </span>
+          </Tooltip>
         ) : null}
       </div>
     </div>
@@ -384,136 +330,64 @@ export default function ConversationPanel({
   onExecute,
   onDraftStrategy,
   loadingAction,
-  threads,
-  activeThreadId,
-  onSelectThread,
-  onCreateThread,
 }: ConversationPanelProps) {
   const ordered = useMemo(() => [...messages].sort((a, b) => a.createdAt - b.createdAt), [messages]);
   const proposalById = useMemo(
     () => new Map(proposals.map((proposal) => [proposal.id, proposal])),
     [proposals]
   );
-
-  const [showSkills, setShowSkills] = useState(false);
-  const [showStrategies, setShowStrategies] = useState(false);
-  const latestStrategyDraftNote = useMemo(() => {
-    const match = [...ordered]
-      .reverse()
-      .find(
-        (message) =>
-          message.metadata?.action === "strategy.propose" &&
-          message.content.startsWith("Strategy drafted from approved proposal:")
-      );
-    return match?.content || null;
-  }, [ordered]);
+  const activeMode = modeForPolicy(policyMode);
 
   return (
-    <div
-      id="operator-conversation-root"
-      className={[styles["nn-columnBody"], styles.panelBody].join(" ")}
-    >
+    <div id="operator-conversation-root" className={[styles["nn-columnBody"], styles.panelBody].join(" ")}>
       <FirstRunTour />
-      <div className={[styles["nn-sectionHeader"], styles.panelHeader].join(" ")}>
-        <div>
-          <div className={styles["nn-sectionTitle"]}>Operator Chat</div>
-          <div className={styles["nn-muted"]}>Policy mode: {policyMode}</div>
-        </div>
-        <div className={styles["nn-headerControls"]}>
-          <select
-            className={styles["nn-threadSelect"]}
-            value={activeThreadId ?? ""}
-            onChange={(event) => {
-              const next = event.target.value;
-              if (next) onSelectThread(next);
-            }}
-            aria-label="Select thread"
-          >
-            {activeThreadId ? null : <option value="">All messages</option>}
-            {threads.map((thread) => (
-              <option key={thread.id} value={thread.id}>
-                {thread.title} ({thread.messageCount})
-              </option>
-            ))}
-          </select>
-          <Tooltip text="Create a fresh conversation thread.">
-            <span>
-              <Button size="sm" onClick={onCreateThread}>
-                New
-              </Button>
-            </span>
-          </Tooltip>
-        </div>
-      </div>
-
-      <div className={styles["nn-toolbarRow"]}>
-        <div className={styles["nn-chipRow"]}>
-          <Button size="sm" variant="subtle" onClick={() => setShowSkills((prev) => !prev)}>
-            {showSkills ? "Hide Skills" : "Skills"}
-          </Button>
-          <Button size="sm" variant="subtle" onClick={() => setShowStrategies((prev) => !prev)}>
-            {showStrategies ? "Hide Strategies" : "Strategies"}
-          </Button>
-        </div>
-        <div className={styles["nn-muted"]}>Threaded, proposal-first workflow.</div>
-      </div>
-
-      <div className={styles["nn-guidanceStrip"]}>
-        You can: ask questions, propose strategies, draft actions, and approve then execute proposals.
-        {latestStrategyDraftNote ? (
-          <div className={styles["nn-inlineNote"]}>{latestStrategyDraftNote}</div>
-        ) : null}
-      </div>
-
-      {showSkills ? (
-        <div className={styles["nn-starterList"]}>
-          <div className={styles["nn-muted"]}>Skill starters</div>
-          <div className={styles["nn-starterGrid"]}>
-            {skills.slice(0, 8).map((skill) => (
-              <Button
-                key={skill.id}
-                size="sm"
-                variant="subtle"
-                onClick={() =>
-                  setDraft(
-                    `Consider skill: ${skill.id}. Return only skill.proposal JSON for ${skill.route} with reasoning, riskLevel, and proposedBody. No execution.`
-                  )
-                }
-              >
-                {skill.id}
-              </Button>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {showStrategies ? (
-        <div className={styles["nn-starterList"]}>
-          <div className={styles["nn-muted"]}>Strategy starters</div>
-          <div className={styles["nn-starterGrid"]}>
-            {strategies.slice(0, 10).map((strategy) => (
-              <Button
-                key={strategy.id}
-                size="sm"
-                variant="subtle"
-                onClick={() => setDraft(strategy.starterPrompt)}
-              >
-                {strategy.title}
-              </Button>
-            ))}
-          </div>
-        </div>
-      ) : null}
 
       <div className={styles["nn-conversationScroll"]}>
         {ordered.length === 0 ? (
           <div className={styles["nn-emptyCoach"]}>
-            <div>Start by describing what you want to accomplish.</div>
-            <div className={styles["nn-muted"]}>
-              The Operator will analyze, propose structured actions, and wait for approval.
+            <div className={styles["nn-emptyTitle"]}>Start with one of these prompts:</div>
+            <div className={styles["nn-starterGrid"]}>
+              <Button
+                size="sm"
+                variant="subtle"
+                onClick={() =>
+                  setDraft("Read mode: summarize current policy, pending approvals, and risks.")
+                }
+              >
+                Read: summarize current seat status
+              </Button>
+              <Button
+                size="sm"
+                variant="subtle"
+                onClick={() =>
+                  setDraft(
+                    "Propose mode: return a skill.proposal JSON for a low-risk wallet/token read."
+                  )
+                }
+              >
+                Propose: draft a safe skill.proposal
+              </Button>
+              <Button
+                size="sm"
+                variant="subtle"
+                onClick={() =>
+                  setDraft(
+                    "Create a strategy draft with objective, constraints, and rollback conditions."
+                  )
+                }
+              >
+                Strategy: draft a runbook-ready strategy
+              </Button>
             </div>
           </div>
         ) : null}
+
+        {proposals.length === 0 ? (
+          <div className={styles["nn-emptyHint"]}>
+            Proposals appear here after assistant analysis. Approvals are always manual.
+          </div>
+        ) : null}
+
         {ordered.map((message) => {
           const proposal = message.metadata?.proposalId
             ? proposalById.get(message.metadata.proposalId)
@@ -525,9 +399,7 @@ export default function ConversationPanel({
               id={`operator-message-${message.id}`}
               className={[styles["nn-messageRow"], styles.messageRow].join(" ")}
             >
-              <div
-                className={[styles["nn-message"], roleClassName(message.role)].join(" ")}
-              >
+              <div className={[styles["nn-message"], roleClassName(message.role)].join(" ")}>
                 <div className={[styles["nn-messageMeta"], styles.messageMeta].join(" ")}>
                   <div className={styles["nn-role"]}>{message.role}</div>
                   <div className={styles["nn-time"]}>
@@ -543,10 +415,7 @@ export default function ConversationPanel({
                     {message.metadata.action ? (
                       <span className={styles["nn-chip"]}>{message.metadata.action}</span>
                     ) : null}
-                    {message.metadata.policySnapshot ? (
-                      <span className={styles["nn-chip"]}>policy snapshot</span>
-                    ) : null}
-                    {(message.metadata.tags || []).map((tag) => (
+                    {(message.metadata.tags || []).slice(0, 4).map((tag) => (
                       <span key={`${message.id}-${tag}`} className={styles["nn-chip"]}>
                         {tag}
                       </span>
@@ -576,28 +445,61 @@ export default function ConversationPanel({
       </div>
 
       <div className={[styles["nn-inputBar"], styles.composer].join(" ")}>
-        <Insight
-          insight={{
-            what: "Write your operator instruction for analysis or proposal drafting.",
-            when: "Use before sending a new command to the assistant.",
-            requires: "No execution from chat send alone.",
-            output: "Assistant response and optional proposal envelope.",
-          }}
-        >
-          <div>
-            <Textarea
-              data-tour-target="chat-input"
-              className={styles["nn-input"]}
-              rows={4}
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder="Ask for strategy analysis or a skill.proposal JSON draft..."
-            />
+        <div className={styles["nn-composerModes"]}>
+          <Tooltip text="Read mode analyzes only.">
+            <span
+              className={[
+                styles["nn-modeChip"],
+                activeMode === "READ" ? styles["nn-modeActive"] : styles["nn-modeInactive"],
+              ].join(" ")}
+            >
+              Read
+            </span>
+          </Tooltip>
+          <Tooltip text="Propose mode drafts structured actions.">
+            <span
+              className={[
+                styles["nn-modeChip"],
+                activeMode === "PROPOSE" ? styles["nn-modeActive"] : styles["nn-modeInactive"],
+              ].join(" ")}
+            >
+              Propose
+            </span>
+          </Tooltip>
+          <Tooltip text="Execute is locked until approval and intent lock.">
+            <span
+              className={[
+                styles["nn-modeChip"],
+                styles["nn-modeLocked"],
+                activeMode === "EXECUTE" ? styles["nn-modeActive"] : styles["nn-modeInactive"],
+              ].join(" ")}
+            >
+              Execute
+            </span>
+          </Tooltip>
+          <div className={styles["nn-muted"]}>
+            Starters: {skills.length} skills, {strategies.length} strategy templates
           </div>
-        </Insight>
+        </div>
+
+        <Textarea
+          data-tour-target="chat-input"
+          className={styles["nn-input"]}
+          rows={3}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          placeholder="Ask for analysis, draft a proposal, or create a strategy."
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+              event.preventDefault();
+              onSend();
+            }
+          }}
+        />
 
         <div className={styles["nn-actions"]}>
-          <Tooltip text="Send instruction to Operator AI.">
+          <div className={styles["nn-muted"]}>Ctrl/Cmd + Enter to send</div>
+          <Tooltip text="Send your message to the operator assistant.">
             <span>
               <Button onClick={onSend} disabled={loading || !draft.trim()}>
                 {loading ? "Sending..." : "Send"}
