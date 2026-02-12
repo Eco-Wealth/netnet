@@ -4,6 +4,11 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui";
 import styles from "@/components/operator/OperatorSeat.module.css";
 import Tooltip from "@/components/operator/Tooltip";
+import {
+  fetchBankrTokenInfoSnapshot,
+  fetchBankrWalletSnapshot,
+  type BankrTokenInfoParams,
+} from "@/app/operator/actions";
 import type { Strategy } from "@/lib/operator/strategy";
 import type { MessageEnvelope, SkillProposalEnvelope } from "@/lib/operator/types";
 
@@ -20,7 +25,8 @@ type SectionKey =
   | "inProgress"
   | "recentExecutions"
   | "policyMode"
-  | "pnl";
+  | "pnl"
+  | "bankrReadOnly";
 
 const DEFAULT_SECTIONS: Record<SectionKey, boolean> = {
   activeStrategies: true,
@@ -29,6 +35,7 @@ const DEFAULT_SECTIONS: Record<SectionKey, boolean> = {
   recentExecutions: true,
   policyMode: true,
   pnl: true,
+  bankrReadOnly: true,
 };
 
 function Section({
@@ -58,6 +65,18 @@ function Section({
 export default function OpsBoard({ proposals, messages, strategies, policyMode }: OpsBoardProps) {
   const [sections, setSections] = useState<Record<SectionKey, boolean>>(DEFAULT_SECTIONS);
   const [expandedProposals, setExpandedProposals] = useState<Record<string, boolean>>({});
+  const [walletBusy, setWalletBusy] = useState(false);
+  const [tokenBusy, setTokenBusy] = useState(false);
+  const [walletSnapshot, setWalletSnapshot] = useState<any | null>(null);
+  const [walletError, setWalletError] = useState<string | null>(null);
+  const [walletUpdatedAt, setWalletUpdatedAt] = useState<number | null>(null);
+  const [tokenSnapshot, setTokenSnapshot] = useState<any | null>(null);
+  const [tokenError, setTokenError] = useState<string | null>(null);
+  const [tokenUpdatedAt, setTokenUpdatedAt] = useState<number | null>(null);
+  const [tokenQuery, setTokenQuery] = useState<BankrTokenInfoParams>({
+    chain: "base",
+    token: "USDC",
+  });
 
   const activeStrategies = useMemo(
     () =>
@@ -97,6 +116,72 @@ export default function OpsBoard({ proposals, messages, strategies, policyMode }
 
   function toggleProposal(id: string) {
     setExpandedProposals((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
+
+  function formatSnapshot(value: unknown): string {
+    const seen = new WeakSet<object>();
+    return (
+      JSON.stringify(
+      value,
+      (_key, current) => {
+        if (typeof current === "string" && current.length > 180) {
+          return `${current.slice(0, 180)}...`;
+        }
+        if (current && typeof current === "object") {
+          if (seen.has(current)) return "[circular]";
+          seen.add(current);
+        }
+        return current;
+      },
+      2
+      ) ?? "null"
+    );
+  }
+
+  function formatTime(timestamp: number | null): string {
+    if (!timestamp) return "Never";
+    return new Date(timestamp).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  }
+
+  async function refreshWallet() {
+    setWalletBusy(true);
+    setWalletError(null);
+    try {
+      const result = await fetchBankrWalletSnapshot();
+      if (!result.ok) {
+        setWalletSnapshot(null);
+        setWalletError(result.error || "wallet_unavailable");
+        return;
+      }
+      setWalletSnapshot(result.data ?? null);
+      setWalletUpdatedAt(Date.now());
+    } finally {
+      setWalletBusy(false);
+    }
+  }
+
+  async function refreshTokenInfo() {
+    setTokenBusy(true);
+    setTokenError(null);
+    try {
+      const result = await fetchBankrTokenInfoSnapshot({
+        chain: tokenQuery.chain || "base",
+        token: tokenQuery.token || "USDC",
+      });
+      if (!result.ok) {
+        setTokenSnapshot(null);
+        setTokenError(result.error || "token_info_unavailable");
+        return;
+      }
+      setTokenSnapshot(result.data ?? null);
+      setTokenUpdatedAt(Date.now());
+    } finally {
+      setTokenBusy(false);
+    }
   }
 
   function strategyStatusHelp(status: Strategy["status"]): string {
@@ -241,6 +326,78 @@ export default function OpsBoard({ proposals, messages, strategies, policyMode }
           <div className={styles["nn-listItem"]}>
             <div>Active risk budget: --</div>
             <div className={styles["nn-muted"]}>placeholder · set by policy layer</div>
+          </div>
+        </Section>
+
+        <Section
+          title="Bankr (read-only)"
+          open={sections.bankrReadOnly}
+          onToggle={() => toggle("bankrReadOnly")}
+        >
+          <div className={styles["nn-listItem"]}>
+            <div className={styles["nn-listHead"]}>
+              <div>
+                <div>Wallet snapshot</div>
+                <div className={styles["nn-muted"]}>Last refresh: {formatTime(walletUpdatedAt)}</div>
+              </div>
+              <Button size="sm" variant="subtle" onClick={refreshWallet} disabled={walletBusy}>
+                {walletBusy ? "Refreshing..." : "Refresh Wallet"}
+              </Button>
+            </div>
+
+            {walletError ? (
+              <div className={styles["nn-muted"]}>Couldn't load (policy or missing config).</div>
+            ) : walletSnapshot ? (
+              <pre className={styles["nn-jsonBlock"]}>{formatSnapshot(walletSnapshot)}</pre>
+            ) : (
+              <div className={styles["nn-muted"]}>No snapshot yet - click refresh.</div>
+            )}
+          </div>
+
+          <div className={styles["nn-listItem"]}>
+            <div className={styles["nn-listHead"]}>
+              <div>
+                <div>Token info snapshot</div>
+                <div className={styles["nn-muted"]}>Last refresh: {formatTime(tokenUpdatedAt)}</div>
+              </div>
+              <Button size="sm" variant="subtle" onClick={refreshTokenInfo} disabled={tokenBusy}>
+                {tokenBusy ? "Refreshing..." : "Refresh Token Info"}
+              </Button>
+            </div>
+
+            <div className={styles["nn-bankrParams"]}>
+              <label className={styles["nn-muted"]}>
+                chain
+                <input
+                  className={styles["nn-bankrInput"]}
+                  value={tokenQuery.chain || ""}
+                  onChange={(event) =>
+                    setTokenQuery((prev) => ({ ...prev, chain: event.target.value }))
+                  }
+                />
+              </label>
+              <label className={styles["nn-muted"]}>
+                token
+                <input
+                  className={styles["nn-bankrInput"]}
+                  value={tokenQuery.token || ""}
+                  onChange={(event) =>
+                    setTokenQuery((prev) => ({ ...prev, token: event.target.value }))
+                  }
+                />
+              </label>
+            </div>
+            <div className={styles["nn-muted"]}>
+              If token info requires params in your environment, set chain/token above and refresh.
+            </div>
+
+            {tokenError ? (
+              <div className={styles["nn-muted"]}>Couldn't load (policy or missing config).</div>
+            ) : tokenSnapshot ? (
+              <pre className={styles["nn-jsonBlock"]}>{formatSnapshot(tokenSnapshot)}</pre>
+            ) : (
+              <div className={styles["nn-muted"]}>No snapshot yet - click refresh.</div>
+            )}
           </div>
         </Section>
       </div>

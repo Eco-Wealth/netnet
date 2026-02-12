@@ -1,8 +1,11 @@
 "use server";
 
 import { getPolicy } from "@/lib/policy/store";
+import { enforcePolicy } from "@/lib/policy/enforce";
 import { generateAssistantReply } from "@/lib/operator/llm";
 import { extractSkillProposalEnvelope } from "@/lib/operator/proposal";
+import { GET as bankrWalletGet } from "@/app/api/bankr/wallet/route";
+import { GET as bankrTokenInfoGet } from "@/app/api/bankr/token/info/route";
 import {
   appendAuditMessage,
   appendMessage,
@@ -47,6 +50,33 @@ function state(): OperatorStateResponse {
 function normalizeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
+
+function toSerializable(value: unknown): unknown {
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return { value: String(value) };
+  }
+}
+
+async function parseInternalJson(response: Response): Promise<any> {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+type BankrSnapshotResult = {
+  ok: boolean;
+  data?: any;
+  error?: string;
+};
+
+export type BankrTokenInfoParams = {
+  chain?: string;
+  token?: string;
+};
 
 export async function sendOperatorMessageAction(content: string): Promise<OperatorStateResponse> {
   const trimmed = String(content || "").trim();
@@ -191,4 +221,61 @@ export async function executeProposalAction(id: string): Promise<OperatorStateRe
     appendAuditMessage(`Execution failed: ${normalizeError(error)}`, "error");
   }
   return state();
+}
+
+export async function fetchBankrWalletSnapshot(): Promise<BankrSnapshotResult> {
+  const gate = enforcePolicy("token.manage", { venue: "bankr" });
+  if (!gate.ok) return { ok: false, error: "policy_denied" };
+
+  try {
+    const req = new Request("http://internal/api/bankr/wallet?action=state", {
+      method: "GET",
+    });
+    const response = await bankrWalletGet(req);
+    const payload = await parseInternalJson(response);
+    if (!response.ok || payload?.ok === false) {
+      return {
+        ok: false,
+        error: payload?.error?.message ?? payload?.error ?? "wallet_unavailable",
+      };
+    }
+    return { ok: true, data: toSerializable(payload) };
+  } catch {
+    return { ok: false, error: "wallet_unavailable" };
+  }
+}
+
+export async function fetchBankrTokenInfoSnapshot(
+  params?: BankrTokenInfoParams
+): Promise<BankrSnapshotResult> {
+  const gate = enforcePolicy("token.manage", {
+    venue: "bankr",
+    chain: params?.chain,
+    fromToken: params?.token,
+  });
+  if (!gate.ok) return { ok: false, error: "policy_denied" };
+
+  try {
+    const chain = String(params?.chain || "base");
+    const token = String(params?.token || "USDC");
+    const req = new Request(
+      `http://internal/api/bankr/token/info?chain=${encodeURIComponent(
+        chain
+      )}&token=${encodeURIComponent(token)}`,
+      { method: "GET" }
+    );
+    const response = await (
+      bankrTokenInfoGet as unknown as (request?: Request) => Promise<Response>
+    )(req);
+    const payload = await parseInternalJson(response);
+    if (!response.ok || payload?.ok === false) {
+      return {
+        ok: false,
+        error: payload?.error?.message ?? payload?.error ?? "token_info_unavailable",
+      };
+    }
+    return { ok: true, data: toSerializable(payload) };
+  } catch {
+    return { ok: false, error: "token_info_unavailable" };
+  }
 }
