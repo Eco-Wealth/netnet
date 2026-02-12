@@ -140,3 +140,6 @@ vite.config.ts.timestamp-*
 .github/workflows/
 netnet_unit*.zip
 .DS_Store
+netnet/cockpit/data/*.db
+netnet/cockpit/data/*.db-shm
+netnet/cockpit/data/*.db-wal
