@@ -67,6 +67,14 @@ export function extractSkillProposalEnvelope(content: string): SkillProposalEnve
 
     if (!isBankrSkill && isBankrAction) return null;
 
+    const normalizedBody = { ...parsed.data.proposedBody };
+    if (
+      parsed.data.action &&
+      typeof normalizedBody.action !== "string"
+    ) {
+      normalizedBody.action = parsed.data.action;
+    }
+
     const now = Date.now();
     return {
       id: createMessageId("proposal"),
@@ -74,7 +82,7 @@ export function extractSkillProposalEnvelope(content: string): SkillProposalEnve
       skillId: parsed.data.skillId,
       route: parsed.data.route,
       reasoning: parsed.data.reasoning,
-      proposedBody: parsed.data.proposedBody,
+      proposedBody: normalizedBody,
       riskLevel: parsed.data.riskLevel,
       status: "draft",
       createdAt: now,

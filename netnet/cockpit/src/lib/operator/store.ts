@@ -1,8 +1,18 @@
 import { BankrLaunchRequest, createLaunchProposal } from "@/lib/bankr/launcher";
 import { tokenActionCatalog } from "@/lib/bankr/token";
+import { GET as bankrTokenInfoGet } from "@/app/api/bankr/token/info/route";
+import { POST as bankrTokenActionsPost } from "@/app/api/bankr/token/actions/route";
+import { GET as bankrWalletGet } from "@/app/api/bankr/wallet/route";
 import { getPolicy } from "@/lib/policy/store";
+import { enforcePolicy } from "@/lib/policy/enforce";
+import type { PolicyAction } from "@/lib/policy/types";
 import { buildActionProof } from "@/lib/proof/action";
 import { buildExecutionPlan } from "@/lib/operator/planner";
+import {
+  assertBankrExecutable,
+  getBankrExecutionTarget,
+  isBankrProposal,
+} from "@/lib/operator/adapters/bankr";
 import {
   normalizeStrategy,
   type Strategy,
@@ -252,6 +262,8 @@ function canExecuteRoute(route: string): boolean {
   return [
     "/api/agent/trade",
     "/api/bankr/token/actions",
+    "/api/bankr/token/info",
+    "/api/bankr/wallet",
     "/api/bankr/launch",
     "/api/agent/regen/projects",
   ].includes(route);
@@ -266,9 +278,147 @@ function routeKillSwitchBlocked(route: string): boolean {
   return false;
 }
 
+function toRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object") return {};
+  return value as Record<string, unknown>;
+}
+
+function policyActionForExecution(proposal: SkillProposalEnvelope): PolicyAction {
+  if (isBankrProposal(proposal)) {
+    const target = getBankrExecutionTarget({ proposal });
+    return target.actionId;
+  }
+  if (proposal.route === "/api/agent/trade") return "trade.plan";
+  if (proposal.route === "/api/bankr/launch") return "token.launch";
+  if (proposal.route === "/api/bankr/token/actions") return "token.manage";
+  if (proposal.route === "/api/agent/regen/projects") return "work.create";
+  return "work.update";
+}
+
+function policyContextForExecution(proposal: SkillProposalEnvelope) {
+  const body = toRecord(proposal.proposedBody);
+  const amountUsd =
+    typeof body.amountUsd === "number"
+      ? body.amountUsd
+      : typeof body.amount === "number"
+      ? body.amount
+      : undefined;
+  const fromToken =
+    typeof body.from === "string"
+      ? body.from
+      : typeof body.token === "string"
+      ? body.token
+      : undefined;
+  const toToken =
+    typeof body.to === "string"
+      ? body.to
+      : typeof body.symbol === "string"
+      ? body.symbol
+      : undefined;
+
+  return {
+    route: proposal.route,
+    chain: typeof body.chain === "string" ? body.chain : undefined,
+    venue: proposal.route.startsWith("/api/bankr") ? "bankr" : undefined,
+    fromToken,
+    toToken,
+    amountUsd,
+  };
+}
+
+async function parseRouteResponse(res: Response): Promise<Record<string, unknown>> {
+  try {
+    const json = (await res.json()) as Record<string, unknown>;
+    return { statusCode: res.status, body: json };
+  } catch {
+    const text = await res.text().catch(() => "");
+    return { statusCode: res.status, body: { raw: text } };
+  }
+}
+
+async function runBankrRouteExecution(
+  proposal: SkillProposalEnvelope
+): Promise<Record<string, unknown>> {
+  assertBankrExecutable(proposal);
+  const target = getBankrExecutionTarget({ proposal });
+
+  if (target.route === "/api/bankr/token/actions") {
+    const params = { ...toRecord(proposal.proposedBody) };
+    delete params.action;
+    const req = new Request(`http://internal${target.route}`, {
+      method: target.method,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "status",
+        params: { ...params, bankrActionId: target.actionId },
+      }),
+    });
+    const res = await bankrTokenActionsPost(req);
+    const routeResult = await parseRouteResponse(res);
+    if (!res.ok) {
+      throw new Error(`bankr_route_execution_failed_${res.status}`);
+    }
+    return {
+      adapter: "bankr",
+      actionId: target.actionId,
+      ...routeResult,
+    };
+  }
+
+  if (target.route === "/api/bankr/wallet") {
+    const body = toRecord(proposal.proposedBody);
+    const wallet =
+      typeof body.wallet === "string" && body.wallet.trim()
+        ? `&wallet=${encodeURIComponent(body.wallet.trim())}`
+        : "";
+    const req = new Request(
+      `http://internal${target.route}?action=state${wallet}`,
+      { method: target.method }
+    );
+    const res = await bankrWalletGet(req);
+    const routeResult = await parseRouteResponse(res);
+    if (!res.ok) {
+      throw new Error(`bankr_route_execution_failed_${res.status}`);
+    }
+    return {
+      adapter: "bankr",
+      actionId: target.actionId,
+      ...routeResult,
+    };
+  }
+
+  if (target.route === "/api/bankr/token/info") {
+    const body = toRecord(proposal.proposedBody);
+    const chain = encodeURIComponent(String(body.chain || "base"));
+    const token = encodeURIComponent(String(body.token || "USDC"));
+    const req = new Request(
+      `http://internal${target.route}?chain=${chain}&token=${token}`,
+      { method: target.method }
+    );
+    const res = await (
+      bankrTokenInfoGet as unknown as (request?: Request) => Promise<Response>
+    )(req);
+    const routeResult = await parseRouteResponse(res);
+    if (!res.ok) {
+      throw new Error(`bankr_route_execution_failed_${res.status}`);
+    }
+    return {
+      adapter: "bankr",
+      actionId: target.actionId,
+      ...routeResult,
+    };
+  }
+
+  throw new Error(`Unsupported Bankr route: ${target.route}`);
+}
+
 async function runRouteExecution(
   proposal: SkillProposalEnvelope
 ): Promise<Record<string, unknown>> {
+  if (isBankrProposal(proposal)) {
+    return runBankrRouteExecution(proposal);
+  }
+
   if (proposal.route === "/api/agent/trade") {
     return {
       mode: "SIMULATED",
@@ -358,6 +508,9 @@ export async function executeProposal(id: string): Promise<SkillProposalEnvelope
   if (proposal.executionStatus !== "idle") {
     throw new Error("Proposal execution is not in idle state.");
   }
+  if (isBankrProposal(proposal)) {
+    assertBankrExecutable(proposal);
+  }
   if (!canExecuteRoute(proposal.route)) {
     throw new Error(`Execution mapping is not available for route: ${proposal.route}`);
   }
@@ -368,6 +521,14 @@ export async function executeProposal(id: string): Promise<SkillProposalEnvelope
   const policy = getPolicy();
   if (policy.autonomy !== "EXECUTE_WITH_LIMITS") {
     throw new Error(`Policy denies execution under autonomy level: ${policy.autonomy}`);
+  }
+
+  const policyAction = policyActionForExecution(proposal);
+  const gate = enforcePolicy(policyAction, policyContextForExecution(proposal));
+  if (!gate.ok) {
+    throw new Error(
+      `Execution denied by policy re-check: ${gate.reasons.join(", ") || "policy_denied"}`
+    );
   }
 
   proposal.executionStatus = "running";

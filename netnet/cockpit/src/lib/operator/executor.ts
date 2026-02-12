@@ -6,7 +6,14 @@ import type { SkillProposalEnvelope } from "@/lib/operator/proposal";
 import { POST as tradePost } from "@/app/api/agent/trade/route";
 import { POST as bankrLaunchPost } from "@/app/api/bankr/launch/route";
 import { POST as bankrTokenActionsPost } from "@/app/api/bankr/token/actions/route";
+import { GET as bankrTokenInfoGet } from "@/app/api/bankr/token/info/route";
+import { GET as bankrWalletGet } from "@/app/api/bankr/wallet/route";
 import { POST as bridgeRetirePost } from "@/app/api/bridge/retire/route";
+import {
+  assertBankrExecutable,
+  getBankrActionId,
+  isBankrProposal,
+} from "@/lib/operator/adapters/bankr";
 import { loadProposal } from "@/lib/operator/db";
 
 type RouteHandler = (req: Request) => Promise<Response>;
@@ -14,9 +21,16 @@ type SupportedRoute =
   | "/api/agent/trade"
   | "/api/bankr/launch"
   | "/api/bankr/token/actions"
+  | "/api/bankr/token/info"
+  | "/api/bankr/wallet"
   | "/api/bridge/retire";
 type ExecutionAction =
   | "trade.plan"
+  | "bankr.plan"
+  | "bankr.quote"
+  | "bankr.wallet.read"
+  | "bankr.token.read"
+  | "bankr.token.actions.plan"
   | "token.launch"
   | "token.manage"
   | "bridge.retire";
@@ -24,6 +38,7 @@ type ExecutionAction =
 type ExecutionTarget = {
   action: ExecutionAction;
   route: SupportedRoute;
+  method: "POST" | "GET";
   policyAction: PolicyAction;
   handler: RouteHandler;
 };
@@ -53,24 +68,63 @@ const ROUTE_EXECUTION_MAP: Record<ExecutionAction, ExecutionTarget> = {
   "trade.plan": {
     action: "trade.plan",
     route: "/api/agent/trade",
+    method: "POST",
     policyAction: "trade.plan",
     handler: tradePost as unknown as RouteHandler,
+  },
+  "bankr.plan": {
+    action: "bankr.plan",
+    route: "/api/bankr/token/actions",
+    method: "POST",
+    policyAction: "bankr.plan",
+    handler: bankrTokenActionsPost as unknown as RouteHandler,
+  },
+  "bankr.quote": {
+    action: "bankr.quote",
+    route: "/api/bankr/token/info",
+    method: "GET",
+    policyAction: "bankr.quote",
+    handler: (bankrTokenInfoGet as unknown as RouteHandler),
+  },
+  "bankr.wallet.read": {
+    action: "bankr.wallet.read",
+    route: "/api/bankr/wallet",
+    method: "GET",
+    policyAction: "bankr.wallet.read",
+    handler: bankrWalletGet as unknown as RouteHandler,
+  },
+  "bankr.token.read": {
+    action: "bankr.token.read",
+    route: "/api/bankr/token/info",
+    method: "GET",
+    policyAction: "bankr.token.read",
+    handler: (bankrTokenInfoGet as unknown as RouteHandler),
+  },
+  "bankr.token.actions.plan": {
+    action: "bankr.token.actions.plan",
+    route: "/api/bankr/token/actions",
+    method: "POST",
+    policyAction: "bankr.token.actions.plan",
+    handler: bankrTokenActionsPost as unknown as RouteHandler,
   },
   "token.launch": {
     action: "token.launch",
     route: "/api/bankr/launch",
+    method: "POST",
     policyAction: "token.launch",
     handler: bankrLaunchPost as unknown as RouteHandler,
   },
   "token.manage": {
     action: "token.manage",
     route: "/api/bankr/token/actions",
+    method: "POST",
     policyAction: "token.manage",
     handler: bankrTokenActionsPost as unknown as RouteHandler,
   },
   "bridge.retire": {
     action: "bridge.retire",
     route: "/api/bridge/retire",
+    method: "POST",
     policyAction: "retire.execute",
     handler: bridgeRetirePost as unknown as RouteHandler,
   },
@@ -122,11 +176,39 @@ function policyContextFromProposal(
   };
 }
 
-function internalRequest(route: SupportedRoute, body: Record<string, unknown>): Request {
-  return new Request(`http://internal${route}`, {
+function internalRequest(target: ExecutionTarget, body: Record<string, unknown>): Request {
+  if (target.method === "GET") {
+    if (target.route === "/api/bankr/wallet") {
+      const wallet =
+        typeof body.wallet === "string" && body.wallet.trim()
+          ? `&wallet=${encodeURIComponent(body.wallet.trim())}`
+          : "";
+      return new Request(`http://internal${target.route}?action=state${wallet}`, {
+        method: "GET",
+      });
+    }
+    if (target.route === "/api/bankr/token/info") {
+      const chain = encodeURIComponent(String(body.chain || "base"));
+      const token = encodeURIComponent(String(body.token || "USDC"));
+      return new Request(`http://internal${target.route}?chain=${chain}&token=${token}`, {
+        method: "GET",
+      });
+    }
+    return new Request(`http://internal${target.route}`, { method: "GET" });
+  }
+
+  const nextBody =
+    target.action === "bankr.plan" || target.action === "bankr.token.actions.plan"
+      ? {
+          action: "status",
+          params: { ...body, bankrActionId: target.action },
+        }
+      : body;
+
+  return new Request(`http://internal${target.route}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(nextBody),
   });
 }
 
@@ -138,16 +220,34 @@ function getProposalById(id: string): SkillProposalEnvelope | null {
   return { ...proposal, id: proposalId };
 }
 
+function resolveExecutionAction(proposal: SkillProposalEnvelope): ExecutionAction {
+  if (isBankrProposal(proposal)) {
+    assertBankrExecutable(proposal);
+    const action = getBankrActionId(proposal);
+    if (action in ROUTE_EXECUTION_MAP) return action as ExecutionAction;
+    throw new ExecutionBoundaryError(
+      "execution_target_unmapped",
+      `Execution blocked: unsupported bankr action (${action || "missing"}).`
+    );
+  }
+
+  const actionBySkill = ROUTE_EXECUTION_MAP[proposal.skillId as ExecutionAction];
+  if (actionBySkill) return actionBySkill.action;
+  throw new ExecutionBoundaryError(
+    "execution_target_unmapped",
+    `Execution blocked: unmapped skill (${proposal.skillId}).`
+  );
+}
+
 function resolveExecutionTarget(
   proposal: SkillProposalEnvelope
 ): ExecutionTarget {
-  const actionBySkill = ROUTE_EXECUTION_MAP[proposal.skillId as ExecutionAction];
-  if (actionBySkill && actionBySkill.route === proposal.route) {
-    return actionBySkill;
-  }
+  const action = resolveExecutionAction(proposal);
+  const target = ROUTE_EXECUTION_MAP[action];
+  if (target.route === proposal.route) return target;
   throw new ExecutionBoundaryError(
     "execution_target_unmapped",
-    `Execution blocked: unmapped skill/route pair (${proposal.skillId} -> ${proposal.route}).`
+    `Execution blocked: unmapped action/route pair (${action} -> ${proposal.route}).`
   );
 }
 
@@ -224,7 +324,7 @@ export async function executeProposal(
     };
   }
 
-  const req = internalRequest(target.route, payload);
+  const req = internalRequest(target, payload);
   try {
     const res = await target.handler(req);
     const routeResult = await parseRouteResponse(res);
