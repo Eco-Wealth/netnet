@@ -11,6 +11,12 @@ const BaseProposal = z.object({
   action: z.string().min(1).optional(),
   reasoning: z.string().min(1),
   proposedBody: z.record(z.unknown()).default({}),
+  metadata: z
+    .object({
+      confirmedWrite: z.boolean().optional(),
+    })
+    .passthrough()
+    .optional(),
   riskLevel: z.enum(["low", "medium", "high"]).default("medium"),
 });
 
@@ -97,6 +103,7 @@ export function extractSkillProposalEnvelope(content: string): SkillProposalEnve
       route: parsed.data.route,
       reasoning: parsed.data.reasoning,
       proposedBody: normalizedBody,
+      metadata: parsed.data.metadata,
       riskLevel: parsed.data.riskLevel,
       status: "draft",
       createdAt: now,

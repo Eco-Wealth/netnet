@@ -365,6 +365,37 @@ function toRecord(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+const BANKR_READ_ACTIONS = new Set<string>([
+  "bankr.wallet.read",
+  "bankr.token.info",
+  "bankr.token.actions",
+  "bankr.quote",
+  "bankr.token.read",
+  "bankr.plan",
+  "bankr.token.actions.plan",
+  "token.manage",
+]);
+
+const BANKR_WRITE_ACTIONS = new Set<string>(["bankr.launch", "token.launch"]);
+
+function isWriteAction(action: string): boolean {
+  if (BANKR_READ_ACTIONS.has(action)) return false;
+  if (BANKR_WRITE_ACTIONS.has(action)) return true;
+  return true;
+}
+
+function assertWriteConfirmation(
+  proposal: SkillProposalEnvelope,
+  action: string
+): void {
+  if (!proposal.route.startsWith("/api/bankr")) return;
+  if (!isWriteAction(action)) return;
+  if (proposal.metadata?.confirmedWrite === true) return;
+  throw new Error(
+    `Execution blocked: ${action} requires metadata.confirmedWrite=true.`
+  );
+}
+
 function policyActionForExecution(proposal: SkillProposalEnvelope): PolicyAction {
   if (isBankrProposal(proposal)) {
     const target = getBankrExecutionTarget({ proposal });
@@ -377,8 +408,22 @@ function policyActionForExecution(proposal: SkillProposalEnvelope): PolicyAction
   return "work.update";
 }
 
-function policyContextForExecution(proposal: SkillProposalEnvelope) {
+function policyContextForExecution(
+  proposal: SkillProposalEnvelope,
+  action: string,
+  policyMode?: string
+) {
   const body = toRecord(proposal.proposedBody);
+  const metadata = toRecord(proposal.metadata);
+  const snapshot = toRecord(metadata.policySnapshot);
+  const resolvedPolicyMode =
+    typeof policyMode === "string"
+      ? policyMode
+      : typeof metadata.policyMode === "string"
+      ? metadata.policyMode
+      : typeof snapshot.autonomy === "string"
+      ? snapshot.autonomy
+      : undefined;
   const amountUsd =
     typeof body.amountUsd === "number"
       ? body.amountUsd
@@ -399,7 +444,16 @@ function policyContextForExecution(proposal: SkillProposalEnvelope) {
       : undefined;
 
   return {
+    proposalId: proposal.id,
+    action,
     route: proposal.route,
+    policyMode: resolvedPolicyMode,
+    operatorId:
+      typeof metadata.operatorId === "string" ? metadata.operatorId : undefined,
+    operatorRole:
+      typeof metadata.operatorRole === "string"
+        ? metadata.operatorRole
+        : undefined,
     chain: typeof body.chain === "string" ? body.chain : undefined,
     venue: proposal.route.startsWith("/api/bankr") ? "bankr" : undefined,
     fromToken,
@@ -637,7 +691,11 @@ export async function executeProposal(id: string): Promise<SkillProposalEnvelope
   }
 
   const policyAction = policyActionForExecution(proposal);
-  const gate = enforcePolicy(policyAction, policyContextForExecution(proposal));
+  assertWriteConfirmation(proposal, policyAction);
+  const gate = enforcePolicy(
+    policyAction,
+    policyContextForExecution(proposal, policyAction, policy.autonomy)
+  );
   if (!gate.ok) {
     throw new Error(
       `Execution denied by policy re-check: ${gate.reasons.join(", ") || "policy_denied"}`

@@ -126,6 +126,11 @@ export type EnforcePolicyContext = {
   fromToken?: string;
   toToken?: string;
   amountUsd?: number;
+  proposalId?: string;
+  action?: string;
+  policyMode?: string;
+  operatorId?: string;
+  operatorRole?: string;
 };
 
 export type PolicyDecision = {

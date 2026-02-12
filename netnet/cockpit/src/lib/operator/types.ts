@@ -35,6 +35,10 @@ export type SkillProposalEnvelope = {
   route: string;
   reasoning: string;
   proposedBody: Record<string, unknown>;
+  metadata?: {
+    confirmedWrite?: boolean;
+    [key: string]: unknown;
+  };
   riskLevel: "low" | "medium" | "high";
   status: ProposalStatus;
   createdAt: number;

@@ -154,15 +154,47 @@ const ROUTE_EXECUTION_MAP: Record<ExecutionAction, ExecutionTarget> = {
   },
 };
 
+const BANKR_READ_ACTIONS = new Set<string>([
+  "bankr.wallet.read",
+  "bankr.token.info",
+  "bankr.token.actions",
+  "bankr.quote",
+  "bankr.token.read",
+  "bankr.plan",
+  "bankr.token.actions.plan",
+  "token.manage",
+]);
+
+const BANKR_WRITE_ACTIONS = new Set<string>(["bankr.launch", "token.launch"]);
+
+export function isWriteAction(action: string): boolean {
+  if (BANKR_READ_ACTIONS.has(action)) return false;
+  if (BANKR_WRITE_ACTIONS.has(action)) return true;
+  return true;
+}
+
 function toRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object") return {};
   return value as Record<string, unknown>;
 }
 
+function hasConfirmedWrite(proposal: SkillProposalEnvelope): boolean {
+  return proposal.metadata?.confirmedWrite === true;
+}
+
 function policyContextFromProposal(
-  route: SupportedRoute,
+  proposal: SkillProposalEnvelope,
+  target: ExecutionTarget,
   body: Record<string, unknown>
 ) {
+  const metadata = toRecord(proposal.metadata);
+  const snapshot = toRecord(metadata.policySnapshot);
+  const policyMode =
+    typeof metadata.policyMode === "string"
+      ? metadata.policyMode
+      : typeof snapshot.autonomy === "string"
+      ? snapshot.autonomy
+      : undefined;
   const amountUsd =
     typeof body.amountUsd === "number"
       ? body.amountUsd
@@ -182,16 +214,25 @@ function policyContextFromProposal(
       ? body.symbol
       : undefined;
   const venue =
-    route === "/api/agent/trade"
+    target.route === "/api/agent/trade"
       ? "bankr"
-      : route.startsWith("/api/bankr")
+      : target.route.startsWith("/api/bankr")
       ? "bankr"
-      : route === "/api/bridge/retire"
+      : target.route === "/api/bridge/retire"
       ? "bridge-eco"
       : undefined;
 
   return {
-    route,
+    proposalId: proposal.id,
+    action: target.action,
+    route: target.route,
+    policyMode,
+    operatorId:
+      typeof metadata.operatorId === "string" ? metadata.operatorId : undefined,
+    operatorRole:
+      typeof metadata.operatorRole === "string"
+        ? metadata.operatorRole
+        : undefined,
     chain: typeof body.chain === "string" ? body.chain : undefined,
     venue,
     fromToken,
@@ -309,6 +350,16 @@ export function validateExecutionBoundary(
 ): { route: SupportedRoute; action: ExecutionAction } {
   assertExecutionPreconditions(proposal);
   const target = resolveExecutionTarget(proposal);
+  if (
+    target.route.startsWith("/api/bankr") &&
+    isWriteAction(target.action) &&
+    !hasConfirmedWrite(proposal)
+  ) {
+    throw new ExecutionBoundaryError(
+      "write_confirmation_required",
+      `Execution blocked: ${target.action} requires metadata.confirmedWrite=true.`
+    );
+  }
   return { route: target.route, action: target.action };
 }
 
@@ -335,7 +386,7 @@ export async function executeProposal(
   const payload = toRecord(frozenSnapshot.proposedBody);
   const gate = enforcePolicy(
     target.policyAction,
-    policyContextFromProposal(target.route, payload)
+    policyContextFromProposal(frozenSnapshot, target, payload)
   );
   if (!gate.ok) {
     return {
