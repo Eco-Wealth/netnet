@@ -7,6 +7,10 @@ import { generateAssistantReply } from "@/lib/operator/llm";
 import { extractSkillProposalEnvelope } from "@/lib/operator/proposal";
 import { GET as bankrWalletGet } from "@/app/api/bankr/wallet/route";
 import { GET as bankrTokenInfoGet } from "@/app/api/bankr/token/info/route";
+import {
+  isBankrStrategyAction,
+  type BankrStrategyAction,
+} from "@/lib/operator/strategy";
 import { buildBankrStrategyTemplate } from "@/lib/operator/strategyTemplates";
 import {
   buildBankrProposalTemplate,
@@ -17,19 +21,24 @@ import {
   appendAuditMessage,
   appendMessage,
   approveProposal,
+  createBankrStrategyDraft,
   createStrategy,
   ensureStrategyForProposal,
   executeProposal,
   getProposal,
+  getStrategy,
   generateExecutionPlan,
+  linkProposalToStrategy,
   listMessages,
   listProposals,
   listStrategies,
   lockExecutionIntent,
   requestExecutionIntent,
   rejectProposal,
+  updateBankrStrategyDraft,
   upsertProposal,
 } from "@/lib/operator/store";
+import { createMessageId } from "@/lib/operator/types";
 
 export type OperatorStateResponse = {
   messages: ReturnType<typeof listMessages>;
@@ -87,6 +96,13 @@ export type BankrTokenInfoParams = {
   token?: string;
 };
 
+const BANKR_ACTION_ROUTE_MAP: Record<BankrStrategyAction, string> = {
+  "bankr.wallet.read": "/api/bankr/wallet",
+  "bankr.token.info": "/api/bankr/token/info",
+  "bankr.token.actions": "/api/bankr/token/actions",
+  "bankr.launch": "/api/bankr/launch",
+};
+
 function normalizeBankrPolicyAction(value: string): PolicyAction {
   if (value === "bankr.wallet.read") return "bankr.wallet.read";
   if (value === "bankr.token.info" || value === "bankr.quote" || value === "bankr.token.read") {
@@ -102,6 +118,69 @@ function normalizeBankrPolicyAction(value: string): PolicyAction {
   }
   if (value === "bankr.launch" || value === "token.launch") return "bankr.launch";
   return "bankr.token.actions";
+}
+
+function inferBankrActionFromText(text: string): BankrStrategyAction | undefined {
+  const normalized = text.toLowerCase();
+  if (normalized.includes("wallet")) return "bankr.wallet.read";
+  if (
+    normalized.includes("token info") ||
+    normalized.includes("metadata") ||
+    normalized.includes("token details") ||
+    normalized.includes("token data")
+  ) {
+    return "bankr.token.info";
+  }
+  if (normalized.includes("launch")) return "bankr.launch";
+  if (
+    normalized.includes("dca") ||
+    normalized.includes("lp") ||
+    normalized.includes("rebalance") ||
+    normalized.includes("market make") ||
+    normalized.includes("market-making") ||
+    normalized.includes("action")
+  ) {
+    return "bankr.token.actions";
+  }
+  return undefined;
+}
+
+function inferBankrParamsFromText(text: string): Record<string, unknown> {
+  const params: Record<string, unknown> = {};
+  const chainMatch = text.match(/\b(base|ethereum|arbitrum|optimism|polygon|solana)\b/i);
+  if (chainMatch) params.chain = chainMatch[1].toLowerCase();
+  const tokenMatch = text.match(/\btoken[:=]?\s*([A-Za-z0-9._-]{2,16})\b/i);
+  if (tokenMatch) params.token = tokenMatch[1].toUpperCase();
+  const walletMatch = text.match(/\b0x[a-fA-F0-9]{8,}\b/);
+  if (walletMatch) params.wallet = walletMatch[0];
+  return params;
+}
+
+function titleFromText(text: string): string {
+  const single = text.replace(/\s+/g, " ").trim();
+  if (!single) return "Bankr ops draft";
+  return single.length > 68 ? `${single.slice(0, 68)}...` : single;
+}
+
+function riskLevelForBankrAction(
+  action: BankrStrategyAction
+): "low" | "medium" | "high" {
+  if (action === "bankr.wallet.read" || action === "bankr.token.info") return "low";
+  if (action === "bankr.launch") return "high";
+  return "medium";
+}
+
+function reasoningForBankrDraft(action: BankrStrategyAction, title: string): string {
+  if (action === "bankr.wallet.read") {
+    return `Read-only wallet snapshot draft from strategy "${title}".`;
+  }
+  if (action === "bankr.token.info") {
+    return `Read-only token info draft from strategy "${title}".`;
+  }
+  if (action === "bankr.launch") {
+    return `Launch proposal draft from strategy "${title}" for operator review before any execution intent.`;
+  }
+  return `Token actions draft from strategy "${title}" in proposal-first mode.`;
 }
 
 export async function sendOperatorMessageAction(content: string): Promise<OperatorStateResponse> {
@@ -246,6 +325,131 @@ export async function executeProposalAction(id: string): Promise<OperatorStateRe
   } catch (error) {
     appendAuditMessage(`Execution failed: ${normalizeError(error)}`, "error");
   }
+  return state();
+}
+
+export async function createBankrDraftAction(
+  text: string
+): Promise<OperatorStateResponse> {
+  const sourceText = String(text || "").trim();
+  if (!sourceText) {
+    appendAuditMessage("Bankr draft failed: empty input.", "strategy.bankr.draft");
+    return state();
+  }
+
+  const gate = enforcePolicy("strategy.propose", { venue: "bankr" });
+  if (!gate.ok) {
+    appendAuditMessage("Bankr draft blocked: policy_denied", "strategy.bankr.draft");
+    return state();
+  }
+
+  const action = inferBankrActionFromText(sourceText);
+  const params = inferBankrParamsFromText(sourceText);
+  const strategy = createBankrStrategyDraft({
+    title: titleFromText(sourceText),
+    notes: `sourceText: ${sourceText}`,
+    bankr:
+      action && isBankrStrategyAction(action)
+        ? { action, params: Object.keys(params).length ? params : undefined }
+        : undefined,
+  });
+
+  appendAuditMessage(`Bankr draft created: ${strategy.id}`, "strategy.bankr.draft");
+  return state();
+}
+
+export async function proposeFromBankrDraftAction(
+  strategyId: string
+): Promise<OperatorStateResponse> {
+  const strategy = getStrategy(strategyId);
+  if (!strategy) {
+    appendAuditMessage("Bankr propose failed: strategy not found.", "proposal.from_bankr_draft");
+    return state();
+  }
+  if (strategy.type !== "bankrOps") {
+    appendAuditMessage(
+      "Bankr propose failed: strategy is not bankrOps.",
+      "proposal.from_bankr_draft"
+    );
+    return state();
+  }
+
+  const action = strategy.bankr?.action;
+  if (!action || !isBankrStrategyAction(action)) {
+    appendAuditMessage(
+      "Bankr propose failed: draft has no valid bankr action.",
+      "proposal.from_bankr_draft"
+    );
+    return state();
+  }
+
+  const route = BANKR_ACTION_ROUTE_MAP[action];
+  const params =
+    strategy.bankr?.params &&
+    typeof strategy.bankr.params === "object" &&
+    !Array.isArray(strategy.bankr.params)
+      ? strategy.bankr.params
+      : {};
+
+  const gate = enforcePolicy(action, {
+    route,
+    venue: "bankr",
+    chain: typeof params.chain === "string" ? params.chain : undefined,
+    fromToken: typeof params.token === "string" ? params.token : undefined,
+  });
+  if (!gate.ok) {
+    appendAuditMessage(
+      "Bankr propose blocked: policy_denied",
+      "proposal.from_bankr_draft"
+    );
+    return state();
+  }
+
+  const now = Date.now();
+  const proposal = {
+    id: createMessageId("proposal"),
+    type: "skill.proposal" as const,
+    skillId: "bankr.agent",
+    route,
+    reasoning: reasoningForBankrDraft(action, strategy.title),
+    proposedBody: {
+      action,
+      input: params,
+      ...params,
+    },
+    riskLevel: riskLevelForBankrAction(action),
+    status: "draft" as const,
+    createdAt: now,
+    executionIntent: "none" as const,
+    executionStatus: "idle" as const,
+  };
+
+  upsertProposal(proposal);
+  linkProposalToStrategy(strategy.id, proposal.id);
+  updateBankrStrategyDraft(strategy.id, {
+    notes: strategy.notes || `sourceText: ${strategy.title}`,
+    bankr: {
+      action,
+      params,
+    },
+  });
+
+  appendMessage({
+    role: "assistant",
+    content: `Draft converted to proposal: ${proposal.id}\n\n\`\`\`json\n${JSON.stringify(
+      proposal,
+      null,
+      2
+    )}\n\`\`\``,
+    metadata: {
+      action: "proposal",
+      proposalId: proposal.id,
+      proposal,
+      tags: ["proposal", "bankr", "from-draft", proposal.riskLevel],
+      policySnapshot: policySnapshot(),
+    },
+  });
+
   return state();
 }
 

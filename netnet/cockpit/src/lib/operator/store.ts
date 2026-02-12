@@ -14,7 +14,9 @@ import {
   isBankrProposal,
 } from "@/lib/operator/adapters/bankr";
 import {
+  isBankrStrategyAction,
   normalizeStrategy,
+  type BankrStrategyBinding,
   type Strategy,
   type StrategyInput,
   type StrategyStatus,
@@ -109,6 +111,86 @@ export function createStrategy(input: StrategyInput): Strategy {
     createdAt: input.createdAt ?? now,
   });
   getState().strategies[strategy.id] = strategy;
+  return strategy;
+}
+
+export type CreateBankrStrategyDraftInput = {
+  title?: string;
+  notes?: string;
+  linkedMessageId?: string;
+  bankr?: {
+    action?: string;
+    params?: Record<string, unknown>;
+  };
+};
+
+export type UpdateBankrStrategyDraftPatch = {
+  title?: string;
+  notes?: string;
+  bankr?: {
+    action?: string;
+    params?: Record<string, unknown>;
+  };
+};
+
+function normalizeBankrDraftBinding(input?: {
+  action?: string;
+  params?: Record<string, unknown>;
+}): BankrStrategyBinding | undefined {
+  if (!input) return undefined;
+  const action = String(input.action || "").trim();
+  if (!isBankrStrategyAction(action)) return undefined;
+  if (
+    input.params &&
+    typeof input.params === "object" &&
+    !Array.isArray(input.params)
+  ) {
+    return { action, params: input.params };
+  }
+  return { action };
+}
+
+export function createBankrStrategyDraft(
+  input: CreateBankrStrategyDraftInput
+): Strategy {
+  const now = Date.now();
+  const bankr = normalizeBankrDraftBinding(input.bankr);
+  const strategy = createStrategy({
+    id: createMessageId("strategy"),
+    title: input.title || "Bankr ops draft",
+    kind: "bankr",
+    type: "bankrOps",
+    status: "draft",
+    notes: input.notes,
+    linkedMessageId: input.linkedMessageId,
+    bankr,
+    createdAt: now,
+    updatedAt: now,
+  });
+  return strategy;
+}
+
+export function updateBankrStrategyDraft(
+  id: string,
+  patch: UpdateBankrStrategyDraftPatch
+): Strategy {
+  const strategy = requireStrategy(id);
+  if (strategy.type !== "bankrOps") {
+    throw new Error("Only bankrOps strategies can be updated with this method.");
+  }
+
+  if (typeof patch.title === "string") {
+    strategy.title = patch.title.trim() || strategy.title;
+  }
+  if (typeof patch.notes === "string") {
+    strategy.notes = patch.notes.trim() || undefined;
+  }
+  if (patch.bankr) {
+    const nextBankr = normalizeBankrDraftBinding(patch.bankr);
+    if (nextBankr) strategy.bankr = nextBankr;
+  }
+
+  strategy.updatedAt = Date.now();
   return strategy;
 }
 

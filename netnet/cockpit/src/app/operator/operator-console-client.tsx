@@ -5,6 +5,7 @@ import ConversationPanel from "@/components/operator/ConversationPanel";
 import OperatorTopBar from "@/components/operator/OperatorTopBar";
 import OpsBoard from "@/components/operator/OpsBoard";
 import type { ThreadItem } from "@/components/operator/ThreadSidebar";
+import { Button, Textarea } from "@/components/ui";
 import styles from "@/components/operator/OperatorSeat.module.css";
 import type { SkillInfo } from "@/lib/operator/skillContext";
 import type { Strategy } from "@/lib/operator/strategy";
@@ -12,9 +13,11 @@ import type { OperatorStrategyTemplate } from "@/lib/operator/strategies";
 import type { MessageEnvelope, SkillProposalEnvelope } from "@/lib/operator/types";
 import {
   approveProposalAction,
+  createBankrDraftAction,
   createDraftProposalFromTemplate,
   executeProposalAction,
   lockExecutionIntentAction,
+  proposeFromBankrDraftAction,
   proposeStrategyFromAssistantProposal,
   rejectProposalAction,
   requestExecutionIntentAction,
@@ -119,6 +122,7 @@ export default function OperatorConsoleClient({
   const [proposals, setProposals] = useState<SkillProposalEnvelope[]>(initialProposals);
   const [strategyMemory, setStrategyMemory] = useState<Strategy[]>(initialStrategies);
   const [draft, setDraft] = useState("");
+  const [bankrDraftText, setBankrDraftText] = useState("");
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [threadAssignments, setThreadAssignments] = useState<Record<string, string>>({});
   const [draftThreads, setDraftThreads] = useState<DraftThread[]>([]);
@@ -226,6 +230,13 @@ export default function OperatorConsoleClient({
     setDraft("");
   }
 
+  function onCreateBankrDraft() {
+    const text = bankrDraftText.trim();
+    if (!text) return;
+    setBankrDraftText("");
+    runAction("bankr-draft:create", () => createBankrDraftAction(text), activeThreadId);
+  }
+
   function onSelectThread(id: string) {
     setActiveThreadId(id);
   }
@@ -241,6 +252,29 @@ export default function OperatorConsoleClient({
 
       <div className={styles["nn-main"]}>
         <section className={[styles.left, styles.panel].join(" ")}>
+          <div className={styles["nn-listItem"]}>
+            <div className={styles["nn-listHead"]}>
+              <div>
+                <div>Bankr Draft</div>
+                <div className={styles["nn-muted"]}>
+                  Draft strategy intent from chat text, then propose from Ops Board.
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={onCreateBankrDraft}
+                disabled={!bankrDraftText.trim() || loadingAction !== null}
+              >
+                {loadingAction === "bankr-draft:create" ? "Creating..." : "Create Draft"}
+              </Button>
+            </div>
+            <Textarea
+              rows={2}
+              value={bankrDraftText}
+              onChange={(event) => setBankrDraftText(event.target.value)}
+              placeholder="Example: Draft a daily DCA for ECO on base with conservative sizing."
+            />
+          </div>
           <ConversationPanel
             messages={filteredMessages}
             proposals={proposals}
@@ -280,6 +314,14 @@ export default function OperatorConsoleClient({
                 activeThreadId
               )
             }
+            onProposeBankrDraft={(strategyId) =>
+              runActionNow(
+                `bankr-draft:propose:${strategyId}`,
+                () => proposeFromBankrDraftAction(strategyId),
+                activeThreadId
+              )
+            }
+            loadingAction={loadingAction}
           />
         </aside>
       </div>

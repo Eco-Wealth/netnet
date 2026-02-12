@@ -13,7 +13,7 @@ import {
   listBankrTemplates,
   type BankrTemplateId,
 } from "@/lib/operator/templates/bankr";
-import type { Strategy } from "@/lib/operator/strategy";
+import { isBankrStrategyAction, type Strategy } from "@/lib/operator/strategy";
 import type { MessageEnvelope, SkillProposalEnvelope } from "@/lib/operator/types";
 
 type OpsBoardProps = {
@@ -25,6 +25,8 @@ type OpsBoardProps = {
     templateId: string,
     input: Record<string, string>
   ) => Promise<void>;
+  onProposeBankrDraft: (strategyId: string) => Promise<void>;
+  loadingAction: string | null;
 };
 
 type SectionKey =
@@ -107,6 +109,8 @@ export default function OpsBoard({
   strategies,
   policyMode,
   onCreateDraftProposal,
+  onProposeBankrDraft,
+  loadingAction,
 }: OpsBoardProps) {
   const [sections, setSections] = useState<Record<SectionKey, boolean>>(DEFAULT_SECTIONS);
   const [expandedProposals, setExpandedProposals] = useState<Record<string, boolean>>({});
@@ -133,6 +137,7 @@ export default function OpsBoard({
     () => templates.find((template) => template.id === selectedTemplate) || null,
     [templates, selectedTemplate]
   );
+  const [draftProposeError, setDraftProposeError] = useState<string | null>(null);
 
   const activeStrategies = useMemo(
     () =>
@@ -144,6 +149,10 @@ export default function OpsBoard({
   const draftStrategies = useMemo(
     () => strategies.filter((strategy) => strategy.status === "draft"),
     [strategies]
+  );
+  const bankrOpsDrafts = useMemo(
+    () => draftStrategies.filter((strategy) => strategy.type === "bankrOps"),
+    [draftStrategies]
   );
 
   const pendingApprovals = useMemo(
@@ -360,25 +369,58 @@ export default function OpsBoard({
         </Section>
 
         <Section title="Strategies" open={sections.strategies} onToggle={() => toggle("strategies")}>
-          {draftStrategies.length ? (
-            draftStrategies.map((strategy) => (
+          {bankrOpsDrafts.length ? (
+            bankrOpsDrafts.map((strategy) => {
+              const action = strategy.bankr?.action;
+              const canPropose = Boolean(action && isBankrStrategyAction(action));
+              const isBusy = loadingAction === `bankr-draft:propose:${strategy.id}`;
+              return (
               <div key={strategy.id} className={styles["nn-listItem"]}>
                 <div className={styles["nn-listHead"]}>
                   <div>
                     <div>{strategy.title}</div>
                     <div className={styles["nn-muted"]}>
-                      kind: {strategy.kind} · status: {strategy.status}
+                      bankrOps · status: {strategy.status}
+                    </div>
+                    <div className={styles["nn-muted"]}>
+                      action: {action || "missing"}
                     </div>
                   </div>
-                  <Button size="sm" variant="subtle" onClick={() => openStrategyLink(strategy)}>
-                    Open
-                  </Button>
+                  <div className={styles["nn-chipRow"]}>
+                    <Button size="sm" variant="subtle" onClick={() => openStrategyLink(strategy)}>
+                      Open
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={async () => {
+                        if (!canPropose) return;
+                        setDraftProposeError(null);
+                        try {
+                          await onProposeBankrDraft(strategy.id);
+                        } catch {
+                          setDraftProposeError("Couldn't convert draft to proposal.");
+                        }
+                      }}
+                      disabled={!canPropose || isBusy}
+                    >
+                      {isBusy ? "Proposing..." : "Propose"}
+                    </Button>
+                  </div>
                 </div>
+                {!canPropose ? (
+                  <div className={styles["nn-muted"]}>
+                    Add a valid bankr action to enable proposing.
+                  </div>
+                ) : null}
               </div>
-            ))
+            );
+            })
           ) : (
             <div className={styles["nn-muted"]}>No strategies yet.</div>
           )}
+          {draftProposeError ? (
+            <div className={styles["nn-muted"]}>{draftProposeError}</div>
+          ) : null}
         </Section>
 
         <Section
