@@ -1,5 +1,10 @@
 import OperatorConsoleClient from "./operator-console-client";
-import { listMessages, listProposals, listStrategies } from "@/lib/operator/store";
+import {
+  getPnLSummary,
+  listMessages,
+  listProposals,
+  listStrategies,
+} from "@/lib/operator/store";
 import { getSkills } from "@/lib/operator/skillContext";
 import { OPERATOR_STRATEGY_TEMPLATES } from "@/lib/operator/strategies";
 import { getPolicy } from "@/lib/policy/store";
@@ -17,6 +22,7 @@ export default function OperatorPage() {
         initialMessages={listMessages()}
         initialProposals={listProposals()}
         initialStrategies={listStrategies()}
+        initialPnl={getPnLSummary()}
         skills={getSkills()}
         strategies={OPERATOR_STRATEGY_TEMPLATES}
         policyMode={policy.autonomy}

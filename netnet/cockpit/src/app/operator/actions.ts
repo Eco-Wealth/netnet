@@ -31,6 +31,7 @@ import {
   linkProposalToStrategy,
   listMessages,
   listProposals,
+  getPnLSummary,
   listStrategies,
   lockExecutionIntent,
   requestExecutionIntent,
@@ -44,6 +45,7 @@ export type OperatorStateResponse = {
   messages: ReturnType<typeof listMessages>;
   proposals: ReturnType<typeof listProposals>;
   strategies: ReturnType<typeof listStrategies>;
+  pnl: ReturnType<typeof getPnLSummary>;
 };
 
 function policySnapshot(): Record<string, unknown> {
@@ -62,6 +64,7 @@ function state(): OperatorStateResponse {
     messages: listMessages(),
     proposals: listProposals(),
     strategies: listStrategies(),
+    pnl: getPnLSummary(),
   };
 }
 

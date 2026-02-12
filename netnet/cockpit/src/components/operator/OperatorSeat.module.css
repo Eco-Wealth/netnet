@@ -145,6 +145,10 @@
   color: rgba(226, 232, 240, 0.68);
 }
 
+.nn-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
 .nn-headerControls {
   display: inline-flex;
   align-items: center;

@@ -2,7 +2,6 @@ import "server-only";
 
 import fs from "fs";
 import path from "path";
-import Database from "better-sqlite3";
 import type { MessageEnvelope } from "@/lib/operator/model";
 import type { SkillProposalEnvelope } from "@/lib/operator/proposal";
 
@@ -65,6 +64,23 @@ type ExecutionRow = {
   error: string | null;
 };
 
+type PnlEventRow = {
+  id: string;
+  executionId: string;
+  proposalId: string;
+  skillId: string | null;
+  action: string | null;
+  kind: string;
+  amountUsd: number;
+  createdAt: number;
+};
+
+type PnlSummaryRow = {
+  count: number;
+  usdIn: number | null;
+  usdOut: number | null;
+};
+
 export type PersistedExecution = {
   id: string;
   proposalId: string;
@@ -75,9 +91,65 @@ export type PersistedExecution = {
   error?: string;
 };
 
+export type PnlEvent = {
+  id: string;
+  executionId: string;
+  proposalId: string;
+  skillId?: string;
+  action?: string;
+  kind: "usd_in" | "usd_out";
+  amountUsd: number;
+  createdAt: number;
+};
+
+export type PnlSummary = {
+  sinceMs: number;
+  count: number;
+  usdIn: number;
+  usdOut: number;
+  net: number;
+};
+
+type DbStatement = {
+  run: (params?: Record<string, unknown>) => unknown;
+  get: (...args: unknown[]) => unknown;
+  all: (...args: unknown[]) => unknown[];
+};
+
+type OperatorDatabase = {
+  exec: (sql: string) => void;
+  pragma: (sql: string) => void;
+  prepare: (sql: string) => DbStatement;
+};
+
+function loadSqliteModule():
+  | (new (path: string) => OperatorDatabase)
+  | null {
+  try {
+    const localRequire = new Function(
+      "return typeof require === 'function' ? require : null;"
+    )() as ((id: string) => unknown) | null;
+    if (!localRequire) return null;
+    const loaded = localRequire("better-sqlite3") as unknown;
+    if (typeof loaded !== "function") return null;
+    return loaded as new (path: string) => OperatorDatabase;
+  } catch {
+    return null;
+  }
+}
+
+function fallbackEventsStore(): PnlEvent[] {
+  if (!globalThis.__NETNET_PNL_EVENTS_FALLBACK__) {
+    globalThis.__NETNET_PNL_EVENTS_FALLBACK__ = [];
+  }
+  return globalThis.__NETNET_PNL_EVENTS_FALLBACK__;
+}
+
 declare global {
   // eslint-disable-next-line no-var
-  var __NETNET_OPERATOR_DB__: Database.Database | undefined;
+  var __NETNET_OPERATOR_DB__: OperatorDatabase | undefined;
+  // eslint-disable-next-line no-var
+  var __NETNET_PNL_EVENTS_FALLBACK__: PnlEvent[] | undefined;
 }
 
 function safeJsonParse<T>(value: string | null): T | null {
@@ -97,7 +169,7 @@ function safeJsonStringify(value: unknown): string {
   }
 }
 
-function ensureOperatorTables(db: Database.Database) {
+function ensureOperatorTables(db: OperatorDatabase) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS messages (
       id TEXT PRIMARY KEY,
@@ -123,12 +195,28 @@ function ensureOperatorTables(db: Database.Database) {
       result TEXT,
       error TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS pnl_events (
+      id TEXT PRIMARY KEY,
+      executionId TEXT NOT NULL,
+      proposalId TEXT NOT NULL,
+      skillId TEXT,
+      action TEXT,
+      kind TEXT NOT NULL,
+      amountUsd REAL NOT NULL,
+      createdAt INTEGER NOT NULL
+    );
   `);
 }
 
-function operatorDb(): Database.Database {
+function operatorDb(): OperatorDatabase {
   if (globalThis.__NETNET_OPERATOR_DB__) {
     return globalThis.__NETNET_OPERATOR_DB__;
+  }
+
+  const SqliteDatabase = loadSqliteModule();
+  if (!SqliteDatabase) {
+    throw new Error("better-sqlite3_not_available");
   }
 
   const dir = path.dirname(OPERATOR_DB_PATH);
@@ -136,7 +224,7 @@ function operatorDb(): Database.Database {
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  const db = new Database(OPERATOR_DB_PATH);
+  const db = new SqliteDatabase(OPERATOR_DB_PATH);
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
   ensureOperatorTables(db);
@@ -275,4 +363,158 @@ export function loadExecution(id: string): PersistedExecution | null {
     result: safeJsonParse<Record<string, unknown>>(row.result) ?? undefined,
     error: row.error ?? undefined,
   };
+}
+
+export function insertPnlEvent(event: PnlEvent) {
+  try {
+    const db = operatorDb();
+    db.prepare(
+      `
+      INSERT INTO pnl_events (
+        id,
+        executionId,
+        proposalId,
+        skillId,
+        action,
+        kind,
+        amountUsd,
+        createdAt
+      )
+      VALUES (
+        @id,
+        @executionId,
+        @proposalId,
+        @skillId,
+        @action,
+        @kind,
+        @amountUsd,
+        @createdAt
+      )
+      ON CONFLICT(id) DO UPDATE SET
+        executionId = excluded.executionId,
+        proposalId = excluded.proposalId,
+        skillId = excluded.skillId,
+        action = excluded.action,
+        kind = excluded.kind,
+        amountUsd = excluded.amountUsd,
+        createdAt = excluded.createdAt
+    `
+    ).run({
+      id: event.id,
+      executionId: event.executionId,
+      proposalId: event.proposalId,
+      skillId: event.skillId ?? null,
+      action: event.action ?? null,
+      kind: event.kind,
+      amountUsd: event.amountUsd,
+      createdAt: event.createdAt,
+    });
+    return;
+  } catch {
+    const rows = fallbackEventsStore();
+    const existing = rows.findIndex((row) => row.id === event.id);
+    if (existing >= 0) rows[existing] = { ...event };
+    else rows.push({ ...event });
+  }
+}
+
+export function listPnlEvents(input: { sinceMs?: number } = {}): PnlEvent[] {
+  const sinceMs =
+    typeof input.sinceMs === "number" && Number.isFinite(input.sinceMs)
+      ? input.sinceMs
+      : undefined;
+  try {
+    const db = operatorDb();
+    const rows = (sinceMs
+      ? db
+          .prepare(
+            `
+          SELECT id, executionId, proposalId, skillId, action, kind, amountUsd, createdAt
+          FROM pnl_events
+          WHERE createdAt >= ?
+          ORDER BY createdAt DESC, id DESC
+        `
+          )
+          .all(sinceMs)
+      : db
+          .prepare(
+            `
+          SELECT id, executionId, proposalId, skillId, action, kind, amountUsd, createdAt
+          FROM pnl_events
+          ORDER BY createdAt DESC, id DESC
+        `
+          )
+          .all()) as PnlEventRow[];
+
+    return rows.map((row) => ({
+      id: row.id,
+      executionId: row.executionId,
+      proposalId: row.proposalId,
+      skillId: row.skillId ?? undefined,
+      action: row.action ?? undefined,
+      kind: row.kind === "usd_in" ? "usd_in" : "usd_out",
+      amountUsd: row.amountUsd,
+      createdAt: row.createdAt,
+    }));
+  } catch {
+    const rows = [...fallbackEventsStore()].sort(
+      (a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id)
+    );
+    if (typeof sinceMs !== "number") return rows;
+    return rows.filter((row) => row.createdAt >= sinceMs);
+  }
+}
+
+export function getPnlSummary(input: { sinceMs: number }): PnlSummary {
+  const sinceMs =
+    typeof input.sinceMs === "number" && Number.isFinite(input.sinceMs)
+      ? input.sinceMs
+      : 0;
+  try {
+    const db = operatorDb();
+    const row = db
+      .prepare(
+        `
+      SELECT
+        COUNT(*) as count,
+        SUM(CASE WHEN kind = 'usd_in' THEN amountUsd ELSE 0 END) as usdIn,
+        SUM(CASE WHEN kind = 'usd_out' THEN amountUsd ELSE 0 END) as usdOut
+      FROM pnl_events
+      WHERE createdAt >= ?
+    `
+      )
+      .get(sinceMs) as PnlSummaryRow | undefined;
+
+    const usdIn = Number(row?.usdIn ?? 0);
+    const usdOut = Number(row?.usdOut ?? 0);
+    const count = Number(row?.count ?? 0);
+
+    return {
+      sinceMs,
+      count: Number.isFinite(count) ? count : 0,
+      usdIn: Number.isFinite(usdIn) ? usdIn : 0,
+      usdOut: Number.isFinite(usdOut) ? usdOut : 0,
+      net:
+        (Number.isFinite(usdIn) ? usdIn : 0) -
+        (Number.isFinite(usdOut) ? usdOut : 0),
+    };
+  } catch {
+    const events = listPnlEvents({ sinceMs });
+    const summary = events.reduce(
+      (acc, event) => {
+        acc.count += 1;
+        if (event.kind === "usd_in") acc.usdIn += event.amountUsd;
+        if (event.kind === "usd_out") acc.usdOut += event.amountUsd;
+        return acc;
+      },
+      { count: 0, usdIn: 0, usdOut: 0 }
+    );
+    return {
+      sinceMs,
+      count: summary.count,
+      usdIn: summary.usdIn,
+      usdOut: summary.usdOut,
+      net: summary.usdIn - summary.usdOut,
+    };
+  }
 }

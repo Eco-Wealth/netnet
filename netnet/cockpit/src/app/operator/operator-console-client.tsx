@@ -29,6 +29,7 @@ type Props = {
   initialMessages: MessageEnvelope[];
   initialProposals: SkillProposalEnvelope[];
   initialStrategies: Strategy[];
+  initialPnl: OperatorStateResponse["pnl"];
   skills: SkillInfo[];
   strategies: OperatorStrategyTemplate[];
   policyMode: string;
@@ -111,6 +112,7 @@ export default function OperatorConsoleClient({
   initialMessages,
   initialProposals,
   initialStrategies,
+  initialPnl,
   skills,
   strategies,
   policyMode,
@@ -121,6 +123,7 @@ export default function OperatorConsoleClient({
   const [messages, setMessages] = useState<MessageEnvelope[]>(initialMessages);
   const [proposals, setProposals] = useState<SkillProposalEnvelope[]>(initialProposals);
   const [strategyMemory, setStrategyMemory] = useState<Strategy[]>(initialStrategies);
+  const [pnl, setPnl] = useState(initialPnl);
   const [draft, setDraft] = useState("");
   const [bankrDraftText, setBankrDraftText] = useState("");
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
@@ -184,6 +187,7 @@ export default function OperatorConsoleClient({
     setMessages(next.messages);
     setProposals(next.proposals);
     setStrategyMemory(next.strategies);
+    setPnl(next.pnl);
   }
 
   function runAction(
@@ -306,6 +310,7 @@ export default function OperatorConsoleClient({
             proposals={proposals}
             messages={messages}
             strategies={strategyMemory}
+            pnl={pnl}
             policyMode={policyMode}
             onCreateDraftProposal={(templateId, input) =>
               runActionNow(

@@ -3,6 +3,11 @@ import { tokenActionCatalog } from "@/lib/bankr/token";
 import { GET as bankrTokenInfoGet } from "@/app/api/bankr/token/info/route";
 import { POST as bankrTokenActionsPost } from "@/app/api/bankr/token/actions/route";
 import { GET as bankrWalletGet } from "@/app/api/bankr/wallet/route";
+import {
+  getPnlSummary as loadPnlSummary,
+  insertPnlEvent,
+  type PnlSummary,
+} from "@/lib/operator/db";
 import { getPolicy } from "@/lib/policy/store";
 import { enforcePolicy } from "@/lib/policy/enforce";
 import type { PolicyAction } from "@/lib/policy/types";
@@ -90,6 +95,20 @@ export function getProposal(id: string): SkillProposalEnvelope | null {
 
 export function listStrategies(): Strategy[] {
   return Object.values(getState().strategies).sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+export type OperatorPnLSummary = {
+  last24h: PnlSummary;
+  last7d: PnlSummary;
+};
+
+export function getPnLSummary(now = Date.now()): OperatorPnLSummary {
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  const sevenDaysMs = 7 * oneDayMs;
+  return {
+    last24h: loadPnlSummary({ sinceMs: now - oneDayMs }),
+    last7d: loadPnlSummary({ sinceMs: now - sevenDaysMs }),
+  };
 }
 
 export function getStrategy(id: string): Strategy | null {
@@ -663,6 +682,41 @@ async function runRouteExecution(
   throw new Error(`Route is not mapped for execution: ${proposal.route}`);
 }
 
+type DerivedUsdFlow = {
+  kind: "usd_in" | "usd_out";
+  amountUsd: number;
+};
+
+function deriveUsdFlows(
+  proposal: SkillProposalEnvelope,
+  _executionResult: Record<string, unknown>
+): DerivedUsdFlow[] {
+  void _executionResult;
+  const body = toRecord(proposal.proposedBody);
+  const amountUsd =
+    typeof body.amountUsd === "number" && Number.isFinite(body.amountUsd)
+      ? body.amountUsd
+      : undefined;
+  if (typeof amountUsd !== "number" || amountUsd <= 0) return [];
+
+  const action =
+    typeof body.action === "string" ? body.action.toLowerCase() : "";
+  const skillId = String(proposal.skillId || "").toLowerCase();
+  const route = String(proposal.route || "");
+
+  const tradeLike = action.startsWith("trade.") || skillId.includes("trade");
+  const retireLike = action.startsWith("carbon.") || route.includes("/bridge/retire");
+  const revenueLike = action.startsWith("revenue.");
+
+  if (tradeLike || retireLike) {
+    return [{ kind: "usd_out", amountUsd }];
+  }
+  if (revenueLike) {
+    return [{ kind: "usd_in", amountUsd }];
+  }
+  return [];
+}
+
 export async function executeProposal(id: string): Promise<SkillProposalEnvelope> {
   const proposal = requireProposal(id);
 
@@ -704,6 +758,7 @@ export async function executeProposal(id: string): Promise<SkillProposalEnvelope
 
   proposal.executionStatus = "running";
   proposal.executionStartedAt = Date.now();
+  const executionId = `exec-${proposal.id}-${proposal.executionStartedAt}`;
 
   try {
     const result = await runRouteExecution(proposal);
@@ -719,6 +774,35 @@ export async function executeProposal(id: string): Promise<SkillProposalEnvelope
     proposal.executionStatus = "completed";
     proposal.executionCompletedAt = Date.now();
     proposal.executionError = undefined;
+
+    const flows = deriveUsdFlows(proposal, result);
+    if (flows.length > 0) {
+      for (const [index, flow] of flows.entries()) {
+        try {
+          insertPnlEvent({
+            id: `pnl-${executionId}-${index}`,
+            executionId,
+            proposalId: proposal.id,
+            skillId: proposal.skillId,
+            action:
+              typeof proposal.proposedBody.action === "string"
+                ? proposal.proposedBody.action
+                : undefined,
+            kind: flow.kind,
+            amountUsd: flow.amountUsd,
+            createdAt: proposal.executionCompletedAt,
+          });
+        } catch (error) {
+          console.error("pnl_event_insert_failed", {
+            proposalId: proposal.id,
+            executionId,
+            index,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+    }
+
     const strategy = ensureStrategyForProposal(proposal);
     updateStrategyStatus(strategy.id, "archived");
     return proposal;

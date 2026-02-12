@@ -20,6 +20,10 @@ type OpsBoardProps = {
   proposals: SkillProposalEnvelope[];
   messages: MessageEnvelope[];
   strategies: Strategy[];
+  pnl: {
+    last24h: { sinceMs: number; count: number; usdIn: number; usdOut: number; net: number };
+    last7d: { sinceMs: number; count: number; usdIn: number; usdOut: number; net: number };
+  };
   policyMode: string;
   onCreateDraftProposal: (
     templateId: string,
@@ -107,11 +111,16 @@ export default function OpsBoard({
   proposals,
   messages,
   strategies,
+  pnl,
   policyMode,
   onCreateDraftProposal,
   onProposeBankrDraft,
   loadingAction,
 }: OpsBoardProps) {
+  const usdFormatter = useMemo(
+    () => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }),
+    []
+  );
   const [sections, setSections] = useState<Record<SectionKey, boolean>>(DEFAULT_SECTIONS);
   const [expandedProposals, setExpandedProposals] = useState<Record<string, boolean>>({});
   const [walletBusy, setWalletBusy] = useState(false);
@@ -293,6 +302,10 @@ export default function OpsBoard({
     if (conversationRoot) {
       conversationRoot.scrollIntoView({ behavior: "smooth", block: "start" });
     }
+  }
+
+  function formatUsd(amount: number): string {
+    return usdFormatter.format(Number.isFinite(amount) ? amount : 0);
   }
 
   return (
@@ -537,14 +550,43 @@ export default function OpsBoard({
           ) : null}
         </Section>
 
-        <Section title="PnL Snapshot" open={sections.pnl} onToggle={() => toggle("pnl")}>
+        <Section
+          title="PnL (declared USD)"
+          open={sections.pnl}
+          onToggle={() => toggle("pnl")}
+        >
+          <Tooltip text="Declared USD flows recorded at execution time; not mark-to-market.">
+            <span className={styles["nn-muted"]}>Declared flow summary</span>
+          </Tooltip>
           <div className={styles["nn-listItem"]}>
-            <div>24h PnL: --</div>
-            <div className={styles["nn-muted"]}>placeholder · finance adapters not connected in this unit</div>
+            <div>Last 24h</div>
+            <div className={styles["nn-muted"]}>
+              in: <span className={styles["nn-mono"]}>{formatUsd(pnl.last24h.usdIn)}</span>
+            </div>
+            <div className={styles["nn-muted"]}>
+              out: <span className={styles["nn-mono"]}>{formatUsd(pnl.last24h.usdOut)}</span>
+            </div>
+            <div className={styles["nn-muted"]}>
+              net: <span className={styles["nn-mono"]}>{formatUsd(pnl.last24h.net)}</span>
+            </div>
+            <div className={styles["nn-muted"]}>
+              events: <span className={styles["nn-mono"]}>{pnl.last24h.count}</span>
+            </div>
           </div>
           <div className={styles["nn-listItem"]}>
-            <div>Active risk budget: --</div>
-            <div className={styles["nn-muted"]}>placeholder · set by policy layer</div>
+            <div>Last 7d</div>
+            <div className={styles["nn-muted"]}>
+              in: <span className={styles["nn-mono"]}>{formatUsd(pnl.last7d.usdIn)}</span>
+            </div>
+            <div className={styles["nn-muted"]}>
+              out: <span className={styles["nn-mono"]}>{formatUsd(pnl.last7d.usdOut)}</span>
+            </div>
+            <div className={styles["nn-muted"]}>
+              net: <span className={styles["nn-mono"]}>{formatUsd(pnl.last7d.net)}</span>
+            </div>
+            <div className={styles["nn-muted"]}>
+              events: <span className={styles["nn-mono"]}>{pnl.last7d.count}</span>
+            </div>
           </div>
         </Section>
 

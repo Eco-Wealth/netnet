@@ -14,7 +14,7 @@ import {
   getBankrActionId,
   isBankrProposal,
 } from "@/lib/operator/adapters/bankr";
-import { loadProposal } from "@/lib/operator/db";
+import { insertPnlEvent, loadProposal } from "@/lib/operator/db";
 
 type RouteHandler = (req: Request) => Promise<Response>;
 type SupportedRoute =
@@ -176,6 +176,42 @@ export function isWriteAction(action: string): boolean {
 function toRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object") return {};
   return value as Record<string, unknown>;
+}
+
+type UsdFlow = {
+  kind: "usd_in" | "usd_out";
+  amountUsd: number;
+};
+
+export function deriveUsdFlows(
+  proposal: SkillProposalEnvelope,
+  _executionResult: ExecutionAuditEnvelope
+): UsdFlow[] {
+  void _executionResult;
+  const body = toRecord(proposal.proposedBody);
+  const amountUsd =
+    typeof body.amountUsd === "number" && Number.isFinite(body.amountUsd)
+      ? body.amountUsd
+      : undefined;
+  if (typeof amountUsd !== "number" || amountUsd <= 0) return [];
+
+  const action =
+    typeof body.action === "string" ? body.action.toLowerCase() : "";
+  const skillId = String(proposal.skillId || "").toLowerCase();
+  const route = String(proposal.route || "");
+
+  const isTradeLike = action.startsWith("trade.") || skillId.includes("trade");
+  const isCarbonLike =
+    action.startsWith("carbon.") || route.includes("/bridge/retire");
+  const isRevenueLike = action.startsWith("revenue.");
+
+  if (isTradeLike || isCarbonLike) {
+    return [{ kind: "usd_out", amountUsd }];
+  }
+  if (isRevenueLike) {
+    return [{ kind: "usd_in", amountUsd }];
+  }
+  return [];
 }
 
 function hasConfirmedWrite(proposal: SkillProposalEnvelope): boolean {
@@ -405,23 +441,49 @@ export async function executeProposal(
   try {
     const res = await target.handler(req);
     const routeResult = await parseRouteResponse(res);
+    const executionTimestamp = Date.now();
+    const executionId = `exec-${frozenSnapshot.id}-${executionTimestamp}`;
     if (!res.ok) {
       return {
         ok: false,
         route: target.route,
         policyDecision: "ALLOW",
-        timestamp: Date.now(),
+        timestamp: executionTimestamp,
         error: `route_execution_failed_${res.status}`,
         result: routeResult,
       };
     }
-    return {
+    const successEnvelope: ExecutionAuditEnvelope = {
       ok: true,
       route: target.route,
       policyDecision: "ALLOW",
-      timestamp: Date.now(),
+      timestamp: executionTimestamp,
       result: routeResult,
     };
+    const flows = deriveUsdFlows(frozenSnapshot, successEnvelope);
+    for (const [index, flow] of flows.entries()) {
+      try {
+        insertPnlEvent({
+          id: `pnl-${executionId}-${index}`,
+          executionId,
+          proposalId: frozenSnapshot.id,
+          skillId: frozenSnapshot.skillId,
+          action:
+            typeof payload.action === "string" ? String(payload.action) : undefined,
+          kind: flow.kind,
+          amountUsd: flow.amountUsd,
+          createdAt: executionTimestamp,
+        });
+      } catch (error: unknown) {
+        console.error("pnl_event_insert_failed", {
+          proposalId: frozenSnapshot.id,
+          executionId,
+          index,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    return successEnvelope;
   } catch (error: unknown) {
     return {
       ok: false,
