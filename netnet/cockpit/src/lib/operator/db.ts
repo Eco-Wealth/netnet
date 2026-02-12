@@ -39,6 +39,7 @@ function resolveCockpitRoot(): string {
   return process.cwd();
 }
 
+// In production, mount /app/data as persistent volume.
 const OPERATOR_DB_PATH = path.join(resolveCockpitRoot(), "data", "operator.db");
 
 type MessageRow = {
