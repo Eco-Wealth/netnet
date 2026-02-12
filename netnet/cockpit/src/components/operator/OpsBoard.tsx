@@ -20,6 +20,7 @@ type OpsBoardProps = {
 };
 
 type SectionKey =
+  | "strategies"
   | "activeStrategies"
   | "pendingApprovals"
   | "inProgress"
@@ -29,6 +30,7 @@ type SectionKey =
   | "bankrReadOnly";
 
 const DEFAULT_SECTIONS: Record<SectionKey, boolean> = {
+  strategies: true,
   activeStrategies: true,
   pendingApprovals: true,
   inProgress: true,
@@ -81,9 +83,12 @@ export default function OpsBoard({ proposals, messages, strategies, policyMode }
   const activeStrategies = useMemo(
     () =>
       strategies.filter(
-        (strategy) =>
-          strategy.status === "active" || strategy.status === "completed" || strategy.status === "paused"
+        (strategy) => strategy.status === "active" || strategy.status === "paused"
       ),
+    [strategies]
+  );
+  const draftStrategies = useMemo(
+    () => strategies.filter((strategy) => strategy.status === "draft"),
     [strategies]
   );
 
@@ -188,8 +193,22 @@ export default function OpsBoard({ proposals, messages, strategies, policyMode }
     if (status === "draft") return "Draft strategy: planning stage, not actively tracked yet.";
     if (status === "active") return "Active strategy: currently being executed through linked proposals.";
     if (status === "paused") return "Paused strategy: temporarily on hold by operator choice.";
-    if (status === "completed") return "Completed strategy: goals achieved and execution is done.";
     return "Archived strategy: kept for historical context only.";
+  }
+
+  function openStrategyLink(strategy: Strategy) {
+    if (typeof document === "undefined") return;
+    if (strategy.linkedMessageId) {
+      const target = document.getElementById(`operator-message-${strategy.linkedMessageId}`);
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+    }
+    const conversationRoot = document.getElementById("operator-conversation-root");
+    if (conversationRoot) {
+      conversationRoot.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   }
 
   return (
@@ -206,6 +225,28 @@ export default function OpsBoard({ proposals, messages, strategies, policyMode }
       </div>
 
       <div className={styles["nn-opsBoard"]}>
+        <Section title="Strategies" open={sections.strategies} onToggle={() => toggle("strategies")}>
+          {draftStrategies.length ? (
+            draftStrategies.map((strategy) => (
+              <div key={strategy.id} className={styles["nn-listItem"]}>
+                <div className={styles["nn-listHead"]}>
+                  <div>
+                    <div>{strategy.title}</div>
+                    <div className={styles["nn-muted"]}>
+                      kind: {strategy.kind} · status: {strategy.status}
+                    </div>
+                  </div>
+                  <Button size="sm" variant="subtle" onClick={() => openStrategyLink(strategy)}>
+                    Open
+                  </Button>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className={styles["nn-muted"]}>No strategies yet.</div>
+          )}
+        </Section>
+
         <Section
           title="Active Strategies"
           open={sections.activeStrategies}
@@ -214,13 +255,15 @@ export default function OpsBoard({ proposals, messages, strategies, policyMode }
           {activeStrategies.length ? (
             activeStrategies.map((strategy) => (
               <div key={strategy.id} className={styles["nn-listItem"]}>
-                <div>{strategy.name}</div>
-                <div className={styles["nn-muted"]}>{strategy.description}</div>
+                <div>{strategy.title}</div>
+                <div className={styles["nn-muted"]}>{strategy.notes || "No notes provided."}</div>
                 <div className={styles["nn-chipRow"]}>
                   <Tooltip text={strategyStatusHelp(strategy.status)}>
                     <span className={styles["nn-statusBadge"]}>status: {strategy.status}</span>
                   </Tooltip>
-                  <span className={styles["nn-muted"]}>linked proposals: {strategy.linkedProposalIds.length}</span>
+                  <span className={styles["nn-muted"]}>
+                    linked proposal: {strategy.linkedProposalId || "none"}
+                  </span>
                 </div>
               </div>
             ))

@@ -220,6 +220,14 @@
   padding: 7px 9px;
 }
 
+.nn-inlineNote {
+  margin-top: 6px;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+  padding-top: 6px;
+  font-size: 12px;
+  color: rgba(191, 219, 254, 0.95);
+}
+
 .nn-starterList {
   display: grid;
   gap: 6px;

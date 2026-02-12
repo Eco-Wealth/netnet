@@ -17,6 +17,7 @@ export type PolicyAction =
   | "trade.quote"
   | "trade.plan"
   | "trade.execute"
+  | "strategy.propose"
   | "token.launch"
   | "token.manage"
   | "fees.route"

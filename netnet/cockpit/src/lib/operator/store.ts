@@ -3,7 +3,12 @@ import { tokenActionCatalog } from "@/lib/bankr/token";
 import { getPolicy } from "@/lib/policy/store";
 import { buildActionProof } from "@/lib/proof/action";
 import { buildExecutionPlan } from "@/lib/operator/planner";
-import type { Strategy, StrategyStatus } from "@/lib/operator/strategy";
+import {
+  normalizeStrategy,
+  type Strategy,
+  type StrategyInput,
+  type StrategyStatus,
+} from "@/lib/operator/strategy";
 import type {
   ExecutionResultEnvelope,
   MessageEnvelope,
@@ -85,23 +90,14 @@ function requireStrategy(id: string): Strategy {
   return strategy;
 }
 
-export function createStrategy(input: {
-  name: string;
-  description: string;
-  goals?: string[];
-  status?: StrategyStatus;
-}): Strategy {
+export function createStrategy(input: StrategyInput): Strategy {
   const now = Date.now();
-  const strategy: Strategy = {
-    id: createMessageId("strategy"),
-    name: input.name.trim() || "Untitled strategy",
-    description: input.description.trim() || "Operator-defined strategy",
-    goals: (input.goals || []).map((goal) => goal.trim()).filter(Boolean),
-    status: input.status || "draft",
-    createdAt: now,
+  const strategy = normalizeStrategy({
+    ...input,
+    id: input.id || createMessageId("strategy"),
     updatedAt: now,
-    linkedProposalIds: [],
-  };
+    createdAt: input.createdAt ?? now,
+  });
   getState().strategies[strategy.id] = strategy;
   return strategy;
 }
@@ -115,9 +111,7 @@ export function updateStrategyStatus(id: string, status: StrategyStatus): Strate
 
 export function linkProposalToStrategy(strategyId: string, proposalId: string): Strategy {
   const strategy = requireStrategy(strategyId);
-  if (!strategy.linkedProposalIds.includes(proposalId)) {
-    strategy.linkedProposalIds.push(proposalId);
-  }
+  strategy.linkedProposalId = proposalId;
   strategy.updatedAt = Date.now();
   return strategy;
 }
@@ -159,40 +153,48 @@ function strategyNameForProposal(proposal: SkillProposalEnvelope): string {
   return `Strategy: ${proposal.skillId}`;
 }
 
+function strategyKindForProposal(proposal: SkillProposalEnvelope): Strategy["kind"] {
+  if (proposal.route.startsWith("/api/bankr")) return "bankr";
+  if (proposal.route.includes("retire") || proposal.route.includes("carbon")) return "carbon";
+  if (proposal.route.includes("work") || proposal.route.includes("proof")) return "ops";
+  return "generic";
+}
+
 export function ensureStrategyForProposal(proposal: SkillProposalEnvelope): Strategy {
   const state = getState();
   const existing = Object.values(state.strategies).find(
-    (strategy) => strategy.name === strategyNameForProposal(proposal) && strategy.status !== "archived"
+    (strategy) =>
+      strategy.linkedProposalId === proposal.id ||
+      (strategy.title === strategyNameForProposal(proposal) &&
+        strategy.status !== "archived")
   );
 
   const nextStatus: StrategyStatus =
     proposal.status === "approved"
       ? "active"
       : proposal.executionStatus === "completed"
-      ? "completed"
+      ? "archived"
       : proposal.status === "rejected"
       ? "paused"
       : "draft";
 
   if (existing) {
-    if (!existing.linkedProposalIds.includes(proposal.id)) {
-      existing.linkedProposalIds.push(proposal.id);
-    }
+    existing.linkedProposalId = proposal.id;
     existing.updatedAt = Date.now();
     existing.status = nextStatus;
-    if (!existing.goals.length && proposal.reasoning.trim()) {
-      existing.goals = [proposal.reasoning.trim()];
+    if (!existing.notes && proposal.reasoning.trim()) {
+      existing.notes = proposal.reasoning.trim();
     }
     return existing;
   }
 
   const created = createStrategy({
-    name: strategyNameForProposal(proposal),
-    description: `Operator-owned long-running strategy for ${proposal.skillId}.`,
-    goals: proposal.reasoning.trim() ? [proposal.reasoning.trim()] : [],
+    title: strategyNameForProposal(proposal),
+    kind: strategyKindForProposal(proposal),
+    linkedProposalId: proposal.id,
+    notes: proposal.reasoning.trim() || `Operator-owned strategy for ${proposal.skillId}.`,
     status: nextStatus,
   });
-  created.linkedProposalIds.push(proposal.id);
   created.updatedAt = Date.now();
   return created;
 }
@@ -386,7 +388,7 @@ export async function executeProposal(id: string): Promise<SkillProposalEnvelope
     proposal.executionCompletedAt = Date.now();
     proposal.executionError = undefined;
     const strategy = ensureStrategyForProposal(proposal);
-    updateStrategyStatus(strategy.id, "completed");
+    updateStrategyStatus(strategy.id, "archived");
     return proposal;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

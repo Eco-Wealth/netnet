@@ -72,17 +72,22 @@ export function enforcePolicy(
   action: PolicyAction,
   context: EnforcePolicyContext = {}
 ): PolicyDecision {
+  // Strategy proposal reuses existing work proposal semantics.
+  const effectiveAction: PolicyAction =
+    action === "strategy.propose" ? "work.create" : action;
   const cfg = loadPolicyConfig();
-  const programId = programForAction(action);
+  const programId = programForAction(effectiveAction);
   const program = cfg.programs[programId];
   const policy = toEnvelope(program);
 
   const isTrade =
-    action === "trade.quote" || action === "trade.plan" || action === "trade.execute";
+    effectiveAction === "trade.quote" ||
+    effectiveAction === "trade.plan" ||
+    effectiveAction === "trade.execute";
 
   const decision = decide({
     programId,
-    action,
+    action: effectiveAction,
     chain: isTrade ? context.chain : undefined,
     venue: isTrade ? context.venue : undefined,
     token: isTrade ? context.fromToken : undefined,

@@ -25,6 +25,7 @@ type ConversationPanelProps = {
   onRequestIntent: (id: string) => void;
   onLockIntent: (id: string) => void;
   onExecute: (id: string) => void;
+  onDraftStrategy: (id: string) => void;
   loadingAction: string | null;
   threads: ThreadItem[];
   activeThreadId: string | null;
@@ -174,6 +175,7 @@ function ProposalInlineCard({
   onRequestIntent,
   onLockIntent,
   onExecute,
+  onDraftStrategy,
 }: {
   proposal: SkillProposalEnvelope;
   loadingAction: string | null;
@@ -182,6 +184,7 @@ function ProposalInlineCard({
   onRequestIntent: (id: string) => void;
   onLockIntent: (id: string) => void;
   onExecute: (id: string) => void;
+  onDraftStrategy: (id: string) => void;
 }) {
   return (
     <div className={styles["nn-proposalCard"]}>
@@ -300,6 +303,23 @@ function ProposalInlineCard({
             </span>
           </Tooltip>
         ) : null}
+
+        {proposal.status === "approved" ? (
+          <Button
+            size="sm"
+            variant="subtle"
+            disabled={loadingAction !== null}
+            onClick={() => onDraftStrategy(proposal.id)}
+            insight={{
+              what: "Create a draft strategy memory from an approved proposal.",
+              when: "Use after proposal approval to capture long-running intent.",
+              requires: "Policy gate for strategy proposal path.",
+              output: "Draft strategy linked to proposal and assistant audit message.",
+            }}
+          >
+            {loadingAction === `strategy:${proposal.id}` ? "Drafting..." : "Draft Strategy"}
+          </Button>
+        ) : null}
       </div>
     </div>
   );
@@ -320,6 +340,7 @@ export default function ConversationPanel({
   onRequestIntent,
   onLockIntent,
   onExecute,
+  onDraftStrategy,
   loadingAction,
   threads,
   activeThreadId,
@@ -334,9 +355,22 @@ export default function ConversationPanel({
 
   const [showSkills, setShowSkills] = useState(false);
   const [showStrategies, setShowStrategies] = useState(false);
+  const latestStrategyDraftNote = useMemo(() => {
+    const match = [...ordered]
+      .reverse()
+      .find(
+        (message) =>
+          message.metadata?.action === "strategy.propose" &&
+          message.content.startsWith("Strategy drafted from approved proposal:")
+      );
+    return match?.content || null;
+  }, [ordered]);
 
   return (
-    <div className={[styles["nn-columnBody"], styles.panelBody].join(" ")}>
+    <div
+      id="operator-conversation-root"
+      className={[styles["nn-columnBody"], styles.panelBody].join(" ")}
+    >
       <div className={[styles["nn-sectionHeader"], styles.panelHeader].join(" ")}>
         <div>
           <div className={styles["nn-sectionTitle"]}>Operator Chat</div>
@@ -383,6 +417,9 @@ export default function ConversationPanel({
 
       <div className={styles["nn-guidanceStrip"]}>
         You can: ask questions, propose strategies, draft actions, and approve then execute proposals.
+        {latestStrategyDraftNote ? (
+          <div className={styles["nn-inlineNote"]}>{latestStrategyDraftNote}</div>
+        ) : null}
       </div>
 
       {showSkills ? (
@@ -442,6 +479,7 @@ export default function ConversationPanel({
           return (
             <div
               key={message.id}
+              id={`operator-message-${message.id}`}
               className={[styles["nn-messageRow"], styles.messageRow].join(" ")}
             >
               <div
@@ -482,6 +520,7 @@ export default function ConversationPanel({
                     onRequestIntent={onRequestIntent}
                     onLockIntent={onLockIntent}
                     onExecute={onExecute}
+                    onDraftStrategy={onDraftStrategy}
                   />
                 ) : (
                   renderMarkdown(message.content)

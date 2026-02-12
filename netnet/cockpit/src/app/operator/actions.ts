@@ -6,12 +6,15 @@ import { generateAssistantReply } from "@/lib/operator/llm";
 import { extractSkillProposalEnvelope } from "@/lib/operator/proposal";
 import { GET as bankrWalletGet } from "@/app/api/bankr/wallet/route";
 import { GET as bankrTokenInfoGet } from "@/app/api/bankr/token/info/route";
+import { buildBankrStrategyTemplate } from "@/lib/operator/strategyTemplates";
 import {
   appendAuditMessage,
   appendMessage,
   approveProposal,
+  createStrategy,
   ensureStrategyForProposal,
   executeProposal,
+  getProposal,
   generateExecutionPlan,
   listMessages,
   listProposals,
@@ -278,4 +281,93 @@ export async function fetchBankrTokenInfoSnapshot(
   } catch {
     return { ok: false, error: "token_info_unavailable" };
   }
+}
+
+export async function proposeStrategyFromAssistantProposal(
+  proposalId: string
+): Promise<OperatorStateResponse> {
+  const proposal = getProposal(proposalId);
+  if (!proposal) {
+    appendAuditMessage("Strategy draft failed: proposal not found.", "strategy.propose");
+    return state();
+  }
+
+  if (proposal.status !== "approved") {
+    appendAuditMessage(
+      "Strategy draft failed: proposal must be approved first.",
+      "strategy.propose"
+    );
+    return state();
+  }
+
+  const gate = enforcePolicy("strategy.propose", {
+    route: proposal.route,
+    chain: String(proposal.proposedBody.chain || ""),
+    venue: proposal.route.includes("/bankr/") ? "bankr" : undefined,
+  });
+  if (!gate.ok) {
+    appendAuditMessage("Strategy draft blocked: policy_denied", "strategy.propose");
+    return state();
+  }
+
+  const linkedMessage = listMessages().find(
+    (message) => message.metadata?.proposalId === proposal.id
+  );
+  const existingStrategy = listStrategies().find(
+    (strategyItem) => strategyItem.linkedProposalId === proposal.id
+  );
+
+  let strategy;
+  if (proposal.route.includes("/bankr/")) {
+    const chain = String(proposal.proposedBody.chain || "base");
+    const from = String(
+      proposal.proposedBody.from ||
+        proposal.proposedBody.token ||
+        proposal.proposedBody.symbol ||
+        "ECO"
+    );
+    const to = String(proposal.proposedBody.to || "USDC");
+    const mode = proposal.route.includes("launch")
+      ? "market-make"
+      : proposal.route.includes("token/actions")
+      ? "rebalance"
+      : "dca";
+    const riskUsdPerDay =
+      typeof proposal.proposedBody.amountUsd === "number"
+        ? proposal.proposedBody.amountUsd
+        : typeof proposal.proposedBody.initialLiquidityUsd === "number"
+        ? proposal.proposedBody.initialLiquidityUsd
+        : undefined;
+
+    strategy = createStrategy({
+      ...buildBankrStrategyTemplate({
+        chain,
+        pair: `${from}/${to}`,
+        mode,
+        riskUsdPerDay,
+        reason: proposal.reasoning,
+      }),
+      id: existingStrategy?.id,
+      linkedProposalId: proposal.id,
+      linkedMessageId: linkedMessage?.id,
+      status: "draft",
+    });
+  } else {
+    strategy = createStrategy({
+      id: existingStrategy?.id,
+      title: `Strategy: ${proposal.skillId}`,
+      kind: "generic",
+      status: "draft",
+      linkedProposalId: proposal.id,
+      linkedMessageId: linkedMessage?.id,
+      notes: proposal.reasoning || `Drafted from approved proposal ${proposal.id}.`,
+      scheduleHint: "daily 9am",
+    });
+  }
+
+  appendAuditMessage(
+    `Strategy drafted from approved proposal: ${strategy.id}`,
+    "strategy.propose"
+  );
+  return state();
 }

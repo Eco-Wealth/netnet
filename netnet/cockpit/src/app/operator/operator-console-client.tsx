@@ -14,6 +14,7 @@ import {
   approveProposalAction,
   executeProposalAction,
   lockExecutionIntentAction,
+  proposeStrategyFromAssistantProposal,
   rejectProposalAction,
   requestExecutionIntentAction,
   sendOperatorMessageAction,
@@ -240,6 +241,9 @@ export default function OperatorConsoleClient({
             onRequestIntent={(id) => runAction(`request:${id}`, () => requestExecutionIntentAction(id))}
             onLockIntent={(id) => runAction(`lock:${id}`, () => lockExecutionIntentAction(id))}
             onExecute={(id) => runAction(`execute:${id}`, () => executeProposalAction(id))}
+            onDraftStrategy={(id) =>
+              runAction(`strategy:${id}`, () => proposeStrategyFromAssistantProposal(id))
+            }
             loadingAction={loadingAction}
             threads={threads}
             activeThreadId={activeThreadId}
