@@ -9,16 +9,27 @@ export type SkillInfo = {
 };
 
 function resolveRegistryPath(): string | null {
-  const candidates = [
-    path.resolve(process.cwd(), "skills/REGISTRY.md"),
-    path.resolve(process.cwd(), "../skills/REGISTRY.md"),
-    path.resolve(process.cwd(), "../../skills/REGISTRY.md"),
-    path.resolve(process.cwd(), "../../../skills/REGISTRY.md"),
-    path.resolve(process.cwd(), "../../../../skills/REGISTRY.md"),
+  const starts = [
+    process.cwd(),
+    __dirname,
   ];
 
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) return candidate;
+  for (const start of starts) {
+    let current = path.resolve(start);
+    while (true) {
+      const candidate = path.join(current, "skills", "REGISTRY.md");
+      if (fs.existsSync(candidate)) return candidate;
+      const parent = path.dirname(current);
+      if (parent === current) break;
+      current = parent;
+    }
+  }
+
+  try {
+    const fallback = path.resolve(__dirname, "../../../../../../skills/REGISTRY.md");
+    if (fs.existsSync(fallback)) return fallback;
+  } catch {
+    // ignore
   }
   return null;
 }
@@ -76,6 +87,15 @@ export function getSkillContextSummary(): string {
   if (!skills.length) return "No skills registry entries were found.";
 
   return skills
-    .map((skill) => `- ${skill.id} (${skill.route}) — ${skill.description} [owner: ${skill.ownership}]`)
+    .sort((a, b) => {
+      const aBankr = a.id.startsWith("bankr.") ? 0 : 1;
+      const bBankr = b.id.startsWith("bankr.") ? 0 : 1;
+      if (aBankr !== bBankr) return aBankr - bBankr;
+      return a.id.localeCompare(b.id);
+    })
+    .map(
+      (skill) =>
+        `- ${skill.id} (${skill.route}) — ${skill.description} [owner: ${skill.ownership}]`
+    )
     .join("\n");
 }

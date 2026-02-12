@@ -13,6 +13,7 @@ function normalizeBankrAction(action: PolicyAction): PolicyAction {
 }
 
 export function programForAction(action: PolicyAction): ProgramId {
+  if (action.startsWith("bankr.")) return "TOKEN_OPS";
   const normalized = normalizeBankrAction(action);
   if (normalized.startsWith("bankr.")) return "TOKEN_OPS";
   const cfg = loadPolicyConfig();
@@ -61,9 +62,7 @@ export function decide(input: DecideInput): Decision {
   if (input.chain && !program.allow.chains.includes(input.chain)) reasons.push("chain_not_allowed");
   if (input.token && !program.allow.tokens.includes(input.token)) reasons.push("token_not_allowed");
   if (input.venue && !program.allow.venues.includes(input.venue)) reasons.push("venue_not_allowed");
-  const actionAllowed = normalizedAction.startsWith("bankr.")
-    ? program.allow.actions.includes(normalizedAction)
-    : program.allow.actions.includes(normalizedAction);
+  const actionAllowed = program.allow.actions.includes(normalizedAction);
   if (!actionAllowed) reasons.push("action_not_allowed");
 
   const slippage = input.slippageBps ?? 0;
@@ -108,10 +107,10 @@ export function decide(input: DecideInput): Decision {
     mode,
     reasons,
     limitsApplied,
-      correlationId,
-      programId: program.id,
-      action: normalizedAction,
-      nextAction:
+    correlationId,
+    programId: program.id,
+    action: normalizedAction,
+    nextAction:
       mode === "REQUIRE_APPROVAL"
         ? "Render approval UI; then POST to execution endpoint with approval receipt"
         : mode === "ALLOW"

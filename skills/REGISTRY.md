@@ -25,10 +25,10 @@ Exact API request/response contracts are canonical in:
 | `netnet-economics.md` | ACTIVE | `/api/econ/capitals`, `/api/econ/delta` |
 | `netnet-cockpit-ecotoken-scan.md` | ACTIVE | `/api/ecotoken/scan` |
 | `netnet-cockpit-megaeth.md` | ACTIVE | `/api/agent/megaeth` |
+| `netnet-cockpit-bankr.md` | ACTIVE | `/api/bankr/launch`, `/api/bankr/token/actions`, `/api/bankr/token/info`, `/api/bankr/wallet` |
 | `netnet-cockpit-bankr-wallet.md` | ACTIVE | `/api/bankr/wallet` |
 | `netnet-cockpit-bankr-token.md` | ACTIVE | `/api/bankr/token/info`, `/api/bankr/token/actions` |
 | `netnet-cockpit-bankr-launch.md` | ACTIVE | `/api/bankr/launch` |
-| `netnet-cockpit-bankr-agent.md` | ACTIVE | `/api/bankr/launch`, `/api/bankr/token/actions`, `/api/bankr/token/info`, `/api/bankr/wallet` |
 | `netnet-cockpit-programs.md` | ACTIVE | `/api/programs` |
 | `netnet-cockpit-security.md` | ACTIVE | `/api/security/audit` |
 

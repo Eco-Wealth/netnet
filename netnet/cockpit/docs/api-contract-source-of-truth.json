@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-02-11",
+  "updatedAt": "2026-02-12",
   "scope": "netnet/cockpit/src/app/api/**",
   "routes": [
     {
@@ -56,28 +56,28 @@
       "route": "/api/bankr/launch",
       "methods": ["GET", "POST"],
       "actions": ["info", "propose", "submit"],
-      "skill": "platform",
+      "skill": "skills/netnet-cockpit-bankr.md",
       "docs": []
     },
     {
       "route": "/api/bankr/token/actions",
       "methods": ["GET", "POST"],
       "actions": ["catalog", "propose_action"],
-      "skill": "platform",
+      "skill": "skills/netnet-cockpit-bankr.md",
       "docs": ["netnet/cockpit/docs/token-lifecycle.md"]
     },
     {
       "route": "/api/bankr/token/info",
       "methods": ["GET"],
       "actions": ["info"],
-      "skill": "platform",
+      "skill": "skills/netnet-cockpit-bankr.md",
       "docs": ["netnet/cockpit/docs/token-lifecycle.md"]
     },
     {
       "route": "/api/bankr/wallet",
       "methods": ["GET"],
       "actions": ["state", "balances", "positions", "history"],
-      "skill": "platform",
+      "skill": "skills/netnet-cockpit-bankr.md",
       "docs": ["netnet/cockpit/docs/bankr-wallet.md"]
     },
     {
