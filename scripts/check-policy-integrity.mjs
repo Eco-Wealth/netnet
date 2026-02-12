@@ -65,8 +65,10 @@ check(function decide_covers_autonomy_levels() {
 
 check(function bankr_namespace_is_mapped() {
   mustContain(decideSrc, /if\s*\(action\.startsWith\("bankr\."\)\)\s*return\s*"TOKEN_OPS"/, "programForAction maps bankr.* to TOKEN_OPS");
-  mustContain(typesSrc, /"bankr\.plan"/, "PolicyAction includes bankr.plan");
-  mustContain(typesSrc, /"bankr\.token\.actions\.plan"/, "PolicyAction includes bankr.token.actions.plan");
+  mustContain(typesSrc, /"bankr\.wallet\.read"/, "PolicyAction includes bankr.wallet.read");
+  mustContain(typesSrc, /"bankr\.token\.info"/, "PolicyAction includes bankr.token.info");
+  mustContain(typesSrc, /"bankr\.token\.actions"/, "PolicyAction includes bankr.token.actions");
+  mustContain(typesSrc, /"bankr\.launch"/, "PolicyAction includes bankr.launch");
 });
 
 const failed = checks.filter((c) => !c.ok);

@@ -26,9 +26,12 @@ type SupportedRoute =
   | "/api/bridge/retire";
 type ExecutionAction =
   | "trade.plan"
+  | "bankr.wallet.read"
+  | "bankr.token.info"
+  | "bankr.token.actions"
+  | "bankr.launch"
   | "bankr.plan"
   | "bankr.quote"
-  | "bankr.wallet.read"
   | "bankr.token.read"
   | "bankr.token.actions.plan"
   | "token.launch"
@@ -72,20 +75,6 @@ const ROUTE_EXECUTION_MAP: Record<ExecutionAction, ExecutionTarget> = {
     policyAction: "trade.plan",
     handler: tradePost as unknown as RouteHandler,
   },
-  "bankr.plan": {
-    action: "bankr.plan",
-    route: "/api/bankr/token/actions",
-    method: "POST",
-    policyAction: "bankr.plan",
-    handler: bankrTokenActionsPost as unknown as RouteHandler,
-  },
-  "bankr.quote": {
-    action: "bankr.quote",
-    route: "/api/bankr/token/info",
-    method: "GET",
-    policyAction: "bankr.quote",
-    handler: (bankrTokenInfoGet as unknown as RouteHandler),
-  },
   "bankr.wallet.read": {
     action: "bankr.wallet.read",
     route: "/api/bankr/wallet",
@@ -93,18 +82,53 @@ const ROUTE_EXECUTION_MAP: Record<ExecutionAction, ExecutionTarget> = {
     policyAction: "bankr.wallet.read",
     handler: bankrWalletGet as unknown as RouteHandler,
   },
+  "bankr.token.info": {
+    action: "bankr.token.info",
+    route: "/api/bankr/token/info",
+    method: "GET",
+    policyAction: "bankr.token.info",
+    handler: (bankrTokenInfoGet as unknown as RouteHandler),
+  },
+  "bankr.token.actions": {
+    action: "bankr.token.actions",
+    route: "/api/bankr/token/actions",
+    method: "POST",
+    policyAction: "bankr.token.actions",
+    handler: bankrTokenActionsPost as unknown as RouteHandler,
+  },
+  "bankr.launch": {
+    action: "bankr.launch",
+    route: "/api/bankr/launch",
+    method: "POST",
+    policyAction: "bankr.launch",
+    handler: bankrLaunchPost as unknown as RouteHandler,
+  },
+  "bankr.plan": {
+    action: "bankr.plan",
+    route: "/api/bankr/token/actions",
+    method: "POST",
+    policyAction: "bankr.token.actions",
+    handler: bankrTokenActionsPost as unknown as RouteHandler,
+  },
+  "bankr.quote": {
+    action: "bankr.quote",
+    route: "/api/bankr/token/info",
+    method: "GET",
+    policyAction: "bankr.token.info",
+    handler: (bankrTokenInfoGet as unknown as RouteHandler),
+  },
   "bankr.token.read": {
     action: "bankr.token.read",
     route: "/api/bankr/token/info",
     method: "GET",
-    policyAction: "bankr.token.read",
+    policyAction: "bankr.token.info",
     handler: (bankrTokenInfoGet as unknown as RouteHandler),
   },
   "bankr.token.actions.plan": {
     action: "bankr.token.actions.plan",
     route: "/api/bankr/token/actions",
     method: "POST",
-    policyAction: "bankr.token.actions.plan",
+    policyAction: "bankr.token.actions",
     handler: bankrTokenActionsPost as unknown as RouteHandler,
   },
   "token.launch": {
@@ -198,7 +222,9 @@ function internalRequest(target: ExecutionTarget, body: Record<string, unknown>)
   }
 
   const nextBody =
-    target.action === "bankr.plan" || target.action === "bankr.token.actions.plan"
+    target.action === "bankr.token.actions" ||
+    target.action === "bankr.plan" ||
+    target.action === "bankr.token.actions.plan"
       ? {
           action: "status",
           params: { ...body, bankrActionId: target.action },

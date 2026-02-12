@@ -2,6 +2,7 @@
 
 import { getPolicy } from "@/lib/policy/store";
 import { enforcePolicy } from "@/lib/policy/enforce";
+import type { PolicyAction } from "@/lib/policy/types";
 import { generateAssistantReply } from "@/lib/operator/llm";
 import { extractSkillProposalEnvelope } from "@/lib/operator/proposal";
 import { GET as bankrWalletGet } from "@/app/api/bankr/wallet/route";
@@ -85,6 +86,23 @@ export type BankrTokenInfoParams = {
   chain?: string;
   token?: string;
 };
+
+function normalizeBankrPolicyAction(value: string): PolicyAction {
+  if (value === "bankr.wallet.read") return "bankr.wallet.read";
+  if (value === "bankr.token.info" || value === "bankr.quote" || value === "bankr.token.read") {
+    return "bankr.token.info";
+  }
+  if (
+    value === "bankr.token.actions" ||
+    value === "bankr.plan" ||
+    value === "bankr.token.actions.plan" ||
+    value === "token.manage"
+  ) {
+    return "bankr.token.actions";
+  }
+  if (value === "bankr.launch" || value === "token.launch") return "bankr.launch";
+  return "bankr.token.actions";
+}
 
 export async function sendOperatorMessageAction(content: string): Promise<OperatorStateResponse> {
   const trimmed = String(content || "").trim();
@@ -232,7 +250,7 @@ export async function executeProposalAction(id: string): Promise<OperatorStateRe
 }
 
 export async function fetchBankrWalletSnapshot(): Promise<BankrSnapshotResult> {
-  const gate = enforcePolicy("token.manage", { venue: "bankr" });
+  const gate = enforcePolicy("bankr.wallet.read", { venue: "bankr" });
   if (!gate.ok) return { ok: false, error: "policy_denied" };
 
   try {
@@ -256,7 +274,7 @@ export async function fetchBankrWalletSnapshot(): Promise<BankrSnapshotResult> {
 export async function fetchBankrTokenInfoSnapshot(
   params?: BankrTokenInfoParams
 ): Promise<BankrSnapshotResult> {
-  const gate = enforcePolicy("token.manage", {
+  const gate = enforcePolicy("bankr.token.info", {
     venue: "bankr",
     chain: params?.chain,
     fromToken: params?.token,
@@ -396,15 +414,8 @@ export async function createDraftProposalFromTemplate(
     const action =
       typeof proposal.proposedBody.action === "string"
         ? proposal.proposedBody.action
-        : "bankr.plan";
-    const policyAction = action.startsWith("bankr.")
-      ? (action as
-          | "bankr.plan"
-          | "bankr.quote"
-          | "bankr.wallet.read"
-          | "bankr.token.read"
-          | "bankr.token.actions.plan")
-      : "bankr.plan";
+        : "bankr.token.actions";
+    const policyAction = normalizeBankrPolicyAction(action);
 
     const gate = enforcePolicy(policyAction, {
       route: proposal.route,

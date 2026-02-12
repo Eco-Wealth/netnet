@@ -55,7 +55,8 @@ export function decide(input: DecideInput): Decision {
   const actionAllowed =
     program.allow.actions.includes(input.action) ||
     (input.action.startsWith("bankr.") &&
-      program.allow.actions.includes("token.manage"));
+      (program.allow.actions.includes("bankr.token.actions") ||
+        program.allow.actions.includes("token.manage")));
   if (!actionAllowed) reasons.push("action_not_allowed");
 
   const slippage = input.slippageBps ?? 0;

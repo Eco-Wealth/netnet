@@ -14,13 +14,20 @@ const BaseProposal = z.object({
   riskLevel: z.enum(["low", "medium", "high"]).default("medium"),
 });
 
-const BANKR_ROUTES = new Set([
-  "/api/bankr/*",
-  "/api/bankr/launch",
-  "/api/bankr/token/actions",
-  "/api/bankr/token/info",
-  "/api/bankr/wallet",
-]);
+const BANKR_ACTION_ROUTE_MAP = {
+  "bankr.wallet.read": "/api/bankr/wallet",
+  "bankr.token.info": "/api/bankr/token/info",
+  "bankr.token.actions": "/api/bankr/token/actions",
+  "bankr.launch": "/api/bankr/launch",
+} as const;
+
+const BANKR_ACTION_ALIASES: Record<string, keyof typeof BANKR_ACTION_ROUTE_MAP> = {
+  "bankr.quote": "bankr.token.info",
+  "bankr.token.read": "bankr.token.info",
+  "bankr.plan": "bankr.token.actions",
+  "bankr.token.actions.plan": "bankr.token.actions",
+  "token.launch": "bankr.launch",
+};
 
 function tryParseJson(content: string): unknown {
   const trimmed = content.trim();
@@ -54,24 +61,31 @@ export function extractSkillProposalEnvelope(content: string): SkillProposalEnve
       typeof parsed.data.proposedBody?.action === "string"
         ? parsed.data.proposedBody.action
         : undefined;
-    const action = parsed.data.action || actionFromBody;
+    const rawAction = parsed.data.action || actionFromBody;
     const isBankrSkill = parsed.data.skillId === "bankr.agent";
-    const isBankrAction = typeof action === "string" && action.startsWith("bankr.");
+    const normalizedAction =
+      typeof rawAction === "string"
+        ? BANKR_ACTION_ALIASES[rawAction] || rawAction
+        : undefined;
+    const isBankrAction =
+      typeof normalizedAction === "string" &&
+      Object.prototype.hasOwnProperty.call(BANKR_ACTION_ROUTE_MAP, normalizedAction);
 
     if (isBankrSkill) {
-      const routeAllowed =
-        BANKR_ROUTES.has(route) || route.startsWith("/api/bankr/");
-      if (!routeAllowed) return null;
       if (!isBankrAction) return null;
+      const expectedRoute =
+        BANKR_ACTION_ROUTE_MAP[
+          normalizedAction as keyof typeof BANKR_ACTION_ROUTE_MAP
+        ];
+      if (route !== expectedRoute) return null;
     }
 
     if (!isBankrSkill && isBankrAction) return null;
 
     const normalizedBody = { ...parsed.data.proposedBody };
-    if (
-      parsed.data.action &&
-      typeof normalizedBody.action !== "string"
-    ) {
+    if (isBankrSkill && normalizedAction) {
+      normalizedBody.action = normalizedAction;
+    } else if (parsed.data.action && typeof normalizedBody.action !== "string") {
       normalizedBody.action = parsed.data.action;
     }
 

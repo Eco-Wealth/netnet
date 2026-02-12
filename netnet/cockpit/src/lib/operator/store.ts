@@ -289,8 +289,8 @@ function policyActionForExecution(proposal: SkillProposalEnvelope): PolicyAction
     return target.actionId;
   }
   if (proposal.route === "/api/agent/trade") return "trade.plan";
-  if (proposal.route === "/api/bankr/launch") return "token.launch";
-  if (proposal.route === "/api/bankr/token/actions") return "token.manage";
+  if (proposal.route === "/api/bankr/launch") return "bankr.launch";
+  if (proposal.route === "/api/bankr/token/actions") return "bankr.token.actions";
   if (proposal.route === "/api/agent/regen/projects") return "work.create";
   return "work.update";
 }
@@ -362,6 +362,37 @@ async function runBankrRouteExecution(
       adapter: "bankr",
       actionId: target.actionId,
       ...routeResult,
+    };
+  }
+
+  if (target.route === "/api/bankr/launch") {
+    const parsed = BankrLaunchRequest.safeParse({
+      name: proposal.proposedBody.name || "Draft Token",
+      symbol: proposal.proposedBody.symbol || "DRAFT",
+      chain: proposal.proposedBody.chain || "base",
+      initialLiquidityUsd:
+        typeof proposal.proposedBody.initialLiquidityUsd === "number"
+          ? proposal.proposedBody.initialLiquidityUsd
+          : undefined,
+      notes:
+        typeof proposal.proposedBody.notes === "string"
+          ? proposal.proposedBody.notes
+          : "Generated from Operator Seat execution.",
+      operator: {
+        id: "operator",
+        reason: "Approved from Operator Seat",
+      },
+    });
+
+    if (!parsed.success) {
+      throw new Error("Bankr launch payload is invalid for proposal generation.");
+    }
+
+    return {
+      adapter: "bankr",
+      actionId: target.actionId,
+      mode: "PROPOSE_ONLY",
+      proposal: createLaunchProposal(parsed.data),
     };
   }
 

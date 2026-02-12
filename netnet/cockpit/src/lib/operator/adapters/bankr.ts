@@ -5,46 +5,53 @@ export type BankrExecutionContext = {
 };
 
 export type BankrActionId =
-  | "bankr.plan"
-  | "bankr.quote"
   | "bankr.wallet.read"
-  | "bankr.token.read"
-  | "bankr.token.actions.plan";
+  | "bankr.token.info"
+  | "bankr.token.actions"
+  | "bankr.launch";
 
 export type BankrExecutionTarget = {
   actionId: BankrActionId;
-  route: "/api/bankr/token/actions" | "/api/bankr/token/info" | "/api/bankr/wallet";
+  route:
+    | "/api/bankr/token/actions"
+    | "/api/bankr/token/info"
+    | "/api/bankr/wallet"
+    | "/api/bankr/launch";
   method: "POST" | "GET";
 };
 
 type StructuredError = Error & { code?: string };
 
 const BANKR_ACTION_ROUTE_MAP: Record<BankrActionId, BankrExecutionTarget> = {
-  "bankr.plan": {
-    actionId: "bankr.plan",
-    route: "/api/bankr/token/actions",
-    method: "POST",
-  },
-  "bankr.quote": {
-    actionId: "bankr.quote",
-    route: "/api/bankr/token/info",
-    method: "GET",
-  },
   "bankr.wallet.read": {
     actionId: "bankr.wallet.read",
     route: "/api/bankr/wallet",
     method: "GET",
   },
-  "bankr.token.read": {
-    actionId: "bankr.token.read",
+  "bankr.token.info": {
+    actionId: "bankr.token.info",
     route: "/api/bankr/token/info",
     method: "GET",
   },
-  "bankr.token.actions.plan": {
-    actionId: "bankr.token.actions.plan",
+  "bankr.token.actions": {
+    actionId: "bankr.token.actions",
     route: "/api/bankr/token/actions",
     method: "POST",
   },
+  "bankr.launch": {
+    actionId: "bankr.launch",
+    route: "/api/bankr/launch",
+    method: "POST",
+  },
+};
+
+const BANKR_ACTION_ALIASES: Record<string, BankrActionId> = {
+  "bankr.quote": "bankr.token.info",
+  "bankr.token.read": "bankr.token.info",
+  "bankr.plan": "bankr.token.actions",
+  "bankr.token.actions.plan": "bankr.token.actions",
+  "token.manage": "bankr.token.actions",
+  "token.launch": "bankr.launch",
 };
 
 function structuredError(code: string, message: string): StructuredError {
@@ -62,11 +69,12 @@ export function isBankrProposal(proposal: SkillProposalEnvelope): boolean {
 }
 
 export function getBankrActionId(proposal: SkillProposalEnvelope): string {
-  const action =
+  const rawAction =
     typeof proposal.proposedBody?.action === "string"
       ? proposal.proposedBody.action.trim()
       : "";
-  return action;
+  if (!rawAction) return "";
+  return BANKR_ACTION_ALIASES[rawAction] || rawAction;
 }
 
 export function getBankrExecutionTarget(

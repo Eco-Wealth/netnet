@@ -36,6 +36,10 @@ Exact API request/response contracts are canonical in:
 | id | route | description | ownership |
 |---|---|---|---|
 | bankr.agent | /api/bankr/* | Bankr agent planning + proposal generation for DCA/LP/rebalance/market-making workflows. | platform |
+| bankr.wallet.read | /api/bankr/wallet | Read wallet summary + balances (read-only). | platform |
+| bankr.token.info | /api/bankr/token/info | Read token metadata/info (read-only). | platform |
+| bankr.token.actions | /api/bankr/token/actions | Propose token actions via Bankr (propose/execute gated). | platform |
+| bankr.launch | /api/bankr/launch | Propose launch flow via Bankr (propose/execute gated). | platform |
 
 ## Maintenance rules
 1. Any new API route in `netnet/cockpit/src/app/api/**` must be mapped here in the same change.

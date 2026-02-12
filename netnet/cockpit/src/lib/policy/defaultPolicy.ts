@@ -47,9 +47,12 @@ export function getDefaultPolicy(): PolicyConfig {
         "work.update",
       ]),
       TOKEN_OPS: mk("TOKEN_OPS", "Token operations", "PROPOSE_ONLY", [
+        "bankr.wallet.read",
+        "bankr.token.info",
+        "bankr.token.actions",
+        "bankr.launch",
         "bankr.plan",
         "bankr.quote",
-        "bankr.wallet.read",
         "bankr.token.read",
         "bankr.token.actions.plan",
         "token.launch",

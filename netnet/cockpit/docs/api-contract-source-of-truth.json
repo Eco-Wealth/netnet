@@ -56,28 +56,28 @@
       "route": "/api/bankr/launch",
       "methods": ["GET", "POST"],
       "actions": ["info", "propose", "submit"],
-      "skill": "skills/netnet-cockpit-bankr-launch.md",
+      "skill": "platform",
       "docs": []
     },
     {
       "route": "/api/bankr/token/actions",
       "methods": ["GET", "POST"],
       "actions": ["catalog", "propose_action"],
-      "skill": "skills/netnet-cockpit-bankr-token.md",
+      "skill": "platform",
       "docs": ["netnet/cockpit/docs/token-lifecycle.md"]
     },
     {
       "route": "/api/bankr/token/info",
       "methods": ["GET"],
       "actions": ["info"],
-      "skill": "skills/netnet-cockpit-bankr-token.md",
+      "skill": "platform",
       "docs": ["netnet/cockpit/docs/token-lifecycle.md"]
     },
     {
       "route": "/api/bankr/wallet",
       "methods": ["GET"],
       "actions": ["state", "balances", "positions", "history"],
-      "skill": "skills/netnet-cockpit-bankr-wallet.md",
+      "skill": "platform",
       "docs": ["netnet/cockpit/docs/bankr-wallet.md"]
     },
     {

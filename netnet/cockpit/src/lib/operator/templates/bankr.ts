@@ -54,7 +54,8 @@ export function buildBankrProposalTemplate(
 ): SkillProposalEnvelope {
   const now = Date.now();
   const venue = clean(input.venue, "bankr");
-  const action = id === "bankr_wallet_snapshot" ? "bankr.wallet.read" : "bankr.plan";
+  const action =
+    id === "bankr_wallet_snapshot" ? "bankr.wallet.read" : "bankr.token.actions";
 
   const templateById: Record<
     BankrTemplateId,
