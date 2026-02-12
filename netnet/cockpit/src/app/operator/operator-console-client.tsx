@@ -18,11 +18,14 @@ import {
   executeProposalAction,
   generateExecutionPlanAction,
   lockExecutionIntentAction,
+  pinStrategyAction,
   proposeFromBankrDraftAction,
   proposeStrategyFromAssistantProposal,
   rejectProposalAction,
   requestExecutionIntentAction,
   sendOperatorMessageAction,
+  unpinStrategyAction,
+  updateStrategyRunbookAction,
   type OperatorStateResponse,
 } from "./actions";
 
@@ -327,6 +330,27 @@ export default function OperatorConsoleClient({
               runActionNow(
                 `bankr-draft:propose:${strategyId}`,
                 () => proposeFromBankrDraftAction(strategyId),
+                activeThreadId
+              )
+            }
+            onPinStrategy={(strategyId) =>
+              runActionNow(
+                `strategy:pin:${strategyId}`,
+                () => pinStrategyAction(strategyId),
+                activeThreadId
+              )
+            }
+            onUnpinStrategy={(strategyId) =>
+              runActionNow(
+                `strategy:unpin:${strategyId}`,
+                () => unpinStrategyAction(strategyId),
+                activeThreadId
+              )
+            }
+            onUpdateRunbook={(strategyId, markdown) =>
+              runActionNow(
+                `strategy:runbook:${strategyId}`,
+                () => updateStrategyRunbookAction(strategyId, markdown),
                 activeThreadId
               )
             }

@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import type { MessageEnvelope } from "@/lib/operator/model";
 import type { SkillProposalEnvelope } from "@/lib/operator/proposal";
+import type { Strategy } from "@/lib/operator/strategy";
 
 const PROJECT_PACKAGE_NAME = "netnet-cockpit";
 
@@ -50,6 +51,11 @@ type MessageRow = {
 };
 
 type ProposalRow = {
+  id: string;
+  data: string;
+};
+
+type StrategyRow = {
   id: string;
   data: string;
 };
@@ -145,11 +151,20 @@ function fallbackEventsStore(): PnlEvent[] {
   return globalThis.__NETNET_PNL_EVENTS_FALLBACK__;
 }
 
+function fallbackStrategiesStore(): Strategy[] {
+  if (!globalThis.__NETNET_STRATEGIES_FALLBACK__) {
+    globalThis.__NETNET_STRATEGIES_FALLBACK__ = [];
+  }
+  return globalThis.__NETNET_STRATEGIES_FALLBACK__;
+}
+
 declare global {
   // eslint-disable-next-line no-var
   var __NETNET_OPERATOR_DB__: OperatorDatabase | undefined;
   // eslint-disable-next-line no-var
   var __NETNET_PNL_EVENTS_FALLBACK__: PnlEvent[] | undefined;
+  // eslint-disable-next-line no-var
+  var __NETNET_STRATEGIES_FALLBACK__: Strategy[] | undefined;
 }
 
 function safeJsonParse<T>(value: string | null): T | null {
@@ -180,6 +195,13 @@ function ensureOperatorTables(db: OperatorDatabase) {
     );
 
     CREATE TABLE IF NOT EXISTS proposals (
+      id TEXT PRIMARY KEY,
+      data TEXT NOT NULL,
+      createdAt INTEGER NOT NULL,
+      updatedAt INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS strategies (
       id TEXT PRIMARY KEY,
       data TEXT NOT NULL,
       createdAt INTEGER NOT NULL,
@@ -309,6 +331,60 @@ export function loadProposal(id: string): SkillProposalEnvelope | null {
     .get(proposalId) as ProposalRow | undefined;
   if (!row) return null;
   return safeJsonParse<SkillProposalEnvelope>(row.data);
+}
+
+export function saveStrategy(strategy: Strategy) {
+  try {
+    const db = operatorDb();
+    const now = Date.now();
+    db.prepare(
+      `
+      INSERT INTO strategies (id, data, createdAt, updatedAt)
+      VALUES (@id, @data, @createdAt, @updatedAt)
+      ON CONFLICT(id) DO UPDATE SET
+        data = excluded.data,
+        updatedAt = excluded.updatedAt
+    `
+    ).run({
+      id: strategy.id,
+      data: safeJsonStringify(strategy),
+      createdAt: strategy.createdAt,
+      updatedAt: typeof strategy.updatedAt === "number" ? strategy.updatedAt : now,
+    });
+    return;
+  } catch {
+    const rows = fallbackStrategiesStore();
+    const existing = rows.findIndex((row) => row.id === strategy.id);
+    const next = { ...strategy };
+    if (existing >= 0) rows[existing] = next;
+    else rows.push(next);
+  }
+}
+
+export function loadStrategies(): Strategy[] {
+  try {
+    const db = operatorDb();
+    const rows = db
+      .prepare(
+        `
+      SELECT id, data
+      FROM strategies
+      ORDER BY updatedAt DESC, id DESC
+    `
+      )
+      .all() as StrategyRow[];
+
+    const parsed: Strategy[] = [];
+    for (const row of rows) {
+      const value = safeJsonParse<Strategy>(row.data);
+      if (value && typeof value.id === "string") parsed.push(value);
+    }
+    return parsed;
+  } catch {
+    return [...fallbackStrategiesStore()].sort(
+      (a, b) => b.updatedAt - a.updatedAt || b.id.localeCompare(a.id)
+    );
+  }
 }
 
 export function saveExecution(input: PersistedExecution) {

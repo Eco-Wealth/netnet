@@ -6,8 +6,11 @@ import { GET as bankrWalletGet } from "@/app/api/bankr/wallet/route";
 import {
   getPnlSummary as loadPnlSummary,
   insertPnlEvent,
+  loadStrategies as loadPersistedStrategies,
+  saveStrategy as persistStrategyToDb,
   type PnlSummary,
 } from "@/lib/operator/db";
+import { buildDefaultRunbookStrategies } from "@/lib/operator/runbooks";
 import { getPolicy } from "@/lib/policy/store";
 import { enforcePolicy } from "@/lib/policy/enforce";
 import type { PolicyAction } from "@/lib/policy/types";
@@ -57,6 +60,33 @@ function policySnapshot(): Record<string, unknown> {
   };
 }
 
+function persistStrategy(strategy: Strategy): Strategy {
+  persistStrategyToDb(strategy);
+  return strategy;
+}
+
+function hydrateStrategies(): Record<string, Strategy> {
+  const strategies: Record<string, Strategy> = {};
+  const persisted = loadPersistedStrategies();
+
+  for (const strategy of persisted) {
+    const normalized = normalizeStrategy(strategy);
+    strategies[normalized.id] = normalized;
+  }
+
+  if (Object.keys(strategies).length === 0) {
+    const seeded = buildDefaultRunbookStrategies(Date.now()).map((input) =>
+      normalizeStrategy(input)
+    );
+    for (const strategy of seeded) {
+      strategies[strategy.id] = strategy;
+      persistStrategyToDb(strategy);
+    }
+  }
+
+  return strategies;
+}
+
 function getState(): OperatorState {
   if (!globalThis.__NETNET_OPERATOR_STATE__) {
     globalThis.__NETNET_OPERATOR_STATE__ = {
@@ -75,7 +105,7 @@ function getState(): OperatorState {
         },
       ],
       proposals: {},
-      strategies: {},
+      strategies: hydrateStrategies(),
     };
   }
   return globalThis.__NETNET_OPERATOR_STATE__;
@@ -123,14 +153,17 @@ function requireStrategy(id: string): Strategy {
 
 export function createStrategy(input: StrategyInput): Strategy {
   const now = Date.now();
+  const existing =
+    input.id && getState().strategies[input.id] ? getState().strategies[input.id] : undefined;
   const strategy = normalizeStrategy({
+    ...(existing || {}),
     ...input,
     id: input.id || createMessageId("strategy"),
     updatedAt: now,
-    createdAt: input.createdAt ?? now,
+    createdAt: input.createdAt ?? existing?.createdAt ?? now,
   });
   getState().strategies[strategy.id] = strategy;
-  return strategy;
+  return persistStrategy(strategy);
 }
 
 export type CreateBankrStrategyDraftInput = {
@@ -210,21 +243,42 @@ export function updateBankrStrategyDraft(
   }
 
   strategy.updatedAt = Date.now();
-  return strategy;
+  return persistStrategy(strategy);
 }
 
 export function updateStrategyStatus(id: string, status: StrategyStatus): Strategy {
   const strategy = requireStrategy(id);
   strategy.status = status;
   strategy.updatedAt = Date.now();
-  return strategy;
+  return persistStrategy(strategy);
 }
 
 export function linkProposalToStrategy(strategyId: string, proposalId: string): Strategy {
   const strategy = requireStrategy(strategyId);
   strategy.linkedProposalId = proposalId;
   strategy.updatedAt = Date.now();
-  return strategy;
+  return persistStrategy(strategy);
+}
+
+export function pinStrategy(id: string): Strategy {
+  const strategy = requireStrategy(id);
+  strategy.pinned = true;
+  strategy.updatedAt = Date.now();
+  return persistStrategy(strategy);
+}
+
+export function unpinStrategy(id: string): Strategy {
+  const strategy = requireStrategy(id);
+  strategy.pinned = false;
+  strategy.updatedAt = Date.now();
+  return persistStrategy(strategy);
+}
+
+export function updateStrategyRunbook(id: string, markdown: string): Strategy {
+  const strategy = requireStrategy(id);
+  strategy.runbookMarkdown = String(markdown || "").trim() || undefined;
+  strategy.updatedAt = Date.now();
+  return persistStrategy(strategy);
 }
 
 export function appendMessage(input: {
@@ -296,7 +350,7 @@ export function ensureStrategyForProposal(proposal: SkillProposalEnvelope): Stra
     if (!existing.notes && proposal.reasoning.trim()) {
       existing.notes = proposal.reasoning.trim();
     }
-    return existing;
+    return persistStrategy(existing);
   }
 
   const created = createStrategy({
@@ -307,7 +361,7 @@ export function ensureStrategyForProposal(proposal: SkillProposalEnvelope): Stra
     status: nextStatus,
   });
   created.updatedAt = Date.now();
-  return created;
+  return persistStrategy(created);
 }
 
 function requireProposal(id: string): SkillProposalEnvelope {

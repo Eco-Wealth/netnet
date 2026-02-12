@@ -26,6 +26,8 @@ export type Strategy = {
   linkedMessageId?: string;
   notes?: string;
   scheduleHint?: string;
+  runbookMarkdown?: string;
+  pinned?: boolean;
   createdAt: number;
   updatedAt: number;
 };
@@ -72,6 +74,8 @@ export function normalizeStrategy(input: StrategyInput): Strategy {
     linkedMessageId: input.linkedMessageId || undefined,
     notes: input.notes || undefined,
     scheduleHint: input.scheduleHint || undefined,
+    runbookMarkdown: input.runbookMarkdown || undefined,
+    pinned: typeof input.pinned === "boolean" ? input.pinned : false,
     createdAt: typeof input.createdAt === "number" ? input.createdAt : now,
     updatedAt: typeof input.updatedAt === "number" ? input.updatedAt : now,
   };

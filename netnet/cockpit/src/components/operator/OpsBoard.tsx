@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Button, Input } from "@/components/ui";
+import { Button, Input, Textarea } from "@/components/ui";
 import styles from "@/components/operator/OperatorSeat.module.css";
 import Tooltip from "@/components/operator/Tooltip";
 import {
@@ -30,10 +30,14 @@ type OpsBoardProps = {
     input: Record<string, string>
   ) => Promise<void>;
   onProposeBankrDraft: (strategyId: string) => Promise<void>;
+  onPinStrategy: (strategyId: string) => Promise<void>;
+  onUnpinStrategy: (strategyId: string) => Promise<void>;
+  onUpdateRunbook: (strategyId: string, markdown: string) => Promise<void>;
   loadingAction: string | null;
 };
 
 type SectionKey =
+  | "pinned"
   | "bankrQuickActions"
   | "bankrPipeline"
   | "strategies"
@@ -46,6 +50,7 @@ type SectionKey =
   | "bankrReadOnly";
 
 const DEFAULT_SECTIONS: Record<SectionKey, boolean> = {
+  pinned: true,
   bankrQuickActions: true,
   bankrPipeline: true,
   strategies: true,
@@ -117,6 +122,9 @@ export default function OpsBoard({
   policyMode,
   onCreateDraftProposal,
   onProposeBankrDraft,
+  onPinStrategy,
+  onUnpinStrategy,
+  onUpdateRunbook,
   loadingAction,
 }: OpsBoardProps) {
   const usdFormatter = useMemo(
@@ -149,6 +157,10 @@ export default function OpsBoard({
     [templates, selectedTemplate]
   );
   const [draftProposeError, setDraftProposeError] = useState<string | null>(null);
+  const [openRunbooks, setOpenRunbooks] = useState<Record<string, boolean>>({});
+  const [runbookDrafts, setRunbookDrafts] = useState<Record<string, string>>({});
+  const [runbookError, setRunbookError] = useState<string | null>(null);
+  const [runbookNotice, setRunbookNotice] = useState<string | null>(null);
 
   const activeStrategies = useMemo(
     () =>
@@ -164,6 +176,10 @@ export default function OpsBoard({
   const bankrOpsDrafts = useMemo(
     () => draftStrategies.filter((strategy) => strategy.type === "bankrOps"),
     [draftStrategies]
+  );
+  const pinnedStrategies = useMemo(
+    () => strategies.filter((strategy) => strategy.pinned),
+    [strategies]
   );
 
   const pendingApprovals = useMemo(
@@ -321,6 +337,111 @@ export default function OpsBoard({
     return usdFormatter.format(Number.isFinite(amount) ? amount : 0);
   }
 
+  function renderRunbookMarkdown(markdown: string): JSX.Element {
+    const lines = markdown.split("\n");
+    const nodes: JSX.Element[] = [];
+    let paragraph: string[] = [];
+
+    const flushParagraph = (key: string) => {
+      if (!paragraph.length) return;
+      nodes.push(
+        <p key={key} className={styles["nn-muted"]}>
+          {paragraph.join(" ")}
+        </p>
+      );
+      paragraph = [];
+    };
+
+    for (let idx = 0; idx < lines.length; idx += 1) {
+      const line = lines[idx].trim();
+      if (!line) {
+        flushParagraph(`p-${idx}`);
+        continue;
+      }
+      if (line.startsWith("### ")) {
+        flushParagraph(`p-${idx}-h3`);
+        nodes.push(<h4 key={`h3-${idx}`}>{line.slice(4)}</h4>);
+        continue;
+      }
+      if (line.startsWith("## ")) {
+        flushParagraph(`p-${idx}-h2`);
+        nodes.push(<h4 key={`h2-${idx}`}>{line.slice(3)}</h4>);
+        continue;
+      }
+      if (line.startsWith("# ")) {
+        flushParagraph(`p-${idx}-h1`);
+        nodes.push(<h3 key={`h1-${idx}`}>{line.slice(2)}</h3>);
+        continue;
+      }
+      if (line.startsWith("- ")) {
+        flushParagraph(`p-${idx}-ul`);
+        const items: string[] = [line.slice(2)];
+        let cursor = idx + 1;
+        while (cursor < lines.length && lines[cursor].trim().startsWith("- ")) {
+          items.push(lines[cursor].trim().slice(2));
+          cursor += 1;
+        }
+        nodes.push(
+          <ul key={`ul-${idx}`}>
+            {items.map((item, itemIndex) => (
+              <li key={`uli-${idx}-${itemIndex}`}>{item}</li>
+            ))}
+          </ul>
+        );
+        idx = cursor - 1;
+        continue;
+      }
+      if (/^\d+\.\s/.test(line)) {
+        flushParagraph(`p-${idx}-ol`);
+        const items: string[] = [line.replace(/^\d+\.\s/, "")];
+        let cursor = idx + 1;
+        while (cursor < lines.length && /^\d+\.\s/.test(lines[cursor].trim())) {
+          items.push(lines[cursor].trim().replace(/^\d+\.\s/, ""));
+          cursor += 1;
+        }
+        nodes.push(
+          <ol key={`ol-${idx}`}>
+            {items.map((item, itemIndex) => (
+              <li key={`oli-${idx}-${itemIndex}`}>{item}</li>
+            ))}
+          </ol>
+        );
+        idx = cursor - 1;
+        continue;
+      }
+      paragraph.push(line);
+    }
+    flushParagraph("p-tail");
+
+    return <div className={styles["nn-markdown"]}>{nodes}</div>;
+  }
+
+  function toggleRunbook(strategy: Strategy) {
+    setOpenRunbooks((prev) => ({
+      ...prev,
+      [strategy.id]: !prev[strategy.id],
+    }));
+    setRunbookDrafts((prev) => ({
+      ...prev,
+      [strategy.id]:
+        prev[strategy.id] ??
+        strategy.runbookMarkdown ??
+        "Draft runbook\nOperator review required.",
+    }));
+  }
+
+  async function saveRunbook(strategyId: string) {
+    const markdown = runbookDrafts[strategyId] || "";
+    setRunbookError(null);
+    setRunbookNotice(null);
+    try {
+      await onUpdateRunbook(strategyId, markdown);
+      setRunbookNotice(`Runbook saved: ${strategyId}`);
+    } catch {
+      setRunbookError("Couldn't save runbook.");
+    }
+  }
+
   function summarizeExecution(proposal: SkillProposalEnvelope): string {
     const result = proposal.executionResult;
     if (!result) return "No execution result yet.";
@@ -350,6 +471,78 @@ export default function OpsBoard({
       </div>
 
       <div className={styles["nn-opsBoard"]}>
+        {pinnedStrategies.length ? (
+          <Section
+            title="Pinned"
+            open={sections.pinned}
+            onToggle={() => toggle("pinned")}
+          >
+            {pinnedStrategies.map((strategy) => {
+              const isRunbookOpen = Boolean(openRunbooks[strategy.id]);
+              const runbook = runbookDrafts[strategy.id] ?? strategy.runbookMarkdown ?? "";
+              const pinBusy = loadingAction === `strategy:unpin:${strategy.id}`;
+              const runbookBusy = loadingAction === `strategy:runbook:${strategy.id}`;
+              return (
+                <div key={strategy.id} className={styles["nn-listItem"]}>
+                  <div className={styles["nn-listHead"]}>
+                    <div>
+                      <div>{strategy.title}</div>
+                      <div className={styles["nn-muted"]}>
+                        {strategy.kind} · {strategy.status}
+                      </div>
+                    </div>
+                    <div className={styles["nn-chipRow"]}>
+                      <Button
+                        size="sm"
+                        variant="subtle"
+                        onClick={async () => {
+                          setRunbookError(null);
+                          await onUnpinStrategy(strategy.id);
+                        }}
+                        disabled={pinBusy}
+                      >
+                        {pinBusy ? "Unpinning..." : "Unpin"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="subtle"
+                        onClick={() => toggleRunbook(strategy)}
+                      >
+                        {isRunbookOpen ? "Hide Runbook" : "Open Runbook"}
+                      </Button>
+                    </div>
+                  </div>
+                  {isRunbookOpen ? (
+                    <div className={styles["nn-previewBlock"]}>
+                      {renderRunbookMarkdown(runbook)}
+                      <Textarea
+                        className={styles["nn-input"]}
+                        rows={5}
+                        value={runbook}
+                        onChange={(event) =>
+                          setRunbookDrafts((prev) => ({
+                            ...prev,
+                            [strategy.id]: event.target.value,
+                          }))
+                        }
+                      />
+                      <div className={styles["nn-actions"]}>
+                        <Button
+                          size="sm"
+                          onClick={() => saveRunbook(strategy.id)}
+                          disabled={runbookBusy}
+                        >
+                          {runbookBusy ? "Saving..." : "Save Runbook"}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </Section>
+        ) : null}
+
         <Section
           title="Bankr Quick Actions"
           open={sections.bankrQuickActions}
@@ -452,6 +645,11 @@ export default function OpsBoard({
               const action = strategy.bankr?.action;
               const canPropose = Boolean(action && isBankrStrategyAction(action));
               const isBusy = loadingAction === `bankr-draft:propose:${strategy.id}`;
+              const pinBusy =
+                loadingAction === `strategy:${strategy.pinned ? "unpin" : "pin"}:${strategy.id}`;
+              const isRunbookOpen = Boolean(openRunbooks[strategy.id]);
+              const runbook = runbookDrafts[strategy.id] ?? strategy.runbookMarkdown ?? "";
+              const runbookBusy = loadingAction === `strategy:runbook:${strategy.id}`;
               return (
               <div key={strategy.id} className={styles["nn-listItem"]}>
                 <div className={styles["nn-listHead"]}>
@@ -491,11 +689,61 @@ export default function OpsBoard({
                         </Button>
                       </span>
                     </Tooltip>
+                    <Button
+                      size="sm"
+                      variant="subtle"
+                      onClick={async () => {
+                        setRunbookError(null);
+                        if (strategy.pinned) await onUnpinStrategy(strategy.id);
+                        else await onPinStrategy(strategy.id);
+                      }}
+                      disabled={pinBusy}
+                    >
+                      {pinBusy
+                        ? strategy.pinned
+                          ? "Unpinning..."
+                          : "Pinning..."
+                        : strategy.pinned
+                        ? "Unpin"
+                        : "Pin"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="subtle"
+                      onClick={() => toggleRunbook(strategy)}
+                    >
+                      {isRunbookOpen ? "Hide Runbook" : "Open Runbook"}
+                    </Button>
                   </div>
                 </div>
                 {!canPropose ? (
                   <div className={styles["nn-muted"]}>
                     Add a valid bankr action to enable proposing.
+                  </div>
+                ) : null}
+                {isRunbookOpen ? (
+                  <div className={styles["nn-previewBlock"]}>
+                    {renderRunbookMarkdown(runbook)}
+                    <Textarea
+                      className={styles["nn-input"]}
+                      rows={5}
+                      value={runbook}
+                      onChange={(event) =>
+                        setRunbookDrafts((prev) => ({
+                          ...prev,
+                          [strategy.id]: event.target.value,
+                        }))
+                      }
+                    />
+                    <div className={styles["nn-actions"]}>
+                      <Button
+                        size="sm"
+                        onClick={() => saveRunbook(strategy.id)}
+                        disabled={runbookBusy}
+                      >
+                        {runbookBusy ? "Saving..." : "Save Runbook"}
+                      </Button>
+                    </div>
                   </div>
                 ) : null}
               </div>
@@ -507,6 +755,12 @@ export default function OpsBoard({
           {draftProposeError ? (
             <div className={styles["nn-muted"]}>{draftProposeError}</div>
           ) : null}
+          {runbookError ? (
+            <div className={styles["nn-muted"]}>{runbookError}</div>
+          ) : null}
+          {runbookNotice ? (
+            <div className={styles["nn-muted"]}>{runbookNotice}</div>
+          ) : null}
         </Section>
 
         <Section
@@ -515,20 +769,85 @@ export default function OpsBoard({
           onToggle={() => toggle("activeStrategies")}
         >
           {activeStrategies.length ? (
-            activeStrategies.map((strategy) => (
-              <div key={strategy.id} className={styles["nn-listItem"]}>
-                <div>{strategy.title}</div>
-                <div className={styles["nn-muted"]}>{strategy.notes || "No notes provided."}</div>
-                <div className={styles["nn-chipRow"]}>
-                  <Tooltip text={strategyStatusHelp(strategy.status)}>
-                    <span className={styles["nn-statusBadge"]}>status: {strategy.status}</span>
-                  </Tooltip>
-                  <span className={styles["nn-muted"]}>
-                    linked proposal: {strategy.linkedProposalId || "none"}
-                  </span>
+            activeStrategies.map((strategy) => {
+              const pinBusy =
+                loadingAction === `strategy:${strategy.pinned ? "unpin" : "pin"}:${strategy.id}`;
+              const isRunbookOpen = Boolean(openRunbooks[strategy.id]);
+              const runbook = runbookDrafts[strategy.id] ?? strategy.runbookMarkdown ?? "";
+              const runbookBusy = loadingAction === `strategy:runbook:${strategy.id}`;
+              return (
+                <div key={strategy.id} className={styles["nn-listItem"]}>
+                  <div className={styles["nn-listHead"]}>
+                    <div>
+                      <div>{strategy.title}</div>
+                      <div className={styles["nn-muted"]}>
+                        {strategy.notes || "No notes provided."}
+                      </div>
+                    </div>
+                    <div className={styles["nn-chipRow"]}>
+                      <Button
+                        size="sm"
+                        variant="subtle"
+                        onClick={async () => {
+                          setRunbookError(null);
+                          if (strategy.pinned) await onUnpinStrategy(strategy.id);
+                          else await onPinStrategy(strategy.id);
+                        }}
+                        disabled={pinBusy}
+                      >
+                        {pinBusy
+                          ? strategy.pinned
+                            ? "Unpinning..."
+                            : "Pinning..."
+                          : strategy.pinned
+                          ? "Unpin"
+                          : "Pin"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="subtle"
+                        onClick={() => toggleRunbook(strategy)}
+                      >
+                        {isRunbookOpen ? "Hide Runbook" : "Open Runbook"}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className={styles["nn-chipRow"]}>
+                    <Tooltip text={strategyStatusHelp(strategy.status)}>
+                      <span className={styles["nn-statusBadge"]}>status: {strategy.status}</span>
+                    </Tooltip>
+                    <span className={styles["nn-muted"]}>
+                      linked proposal: {strategy.linkedProposalId || "none"}
+                    </span>
+                  </div>
+                  {isRunbookOpen ? (
+                    <div className={styles["nn-previewBlock"]}>
+                      {renderRunbookMarkdown(runbook)}
+                      <Textarea
+                        className={styles["nn-input"]}
+                        rows={5}
+                        value={runbook}
+                        onChange={(event) =>
+                          setRunbookDrafts((prev) => ({
+                            ...prev,
+                            [strategy.id]: event.target.value,
+                          }))
+                        }
+                      />
+                      <div className={styles["nn-actions"]}>
+                        <Button
+                          size="sm"
+                          onClick={() => saveRunbook(strategy.id)}
+                          disabled={runbookBusy}
+                        >
+                          {runbookBusy ? "Saving..." : "Save Runbook"}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
-              </div>
-            ))
+              );
+            })
           ) : (
             <div className={styles["nn-muted"]}>
               No active strategies.

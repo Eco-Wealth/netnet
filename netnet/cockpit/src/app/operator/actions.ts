@@ -33,9 +33,12 @@ import {
   listProposals,
   getPnLSummary,
   listStrategies,
+  pinStrategy,
   lockExecutionIntent,
   requestExecutionIntent,
   rejectProposal,
+  unpinStrategy,
+  updateStrategyRunbook,
   updateBankrStrategyDraft,
   upsertProposal,
 } from "@/lib/operator/store";
@@ -329,6 +332,39 @@ export async function executeProposalAction(id: string): Promise<OperatorStateRe
     }
   } catch (error) {
     appendAuditMessage(`Execution failed: ${normalizeError(error)}`, "error");
+  }
+  return state();
+}
+
+export async function pinStrategyAction(id: string): Promise<OperatorStateResponse> {
+  try {
+    pinStrategy(id);
+    appendAuditMessage(`Strategy pinned: ${id}`, "strategy.pin");
+  } catch (error) {
+    appendAuditMessage(`Pin strategy failed: ${normalizeError(error)}`, "error");
+  }
+  return state();
+}
+
+export async function unpinStrategyAction(id: string): Promise<OperatorStateResponse> {
+  try {
+    unpinStrategy(id);
+    appendAuditMessage(`Strategy unpinned: ${id}`, "strategy.unpin");
+  } catch (error) {
+    appendAuditMessage(`Unpin strategy failed: ${normalizeError(error)}`, "error");
+  }
+  return state();
+}
+
+export async function updateStrategyRunbookAction(
+  id: string,
+  markdown: string
+): Promise<OperatorStateResponse> {
+  try {
+    updateStrategyRunbook(id, markdown);
+    appendAuditMessage(`Runbook updated: ${id}`, "strategy.runbook.update");
+  } catch (error) {
+    appendAuditMessage(`Update runbook failed: ${normalizeError(error)}`, "error");
   }
   return state();
 }
