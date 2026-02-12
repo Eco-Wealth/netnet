@@ -1,17 +1,13 @@
-import { jsonErr, jsonOk } from "@/lib/api/errors";
+import { jsonOk } from "@/lib/api/errors";
 import { bridgeGet } from "@/lib/bridge/client";
+import { upstreamJsonErr } from "@/lib/api/upstream";
 
 export async function GET() {
   const res = await bridgeGet<any>("/v1/registry", undefined, 60_000);
 
   if (!res.ok) {
-    return jsonErr(
-      res.status || 502,
-      "BRIDGE_UPSTREAM_ERROR",
-      "Bridge registry request failed.",
-      { upstreamStatus: res.status, upstreamError: String((res as any).error ?? "") }
-    );
+    return upstreamJsonErr("bridge.registry", res, "Bridge registry request failed.");
   }
 
-  return jsonOk({ data: res.data }, { status: 200 });
+  return jsonOk({ data: res.data, source: "bridge.registry", degraded: false }, { status: 200 });
 }

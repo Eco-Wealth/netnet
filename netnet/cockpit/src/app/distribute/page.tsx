@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { toInsightTitle } from "@/lib/insight";
-import { Button, Input } from "@/components/ui";
 
 type ProofFeedItem = {
   id: string;
@@ -72,32 +70,32 @@ export default function DistributePage() {
   const totalScore = useMemo(() => filtered.reduce((a, b) => a + (b.score || 0), 0), [filtered]);
 
   return (
-    <div className="nn-page max-w-5xl">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+    <div className="mx-auto max-w-5xl px-4 py-8">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="nn-page-title">Distribution</h1>
-          <p className="nn-page-subtitle">
+          <h1 className="text-2xl font-semibold tracking-tight">Distribution</h1>
+          <p className="text-sm text-neutral-500">
             Shareable proof feed + lightweight progress UI. Refreshes automatically.
           </p>
         </div>
 
         <div className="flex flex-col gap-2 md:flex-row md:items-center">
-          <div className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2">
-            <div className="text-xs text-[color:var(--muted)]">Progress</div>
+          <div className="rounded-xl border bg-white px-3 py-2 shadow-sm">
+            <div className="text-xs text-neutral-500">Progress</div>
             <div className="text-lg font-semibold">{totalScore}</div>
           </div>
 
-          <Input
+          <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search proofs…"
-            className="h-10 w-full md:w-64"
+            className="h-10 w-full rounded-xl border px-3 text-sm outline-none focus:ring-2 focus:ring-neutral-200 md:w-64"
           />
 
           <select
             value={tag}
             onChange={(e) => setTag(e.target.value)}
-            className="nn-input nn-focus h-10"
+            className="h-10 rounded-xl border bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-neutral-200"
           >
             {tags.map((t) => (
               <option key={t} value={t}>
@@ -108,13 +106,7 @@ export default function DistributePage() {
 
           <a
             href="/api/proof/feed?format=rss"
-            className="inline-flex h-10 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 text-sm hover:bg-[color:var(--surface-2)]"
-            title={toInsightTitle({
-              what: "Open the proof feed as RSS.",
-              when: "When syndicating updates to external readers or automations.",
-              requires: "No approval. Read-only request.",
-              output: "RSS XML stream for the current proof feed.",
-            })}
+            className="h-10 rounded-xl border bg-white px-3 text-sm inline-flex items-center justify-center hover:bg-neutral-50"
             target="_blank"
             rel="noreferrer"
           >
@@ -123,68 +115,54 @@ export default function DistributePage() {
         </div>
       </div>
 
-      <div className="mt-5 grid gap-3">
+      <div className="mt-6 grid gap-4">
         {loading ? (
-          <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] p-4 text-sm text-[color:var(--muted)]">Loading…</div>
+          <div className="rounded-2xl border bg-white p-6 text-sm text-neutral-600">Loading…</div>
         ) : filtered.length === 0 ? (
-          <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] p-4 text-sm text-[color:var(--muted)]">
+          <div className="rounded-2xl border bg-white p-6 text-sm text-neutral-600">
             No items yet. Generate proofs via <span className="font-mono">/proof</span> or the agent routes.
           </div>
         ) : (
           filtered.map((it) => (
             <div
               key={it.id}
-              className="group rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] p-4 transition hover:border-[color:var(--surface-3)]"
+              className="group rounded-2xl border bg-white p-5 shadow-sm transition hover:shadow-md"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="truncate text-base font-semibold">{it.title}</h2>
                     {typeof it.score === "number" && (
-                      <span className="rounded-full border border-[color:var(--border)] bg-[color:var(--surface-2)] px-2 py-0.5 text-xs">
+                      <span className="rounded-full bg-neutral-900 px-2 py-0.5 text-xs text-white">
                         +{it.score}
                       </span>
                     )}
                   </div>
-                  <div className="mt-1 text-xs text-[color:var(--muted)]">{fmt(it.createdAt)}</div>
+                  <div className="mt-1 text-xs text-neutral-500">{fmt(it.createdAt)}</div>
                 </div>
 
-                <Button
+                <button
                   onClick={() => navigator.clipboard?.writeText(location.origin + "/distribute#" + it.id)}
-                  variant="ghost"
-                  size="sm"
-                  className="text-xs"
-                  title={toInsightTitle({
-                    what: "Copy a deep link for this proof item.",
-                    when: "When sharing with operators, agents, or reviewers.",
-                    requires: "Clipboard permission in browser. No network call.",
-                    output: "URL copied to clipboard.",
-                  })}
+                  className="rounded-xl border px-3 py-2 text-xs opacity-80 hover:bg-neutral-50 hover:opacity-100"
+                  title="Copy share link"
                 >
                   Copy link
-                </Button>
+                </button>
               </div>
 
-              <p className="mt-2 text-sm text-[color:var(--muted)]">{it.summary}</p>
+              <p className="mt-3 text-sm text-neutral-700">{it.summary}</p>
 
               {(it.tags || []).length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {(it.tags || []).map((t) => (
-                    <Button
+                    <button
                       key={t}
                       onClick={() => setTag(t)}
-                      variant="ghost"
-                      size="sm"
-                      className="rounded-full px-2 py-1 text-xs text-[color:var(--muted)] hover:text-[color:var(--fg)]"
-                      title={toInsightTitle({
-                        what: `Filter feed by tag '${t}'.`,
-                        when: "When narrowing proof history to a specific workflow.",
-                        requires: "No approval. Client-side filter only.",
-                        output: "Filtered proof list in this page session.",
-                      })}
+                      className="rounded-full border px-2 py-1 text-xs text-neutral-700 hover:bg-neutral-50"
+                      title="Filter by tag"
                     >
                       {t}
-                    </Button>
+                    </button>
                   ))}
                 </div>
               )}
@@ -197,13 +175,8 @@ export default function DistributePage() {
                       href={l.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-2)] px-3 py-1.5 text-xs hover:opacity-95"
-                      title={toInsightTitle({
-                        what: `Open linked evidence: ${l.label}.`,
-                        when: "When reviewing source evidence for this proof item.",
-                        requires: "Link accessibility. External navigation request.",
-                        output: "Evidence page/document in a new tab.",
-                      })}
+                      className="rounded-xl border px-3 py-2 text-xs text-neutral-800 hover:bg-neutral-50"
+                      title={l.url}
                     >
                       {l.label}
                     </a>

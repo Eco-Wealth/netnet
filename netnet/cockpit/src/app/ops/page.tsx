@@ -3,27 +3,26 @@ import Link from "next/link";
 const Card = ({ title, desc, href }: { title: string; desc: string; href: string }) => (
   <Link
     href={href}
-    title={`What: ${title}. When: operator debug and navigation. Costs: none by default. Requires: policy for spend-adjacent actions. Output: surface at ${href}.`}
-    className="block rounded-[var(--r-md)] border border-[color:var(--border)] bg-[hsl(var(--panel))] p-4 transition hover:bg-[hsl(var(--panel2))]"
+    className="block rounded-2xl border border-white/10 bg-white/5 p-5 hover:bg-white/10 transition"
   >
     <div className="text-base font-semibold">{title}</div>
-    <div className="mt-1 text-sm text-[color:var(--muted)]">{desc}</div>
-    <div className="mt-2 text-xs text-[color:var(--muted)]">{href}</div>
+    <div className="mt-1 text-sm text-white/70">{desc}</div>
+    <div className="mt-3 text-sm text-white/60">{href}</div>
   </Link>
 );
 
 export default function OpsPage() {
   return (
-    <main className="mx-auto max-w-5xl px-4 py-6">
+    <main className="mx-auto max-w-5xl px-6 py-10">
       <div className="flex items-end justify-between gap-6">
         <div>
           <h1 className="text-2xl font-semibold">Operator Console</h1>
-          <p className="mt-1 text-sm text-[color:var(--muted)]">
+          <p className="mt-2 text-sm text-white/70">
             Quick links for demos, debugging, and validation.
           </p>
         </div>
-        <div className="text-xs text-[color:var(--muted)]">
-          Tip: keep a terminal tab for <code className="rounded border border-[color:var(--border)] bg-[hsl(var(--panel2))] px-2 py-1">curl</code> checks.
+        <div className="text-xs text-white/60">
+          Tip: keep a terminal tab for <code className="rounded bg-white/10 px-2 py-1">curl</code> checks.
         </div>
       </div>
 
@@ -48,7 +47,7 @@ export default function OpsPage() {
         <Card title="Ops runbook file" desc="Repository doc (open locally)" href="#" />
       </section>
 
-      <p className="mt-8 text-xs text-[color:var(--muted)]">
+      <p className="mt-10 text-xs text-white/50">
         Note: “Ops runbook file” is a repo markdown doc: <code>netnet/cockpit/docs/UNIT51_OPS_RUNBOOK.md</code>.
       </p>
     </main>

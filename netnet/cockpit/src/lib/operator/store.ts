@@ -1,498 +1,408 @@
-import type { MessageEnvelope, OperatorMessageRole } from "@/lib/operator/model";
-import {
-  coerceSkillProposalEnvelope,
-  type SkillProposalEnvelope,
-} from "@/lib/operator/proposal";
-import {
-  buildExecutionPlan,
-  isExecutionPlan,
-  type ExecutionPlan,
-} from "@/lib/operator/planner";
-import {
-  ExecutionBoundaryError,
-  executeProposal as executeWithOrchestrator,
-  type ExecutionAuditEnvelope,
-  validateExecutionBoundary,
-} from "@/lib/operator/executor";
-import {
-  loadMessages,
-  loadProposal,
-  saveExecution,
-  saveMessage,
-  saveProposal,
-} from "@/lib/operator/db";
+import { BankrLaunchRequest, createLaunchProposal } from "@/lib/bankr/launcher";
+import { tokenActionCatalog } from "@/lib/bankr/token";
+import { getPolicy } from "@/lib/policy/store";
+import { buildActionProof } from "@/lib/proof/action";
+import { buildExecutionPlan } from "@/lib/operator/planner";
+import type { Strategy, StrategyStatus } from "@/lib/operator/strategy";
+import type {
+  ExecutionResultEnvelope,
+  MessageEnvelope,
+  MessageMetadata,
+  SkillProposalEnvelope,
+} from "@/lib/operator/types";
+import { createMessageId } from "@/lib/operator/types";
 
-type MessageEnvelopeInput = {
-  role: OperatorMessageRole;
-  content: string;
-  metadata?: MessageEnvelope["metadata"];
+type OperatorState = {
+  messages: MessageEnvelope[];
+  proposals: Record<string, SkillProposalEnvelope>;
+  strategies: Record<string, Strategy>;
 };
 
 declare global {
   // eslint-disable-next-line no-var
-  var __NETNET_OPERATOR_MESSAGE_SEQ__: number | undefined;
-  // eslint-disable-next-line no-var
-  var __NETNET_OPERATOR_LAST_PLANS__: Record<string, ExecutionPlan> | undefined;
+  var __NETNET_OPERATOR_STATE__: OperatorState | undefined;
 }
 
-const ALLOWED_ROLES: readonly OperatorMessageRole[] = [
-  "system",
-  "operator",
-  "assistant",
-  "skill",
-] as const;
-
-function assertRole(role: string): asserts role is OperatorMessageRole {
-  if (!ALLOWED_ROLES.includes(role as OperatorMessageRole)) {
-    throw new Error(`invalid_message_role:${role}`);
-  }
-}
-
-function nextMessageId() {
-  if (!globalThis.__NETNET_OPERATOR_MESSAGE_SEQ__) {
-    globalThis.__NETNET_OPERATOR_MESSAGE_SEQ__ = 1;
-  }
-  const seq = globalThis.__NETNET_OPERATOR_MESSAGE_SEQ__++;
-  return `msg-${String(seq).padStart(6, "0")}`;
-}
-
-function toCreatedAt(value: unknown): number {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string") {
-    const n = Date.parse(value);
-    if (Number.isFinite(n)) return n;
-  }
-  return Date.now();
-}
-
-function normalizeMetadata(
-  metadata: MessageEnvelope["metadata"]
-): MessageEnvelope["metadata"] {
-  if (!metadata) return undefined;
-  const normalized: NonNullable<MessageEnvelope["metadata"]> = {};
-  if (metadata.policySnapshot && typeof metadata.policySnapshot === "object") {
-    normalized.policySnapshot = metadata.policySnapshot;
-  }
-  if (typeof metadata.proofId === "string" && metadata.proofId.trim()) {
-    normalized.proofId = metadata.proofId.trim();
-  }
-  if (typeof metadata.action === "string" && metadata.action.trim()) {
-    normalized.action = metadata.action.trim();
-  }
-  if (metadata.proposal && typeof metadata.proposal === "object") {
-    const proposal = coerceSkillProposalEnvelope(metadata.proposal, {
-      status: "draft",
-      createdAt: Date.now(),
-      executionIntent: "none",
-      executionStatus: "idle",
-    });
-    if (proposal) {
-      normalized.proposal = proposal;
-    }
-  }
-  if (metadata.plan && isExecutionPlan(metadata.plan)) {
-    normalized.plan = metadata.plan;
-  }
-  return Object.keys(normalized).length > 0 ? normalized : undefined;
-}
-
-function ensurePlanRegistry() {
-  if (!globalThis.__NETNET_OPERATOR_LAST_PLANS__) {
-    globalThis.__NETNET_OPERATOR_LAST_PLANS__ = {};
-  }
-  return globalThis.__NETNET_OPERATOR_LAST_PLANS__;
-}
-
-function normalizeEnvelope(input: MessageEnvelopeInput): MessageEnvelope {
-  const role = String(input.role ?? "").trim();
-  assertRole(role);
-  const content = String(input.content ?? "").trim();
-  if (!content) throw new Error("empty_message_content");
-
+function policySnapshot(): Record<string, unknown> {
+  const policy = getPolicy();
   return {
-    id: nextMessageId(),
-    role,
-    content,
-    createdAt: Date.now(),
-    metadata: normalizeMetadata(input.metadata),
+    autonomy: policy.autonomy,
+    maxUsdPerDay: policy.maxUsdPerDay,
+    maxUsdPerAction: policy.maxUsdPerAction,
+    kill: policy.kill,
+    updatedAt: policy.updatedAt,
+    updatedBy: policy.updatedBy,
   };
 }
 
-function normalizeExistingMessage(value: unknown): MessageEnvelope | null {
-  if (!value || typeof value !== "object") return null;
-  const v = value as Record<string, unknown>;
-  const role = String(v.role ?? "").trim();
-  if (!ALLOWED_ROLES.includes(role as OperatorMessageRole)) return null;
-
-  const content = String(v.content ?? "").trim();
-  if (!content) return null;
-
-  const id =
-    typeof v.id === "string" && v.id.trim().length > 0
-      ? v.id.trim()
-      : nextMessageId();
-
-  return {
-    id,
-    role: role as OperatorMessageRole,
-    content,
-    createdAt: toCreatedAt(v.createdAt),
-    metadata: normalizeMetadata(
-      (v.metadata as MessageEnvelope["metadata"]) ||
-        (typeof v.skill === "string" ? { action: v.skill } : undefined)
-    ),
-  };
-}
-
-function ensureUniqueId(candidateId: string, messages: MessageEnvelope[]): string {
-  if (!messages.some((m) => m.id === candidateId)) return candidateId;
-  return nextMessageId();
-}
-
-function syncSequence(messages: MessageEnvelope[]) {
-  let max = 0;
-  for (const m of messages) {
-    const match = /^msg-(\d+)$/.exec(m.id);
-    if (!match) continue;
-    const n = Number(match[1]);
-    if (Number.isFinite(n)) max = Math.max(max, n);
+function getState(): OperatorState {
+  if (!globalThis.__NETNET_OPERATOR_STATE__) {
+    globalThis.__NETNET_OPERATOR_STATE__ = {
+      messages: [
+        {
+          id: createMessageId("msg"),
+          role: "system",
+          content:
+            "Operator Seat initialized. Default safety posture is proposal-first and policy-gated.",
+          createdAt: Date.now(),
+          metadata: {
+            action: "init",
+            tags: ["operator-seat", "safe-defaults"],
+            policySnapshot: policySnapshot(),
+          },
+        },
+      ],
+      proposals: {},
+      strategies: {},
+    };
   }
-  if (
-    !globalThis.__NETNET_OPERATOR_MESSAGE_SEQ__ ||
-    globalThis.__NETNET_OPERATOR_MESSAGE_SEQ__ <= max
-  ) {
-    globalThis.__NETNET_OPERATOR_MESSAGE_SEQ__ = max + 1;
-  }
+  return globalThis.__NETNET_OPERATOR_STATE__;
 }
 
-function persistProposalOnMessage(message: MessageEnvelope): MessageEnvelope {
-  if (!message.metadata?.proposal) return message;
-  const normalizedProposal =
-    coerceSkillProposalEnvelope(message.metadata.proposal, {
-      id: message.id,
-      status: message.metadata.proposal.status,
-      createdAt: message.metadata.proposal.createdAt,
-      executionIntent: message.metadata.proposal.executionIntent ?? "none",
-      executionStatus: message.metadata.proposal.executionStatus ?? "idle",
-    }) || message.metadata.proposal;
-  const proposal = { ...normalizedProposal, id: message.id };
-  saveProposal(proposal);
-  if (message.metadata.proposal.id === proposal.id) return message;
-  const nextMessage: MessageEnvelope = {
-    ...message,
-    metadata: {
-      ...message.metadata,
-      proposal,
-    },
-  };
-  saveMessage(nextMessage);
-  return nextMessage;
+export function listMessages(): MessageEnvelope[] {
+  return [...getState().messages].sort((a, b) => a.createdAt - b.createdAt);
 }
 
-function updateMessageProposal(proposalId: string, proposal: SkillProposalEnvelope) {
-  const messages = listOperatorMessages();
-  const target = messages.find(
-    (message) => message.id === proposalId && Boolean(message.metadata?.proposal)
-  );
-  if (!target) return;
-  const updated: MessageEnvelope = {
-    ...target,
-    metadata: {
-      ...target.metadata,
-      proposal,
-    },
-  };
-  saveMessage(updated);
-}
-
-function getProposalFromMessage(id: string): SkillProposalEnvelope | null {
-  const messages = listOperatorMessages();
-  const message = messages.find((m) => m.id === id);
-  const proposal = message?.metadata?.proposal;
-  if (!proposal) return null;
-  const normalized = { ...proposal, id };
-  saveProposal(normalized);
-  return normalized;
-}
-
-export function listOperatorMessages(): MessageEnvelope[] {
-  const normalized = loadMessages()
-    .map((m) => normalizeExistingMessage(m))
-    .filter((m): m is MessageEnvelope => Boolean(m));
-  syncSequence(normalized);
-  return normalized;
-}
-
-export function appendOperatorMessage(input: MessageEnvelopeInput): MessageEnvelope[] {
-  const current = listOperatorMessages();
-  const next = normalizeEnvelope(input);
-  const persisted = persistProposalOnMessage(next);
-  saveMessage(persisted);
-  return [...current, persisted];
-}
-
-export function appendOperatorEnvelope(envelope: MessageEnvelope): MessageEnvelope[] {
-  const current = listOperatorMessages();
-  const normalized = normalizeExistingMessage(envelope);
-  if (!normalized) {
-    throw new Error("invalid_message_envelope");
-  }
-
-  const next: MessageEnvelope = {
-    ...normalized,
-    id: ensureUniqueId(normalized.id, current),
-  };
-  const persisted = persistProposalOnMessage(next);
-  saveMessage(persisted);
-  return [...current, persisted];
-}
-
-export function registerProposal(id: string, proposal: SkillProposalEnvelope) {
-  const proposalId = String(id || "").trim();
-  if (!proposalId) throw new Error("invalid_proposal_id");
-  const normalized =
-    coerceSkillProposalEnvelope(proposal, {
-      id: proposalId,
-      status: proposal.status,
-      createdAt: proposal.createdAt,
-      executionIntent: proposal.executionIntent ?? "none",
-      executionStatus: proposal.executionStatus ?? "idle",
-    }) || proposal;
-  const persisted = { ...normalized, id: proposalId };
-  saveProposal(persisted);
-  updateMessageProposal(proposalId, persisted);
-}
-
-function persistProposalUpdate(
-  proposalId: string,
-  next: SkillProposalEnvelope
-): SkillProposalEnvelope {
-  const normalized = { ...next, id: proposalId };
-  saveProposal(normalized);
-  updateMessageProposal(proposalId, normalized);
-  return normalized;
-}
-
-function updateProposalStatus(
-  id: string,
-  status: "approved" | "rejected"
-): SkillProposalEnvelope | null {
-  const proposalId = String(id || "").trim();
-  if (!proposalId) return null;
-
-  const entry = getProposal(proposalId);
-  if (!entry) return null;
-
-  const next: SkillProposalEnvelope = {
-    ...entry,
-    status,
-    approvedAt: status === "approved" ? Date.now() : undefined,
-  };
-  return persistProposalUpdate(proposalId, next);
-}
-
-export function approveProposal(id: string): SkillProposalEnvelope | null {
-  return updateProposalStatus(id, "approved");
-}
-
-export function rejectProposal(id: string): SkillProposalEnvelope | null {
-  return updateProposalStatus(id, "rejected");
+export function listProposals(): SkillProposalEnvelope[] {
+  return Object.values(getState().proposals).sort((a, b) => b.createdAt - a.createdAt);
 }
 
 export function getProposal(id: string): SkillProposalEnvelope | null {
-  const proposalId = String(id || "").trim();
-  if (!proposalId) return null;
-  const proposal = loadProposal(proposalId);
-  if (proposal) return { ...proposal, id: proposalId };
-  return getProposalFromMessage(proposalId);
+  return getState().proposals[id] || null;
 }
 
-export function requestExecutionIntent(id: string): SkillProposalEnvelope | null {
-  const proposalId = String(id || "").trim();
-  if (!proposalId) return null;
-  const entry = getProposal(proposalId);
-  if (!entry) return null;
-  if (entry.status !== "approved") return null;
+export function listStrategies(): Strategy[] {
+  return Object.values(getState().strategies).sort((a, b) => b.updatedAt - a.updatedAt);
+}
 
-  const next: SkillProposalEnvelope = {
-    ...entry,
-    executionIntent: "requested",
-    executionRequestedAt: Date.now(),
+export function getStrategy(id: string): Strategy | null {
+  return getState().strategies[id] || null;
+}
+
+function requireStrategy(id: string): Strategy {
+  const strategy = getStrategy(id);
+  if (!strategy) throw new Error(`Strategy not found: ${id}`);
+  return strategy;
+}
+
+export function createStrategy(input: {
+  name: string;
+  description: string;
+  goals?: string[];
+  status?: StrategyStatus;
+}): Strategy {
+  const now = Date.now();
+  const strategy: Strategy = {
+    id: createMessageId("strategy"),
+    name: input.name.trim() || "Untitled strategy",
+    description: input.description.trim() || "Operator-defined strategy",
+    goals: (input.goals || []).map((goal) => goal.trim()).filter(Boolean),
+    status: input.status || "draft",
+    createdAt: now,
+    updatedAt: now,
+    linkedProposalIds: [],
   };
-  return persistProposalUpdate(proposalId, next);
+  getState().strategies[strategy.id] = strategy;
+  return strategy;
 }
 
-export function lockExecutionIntent(id: string): SkillProposalEnvelope | null {
-  const proposalId = String(id || "").trim();
-  if (!proposalId) return null;
-  const entry = getProposal(proposalId);
-  if (!entry) return null;
-  if (entry.status !== "approved") return null;
-  if (entry.executionIntent !== "requested") return null;
+export function updateStrategyStatus(id: string, status: StrategyStatus): Strategy {
+  const strategy = requireStrategy(id);
+  strategy.status = status;
+  strategy.updatedAt = Date.now();
+  return strategy;
+}
 
-  const next: SkillProposalEnvelope = {
-    ...entry,
-    executionIntent: "locked",
-    executionRequestedAt: entry.executionRequestedAt ?? Date.now(),
+export function linkProposalToStrategy(strategyId: string, proposalId: string): Strategy {
+  const strategy = requireStrategy(strategyId);
+  if (!strategy.linkedProposalIds.includes(proposalId)) {
+    strategy.linkedProposalIds.push(proposalId);
+  }
+  strategy.updatedAt = Date.now();
+  return strategy;
+}
+
+export function appendMessage(input: {
+  role: MessageEnvelope["role"];
+  content: string;
+  metadata?: MessageMetadata;
+}): MessageEnvelope {
+  const message: MessageEnvelope = {
+    id: createMessageId("msg"),
+    role: input.role,
+    content: input.content,
+    createdAt: Date.now(),
+    metadata: input.metadata,
   };
-  return persistProposalUpdate(proposalId, next);
+  getState().messages.push(message);
+  return message;
 }
 
-export function generateExecutionPlan(id: string): ExecutionPlan | null {
-  const proposalId = String(id || "").trim();
-  if (!proposalId) return null;
-  const entry = getProposal(proposalId);
-  if (!entry) return null;
-  if (entry.executionIntent !== "locked") return null;
-
-  const plan = buildExecutionPlan(entry);
-  const plans = ensurePlanRegistry();
-  plans[proposalId] = plan;
-  return plan;
-}
-
-export type ExecuteProposalOutcome = {
-  ok: boolean;
-  proposal: SkillProposalEnvelope | null;
-  result?: ExecutionAuditEnvelope;
-  error?: string;
-  auditMessage?: string;
-};
-
-function withExecutionSnapshot(
-  envelope: ExecutionAuditEnvelope,
-  snapshot: SkillProposalEnvelope
-): ExecutionAuditEnvelope {
-  return {
-    ...envelope,
-    result: {
-      ...(envelope.result ?? {}),
-      proposalSnapshot: snapshot,
+export function appendAuditMessage(content: string, action: string, role: MessageEnvelope["role"] = "assistant") {
+  return appendMessage({
+    role,
+    content,
+    metadata: {
+      action,
+      tags: ["audit"],
+      policySnapshot: policySnapshot(),
     },
-  };
+  });
 }
 
-export async function executeProposal(
-  id: string
-): Promise<ExecuteProposalOutcome> {
-  const proposalId = String(id || "").trim();
-  if (!proposalId) {
-    return { ok: false, proposal: null, error: "invalid_proposal_id" };
+export function upsertProposal(proposal: SkillProposalEnvelope): SkillProposalEnvelope {
+  getState().proposals[proposal.id] = proposal;
+  return proposal;
+}
+
+function strategyNameForProposal(proposal: SkillProposalEnvelope): string {
+  return `Strategy: ${proposal.skillId}`;
+}
+
+export function ensureStrategyForProposal(proposal: SkillProposalEnvelope): Strategy {
+  const state = getState();
+  const existing = Object.values(state.strategies).find(
+    (strategy) => strategy.name === strategyNameForProposal(proposal) && strategy.status !== "archived"
+  );
+
+  const nextStatus: StrategyStatus =
+    proposal.status === "approved"
+      ? "active"
+      : proposal.executionStatus === "completed"
+      ? "completed"
+      : proposal.status === "rejected"
+      ? "paused"
+      : "draft";
+
+  if (existing) {
+    if (!existing.linkedProposalIds.includes(proposal.id)) {
+      existing.linkedProposalIds.push(proposal.id);
+    }
+    existing.updatedAt = Date.now();
+    existing.status = nextStatus;
+    if (!existing.goals.length && proposal.reasoning.trim()) {
+      existing.goals = [proposal.reasoning.trim()];
+    }
+    return existing;
   }
 
-  const entry = getProposal(proposalId);
-  if (!entry) {
-    return { ok: false, proposal: null, error: "proposal_not_found" };
+  const created = createStrategy({
+    name: strategyNameForProposal(proposal),
+    description: `Operator-owned long-running strategy for ${proposal.skillId}.`,
+    goals: proposal.reasoning.trim() ? [proposal.reasoning.trim()] : [],
+    status: nextStatus,
+  });
+  created.linkedProposalIds.push(proposal.id);
+  created.updatedAt = Date.now();
+  return created;
+}
+
+function requireProposal(id: string): SkillProposalEnvelope {
+  const proposal = getProposal(id);
+  if (!proposal) throw new Error(`Proposal not found: ${id}`);
+  return proposal;
+}
+
+export function approveProposal(id: string): SkillProposalEnvelope {
+  const proposal = requireProposal(id);
+  proposal.status = "approved";
+  proposal.approvedAt = Date.now();
+  ensureStrategyForProposal(proposal);
+  return proposal;
+}
+
+export function rejectProposal(id: string): SkillProposalEnvelope {
+  const proposal = requireProposal(id);
+  proposal.status = "rejected";
+  ensureStrategyForProposal(proposal);
+  return proposal;
+}
+
+export function requestExecutionIntent(id: string): SkillProposalEnvelope {
+  const proposal = requireProposal(id);
+  if (proposal.status !== "approved") {
+    throw new Error("Only approved proposals can request execution intent.");
   }
-  if (entry.status !== "approved") {
-    return { ok: false, proposal: entry, error: "proposal_not_approved" };
+  proposal.executionIntent = "requested";
+  proposal.executionRequestedAt = Date.now();
+  return proposal;
+}
+
+export function lockExecutionIntent(id: string): SkillProposalEnvelope {
+  const proposal = requireProposal(id);
+  if (proposal.executionIntent !== "requested") {
+    throw new Error("Execution intent must be requested before it can be locked.");
   }
-  if (entry.executionIntent !== "locked") {
-    return { ok: false, proposal: entry, error: "execution_intent_not_locked" };
+  proposal.executionIntent = "locked";
+  return proposal;
+}
+
+export function generateExecutionPlan(id: string): SkillProposalEnvelope {
+  const proposal = requireProposal(id);
+  if (proposal.executionIntent !== "locked") {
+    throw new Error("Execution intent must be locked before generating a plan.");
   }
-  if ((entry.executionStatus ?? "idle") !== "idle") {
-    return { ok: false, proposal: entry, error: "execution_already_started" };
+  proposal.executionPlan = buildExecutionPlan(proposal);
+  return proposal;
+}
+
+function canExecuteRoute(route: string): boolean {
+  return [
+    "/api/agent/trade",
+    "/api/bankr/token/actions",
+    "/api/bankr/launch",
+    "/api/agent/regen/projects",
+  ].includes(route);
+}
+
+function routeKillSwitchBlocked(route: string): boolean {
+  const policy = getPolicy();
+  if (policy.kill.all) return true;
+  if (route.startsWith("/api/agent/trade")) return policy.kill.trading;
+  if (route.startsWith("/api/bankr")) return policy.kill.tokenOps;
+  if (route.startsWith("/api/bridge/retire")) return policy.kill.retirements;
+  return false;
+}
+
+async function runRouteExecution(
+  proposal: SkillProposalEnvelope
+): Promise<Record<string, unknown>> {
+  if (proposal.route === "/api/agent/trade") {
+    return {
+      mode: "SIMULATED",
+      note: "Trade connector in this snapshot is a safe stub; returning dry-run execution details.",
+      payload: proposal.proposedBody,
+    };
   }
 
-  const executionSnapshot = JSON.parse(
-    JSON.stringify(entry)
-  ) as SkillProposalEnvelope;
+  if (proposal.route === "/api/bankr/token/actions") {
+    const catalog = tokenActionCatalog();
+    const action = String(proposal.proposedBody.action || "status");
+    const params = (proposal.proposedBody.params || {}) as Record<string, unknown>;
+    const def = catalog.find((entry) => entry.action === action) || catalog[0];
+    const plan = {
+      action: def.action,
+      params,
+      whatWillHappen: def.whatWillHappen(params),
+      estimatedCosts: def.estimatedCosts(params),
+      requiresApproval: true,
+      safety: def.safety,
+      createdAt: new Date().toISOString(),
+    };
+    return {
+      mode: "PROPOSE_ONLY",
+      plan,
+      proof: buildActionProof({ kind: "bankr.token", plan }),
+    };
+  }
+
+  if (proposal.route === "/api/bankr/launch") {
+    const parsed = BankrLaunchRequest.safeParse({
+      name: proposal.proposedBody.name || "Draft Token",
+      symbol: proposal.proposedBody.symbol || "DRAFT",
+      chain: proposal.proposedBody.chain || "base",
+      initialLiquidityUsd:
+        typeof proposal.proposedBody.initialLiquidityUsd === "number"
+          ? proposal.proposedBody.initialLiquidityUsd
+          : undefined,
+      notes:
+        typeof proposal.proposedBody.notes === "string"
+          ? proposal.proposedBody.notes
+          : "Generated from Operator Seat execution.",
+      operator: {
+        id: "operator",
+        reason: "Approved from Operator Seat",
+      },
+    });
+
+    if (!parsed.success) {
+      throw new Error("Bankr launch payload is invalid for proposal generation.");
+    }
+
+    return {
+      mode: "PROPOSE_ONLY",
+      proposal: createLaunchProposal(parsed.data),
+    };
+  }
+
+  if (proposal.route === "/api/agent/regen/projects") {
+    const { buildRegenProjectPacket } = await import("@/lib/regen/projectPacket");
+    return {
+      mode: "PROPOSE_ONLY",
+      packet: buildRegenProjectPacket({
+        title: String(proposal.proposedBody.title || "Operator-generated regen packet"),
+        summary: String(proposal.proposedBody.summary || ""),
+        buyerClass: String(proposal.proposedBody.buyerClass || ""),
+        buyerName: String(proposal.proposedBody.buyerName || ""),
+        country: String(proposal.proposedBody.country || ""),
+        region: String(proposal.proposedBody.region || ""),
+        methodology: String(proposal.proposedBody.methodology || ""),
+      }),
+    };
+  }
+
+  throw new Error(`Route is not mapped for execution: ${proposal.route}`);
+}
+
+export async function executeProposal(id: string): Promise<SkillProposalEnvelope> {
+  const proposal = requireProposal(id);
+
+  if (proposal.status !== "approved") {
+    throw new Error("Proposal must be approved before execution.");
+  }
+  if (proposal.executionIntent !== "locked") {
+    throw new Error("Execution intent must be locked before execution.");
+  }
+  if (proposal.executionStatus !== "idle") {
+    throw new Error("Proposal execution is not in idle state.");
+  }
+  if (!canExecuteRoute(proposal.route)) {
+    throw new Error(`Execution mapping is not available for route: ${proposal.route}`);
+  }
+  if (routeKillSwitchBlocked(proposal.route)) {
+    throw new Error("Execution blocked by policy kill switch.");
+  }
+
+  const policy = getPolicy();
+  if (policy.autonomy !== "EXECUTE_WITH_LIMITS") {
+    throw new Error(`Policy denies execution under autonomy level: ${policy.autonomy}`);
+  }
+
+  proposal.executionStatus = "running";
+  proposal.executionStartedAt = Date.now();
 
   try {
-    // Validate execution boundary in executor before mutating state.
-    validateExecutionBoundary(executionSnapshot);
-  } catch (error: unknown) {
-    if (error instanceof ExecutionBoundaryError) {
-      return {
-        ok: false,
-        proposal: entry,
-        error: error.code,
-        auditMessage: error.auditMessage,
-      };
-    }
-    return { ok: false, proposal: entry, error: "execution_boundary_error" };
-  }
+    const result = await runRouteExecution(proposal);
+    const envelope: ExecutionResultEnvelope = {
+      ok: true,
+      route: proposal.route,
+      policyDecision: "allowed",
+      timestamp: Date.now(),
+      result,
+    };
 
-  const startedAt = Date.now();
-  const running = persistProposalUpdate(proposalId, {
-    ...entry,
-    executionStatus: "running",
-    executionStartedAt: startedAt,
-    executionCompletedAt: undefined,
-    executionResult: undefined,
-    executionError: undefined,
-  });
-  saveExecution({
-    id: proposalId,
-    proposalId,
-    status: "running",
-    startedAt,
-    completedAt: undefined,
-    result: {
+    proposal.executionResult = envelope;
+    proposal.executionStatus = "completed";
+    proposal.executionCompletedAt = Date.now();
+    proposal.executionError = undefined;
+    const strategy = ensureStrategyForProposal(proposal);
+    updateStrategyStatus(strategy.id, "completed");
+    return proposal;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const envelope: ExecutionResultEnvelope = {
       ok: false,
-      route: executionSnapshot.route,
-      policyDecision: "PENDING",
-      timestamp: startedAt,
-      result: {
-        proposalSnapshot: executionSnapshot,
-      },
-    },
-    error: undefined,
-  });
+      route: proposal.route,
+      policyDecision: "failed",
+      timestamp: Date.now(),
+      error: message,
+    };
 
-  const result = await executeWithOrchestrator(proposalId, executionSnapshot);
-  const completedAt = Date.now();
-
-  if (result.ok) {
-    const persistedResult = withExecutionSnapshot(result, executionSnapshot);
-    const completed = persistProposalUpdate(proposalId, {
-      ...running,
-      executionStatus: "completed",
-      executionCompletedAt: completedAt,
-      executionResult: persistedResult,
-      executionError: undefined,
-    });
-    saveExecution({
-      id: proposalId,
-      proposalId,
-      status: "completed",
-      startedAt: running.executionStartedAt,
-      completedAt,
-      result: persistedResult,
-      error: undefined,
-    });
-    return { ok: true, proposal: completed, result: persistedResult };
+    proposal.executionResult = envelope;
+    proposal.executionStatus = "failed";
+    proposal.executionCompletedAt = Date.now();
+    proposal.executionError = message;
+    ensureStrategyForProposal(proposal);
+    return proposal;
   }
-
-  const persistedErrorResult = withExecutionSnapshot(result, executionSnapshot);
-  const failed = persistProposalUpdate(proposalId, {
-    ...running,
-    executionStatus: "failed",
-    executionCompletedAt: completedAt,
-    executionResult: persistedErrorResult,
-    executionError: persistedErrorResult.error ?? "execution_failed",
-  });
-  saveExecution({
-    id: proposalId,
-    proposalId,
-    status: "failed",
-    startedAt: running.executionStartedAt,
-    completedAt,
-    result: persistedErrorResult,
-    error: failed.executionError,
-  });
-  return {
-    ok: false,
-    proposal: failed,
-    result: persistedErrorResult,
-    error: failed.executionError,
-  };
-}
-
-export function isProposalEligible(id: string): boolean {
-  const proposalId = String(id || "").trim();
-  if (!proposalId) return false;
-  const proposal = getProposal(proposalId);
-  if (!proposal) return false;
-  return proposal.status === "approved";
 }

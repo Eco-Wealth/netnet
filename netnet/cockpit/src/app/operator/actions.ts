@@ -1,344 +1,194 @@
 "use server";
 
 import { getPolicy } from "@/lib/policy/store";
-import type { MessageEnvelope, OperatorConsoleMode } from "@/lib/operator/model";
+import { generateAssistantReply } from "@/lib/operator/llm";
+import { extractSkillProposalEnvelope } from "@/lib/operator/proposal";
 import {
+  appendAuditMessage,
+  appendMessage,
   approveProposal,
-  appendOperatorEnvelope,
-  appendOperatorMessage,
+  ensureStrategyForProposal,
   executeProposal,
   generateExecutionPlan,
-  getProposal,
+  listMessages,
+  listProposals,
+  listStrategies,
   lockExecutionIntent,
-  listOperatorMessages,
   requestExecutionIntent,
-  registerProposal,
   rejectProposal,
+  upsertProposal,
 } from "@/lib/operator/store";
-import { generateAssistantReply } from "@/lib/operator/llm";
-import { parseSkillProposalEnvelopeFromContent } from "@/lib/operator/proposal";
 
-type OperatorStatus = {
-  mode: OperatorConsoleMode;
-  policyAutonomy: string;
-  policyUpdatedAt: string;
-  policyUpdatedBy: string;
+export type OperatorStateResponse = {
+  messages: ReturnType<typeof listMessages>;
+  proposals: ReturnType<typeof listProposals>;
+  strategies: ReturnType<typeof listStrategies>;
 };
 
-export type OperatorThreadSnapshot = {
-  status: OperatorStatus;
-  messages: MessageEnvelope[];
-};
-
-function statusFromPolicy(): OperatorStatus {
-  const policy = getPolicy();
-  return {
-    mode: "READ_ONLY",
-    policyAutonomy: policy.autonomy,
-    policyUpdatedAt: policy.updatedAt,
-    policyUpdatedBy: policy.updatedBy,
-  };
-}
-
-function policySnapshot() {
+function policySnapshot(): Record<string, unknown> {
   const policy = getPolicy();
   return {
     autonomy: policy.autonomy,
     maxUsdPerDay: policy.maxUsdPerDay,
     maxUsdPerAction: policy.maxUsdPerAction,
-    allowlistTokens: [...policy.allowlistTokens],
-    allowlistVenues: [...policy.allowlistVenues],
-    allowlistChains: [...policy.allowlistChains],
-    kill: { ...policy.kill },
+    kill: policy.kill,
     updatedAt: policy.updatedAt,
-    updatedBy: policy.updatedBy,
   };
 }
 
-function ensureSystemMessage() {
-  const current = listOperatorMessages();
-  if (current.length > 0) return;
-  appendOperatorMessage({
-    role: "system",
-    content:
-      "Operator console initialized in READ_ONLY mode. External models and execution flows are disabled.",
-    metadata: {
-      policySnapshot: policySnapshot(),
-      action: "operator.bootstrap",
-    },
-  });
-}
-
-export async function readOperatorThread(): Promise<OperatorThreadSnapshot> {
-  ensureSystemMessage();
+function state(): OperatorStateResponse {
   return {
-    status: statusFromPolicy(),
-    messages: listOperatorMessages(),
+    messages: listMessages(),
+    proposals: listProposals(),
+    strategies: listStrategies(),
   };
 }
 
-export async function postOperatorMessage(input: {
-  content: string;
-}): Promise<OperatorThreadSnapshot> {
-  const content = String(input?.content ?? "").trim();
-  if (!content) {
-    ensureSystemMessage();
-    return {
-      status: statusFromPolicy(),
-      messages: listOperatorMessages(),
-    };
-  }
+function normalizeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
-  ensureSystemMessage();
-  appendOperatorMessage({
+export async function sendOperatorMessageAction(content: string): Promise<OperatorStateResponse> {
+  const trimmed = String(content || "").trim();
+  if (!trimmed) return state();
+
+  appendMessage({
     role: "operator",
-    content,
+    content: trimmed,
     metadata: {
+      action: "chat",
+      tags: ["operator-input"],
       policySnapshot: policySnapshot(),
-      action: "operator.message",
     },
   });
-  const history = listOperatorMessages();
-  const assistant = await generateAssistantReply(history);
-  const proposal = parseSkillProposalEnvelopeFromContent(assistant.content, {
-    status: "draft",
-    createdAt: Date.now(),
-    executionIntent: "none",
-    executionStatus: "idle",
-  });
-  const action = proposal ? "proposal" : "analysis";
-  const updated = appendOperatorEnvelope({
-    ...assistant,
-    role: "assistant",
-    metadata: {
-      ...(assistant.metadata || {}),
-      policySnapshot: policySnapshot(),
-      action,
-      proposal: proposal || assistant.metadata?.proposal,
-    },
-  });
-  if (proposal) {
-    const created = updated[updated.length - 1];
-    if (created?.id) {
-      registerProposal(created.id, proposal);
+
+  try {
+    const assistant = await generateAssistantReply(listMessages());
+    const proposal = extractSkillProposalEnvelope(assistant.content);
+
+    if (proposal) {
+      upsertProposal(proposal);
+      ensureStrategyForProposal(proposal);
+      appendMessage({
+        role: "assistant",
+        content: assistant.content,
+        metadata: {
+          action: "proposal",
+          proposalId: proposal.id,
+          tags: ["proposal", proposal.riskLevel],
+          policySnapshot: policySnapshot(),
+        },
+      });
+    } else {
+      appendMessage({
+        role: "assistant",
+        content: assistant.content,
+        metadata: {
+          action: "analysis",
+          tags: ["assistant"],
+          policySnapshot: policySnapshot(),
+        },
+      });
     }
+  } catch (error) {
+    appendAuditMessage(`Assistant generation failed: ${normalizeError(error)}`, "error");
   }
 
-  return {
-    status: statusFromPolicy(),
-    messages: listOperatorMessages(),
-  };
+  return state();
 }
 
-export async function approveOperatorProposal(
-  id: string
-): Promise<OperatorThreadSnapshot> {
-  ensureSystemMessage();
-  const proposalId = String(id || "").trim();
-  const updated = approveProposal(proposalId);
-  if (updated) {
-    appendOperatorMessage({
-      role: "assistant",
-      content: "Proposal approved by operator.",
-      metadata: {
-        policySnapshot: policySnapshot(),
-        action: "analysis",
-        proposal: updated,
-      },
-    });
-  } else {
-    appendOperatorMessage({
-      role: "assistant",
-      content: "Proposal not found.",
-      metadata: {
-        policySnapshot: policySnapshot(),
-        action: "analysis",
-      },
-    });
+export async function approveProposalAction(id: string): Promise<OperatorStateResponse> {
+  try {
+    approveProposal(id);
+    appendAuditMessage("Proposal approved by operator.", "proposal.approve");
+  } catch (error) {
+    appendAuditMessage(`Approval failed: ${normalizeError(error)}`, "error");
   }
-
-  return {
-    status: statusFromPolicy(),
-    messages: listOperatorMessages(),
-  };
+  return state();
 }
 
-export async function rejectOperatorProposal(
-  id: string
-): Promise<OperatorThreadSnapshot> {
-  ensureSystemMessage();
-  const proposalId = String(id || "").trim();
-  const existing = getProposal(proposalId);
-  const updated = rejectProposal(proposalId);
-  if (updated || existing) {
-    appendOperatorMessage({
-      role: "assistant",
-      content: "Proposal rejected by operator.",
-      metadata: {
-        policySnapshot: policySnapshot(),
-        action: "analysis",
-        proposal: updated || existing || undefined,
-      },
-    });
-  } else {
-    appendOperatorMessage({
-      role: "assistant",
-      content: "Proposal not found.",
-      metadata: {
-        policySnapshot: policySnapshot(),
-        action: "analysis",
-      },
-    });
+export async function rejectProposalAction(id: string): Promise<OperatorStateResponse> {
+  try {
+    rejectProposal(id);
+    appendAuditMessage("Proposal rejected by operator.", "proposal.reject");
+  } catch (error) {
+    appendAuditMessage(`Rejection failed: ${normalizeError(error)}`, "error");
   }
-
-  return {
-    status: statusFromPolicy(),
-    messages: listOperatorMessages(),
-  };
+  return state();
 }
 
-export async function requestExecutionIntentAction(
-  id: string
-): Promise<OperatorThreadSnapshot> {
-  ensureSystemMessage();
-  const proposalId = String(id || "").trim();
-  const updated = requestExecutionIntent(proposalId);
-  if (updated) {
-    appendOperatorMessage({
-      role: "assistant",
-      content: "Execution intent requested.",
-      metadata: {
-        policySnapshot: policySnapshot(),
-        action: "analysis",
-        proposal: updated,
-      },
-    });
-  } else {
-    appendOperatorMessage({
-      role: "assistant",
-      content: "Execution intent request denied.",
-      metadata: {
-        policySnapshot: policySnapshot(),
-        action: "analysis",
-      },
-    });
+export async function requestExecutionIntentAction(id: string): Promise<OperatorStateResponse> {
+  try {
+    requestExecutionIntent(id);
+    appendAuditMessage("Execution intent requested.", "execution.intent.request");
+  } catch (error) {
+    appendAuditMessage(`Execution intent request failed: ${normalizeError(error)}`, "error");
   }
-
-  return {
-    status: statusFromPolicy(),
-    messages: listOperatorMessages(),
-  };
+  return state();
 }
 
-export async function lockExecutionIntentAction(
-  id: string
-): Promise<OperatorThreadSnapshot> {
-  ensureSystemMessage();
-  const proposalId = String(id || "").trim();
-  const existing = getProposal(proposalId);
-  const updated = lockExecutionIntent(proposalId);
-  if (updated) {
-    appendOperatorMessage({
-      role: "assistant",
-      content: "Execution intent locked.",
-      metadata: {
-        policySnapshot: policySnapshot(),
-        action: "analysis",
-        proposal: updated,
-      },
-    });
-  } else {
-    appendOperatorMessage({
-      role: "assistant",
-      content: "Execution intent lock denied.",
-      metadata: {
-        policySnapshot: policySnapshot(),
-        action: "analysis",
-        proposal: existing || undefined,
-      },
-    });
+export async function lockExecutionIntentAction(id: string): Promise<OperatorStateResponse> {
+  try {
+    lockExecutionIntent(id);
+    appendAuditMessage("Execution intent locked.", "execution.intent.lock");
+  } catch (error) {
+    appendAuditMessage(`Lock execution intent failed: ${normalizeError(error)}`, "error");
   }
-
-  return {
-    status: statusFromPolicy(),
-    messages: listOperatorMessages(),
-  };
+  return state();
 }
 
-export async function generateExecutionPlanAction(
-  id: string
-): Promise<OperatorThreadSnapshot> {
-  ensureSystemMessage();
-  const proposalId = String(id || "").trim();
-  const proposal = getProposal(proposalId);
-  const plan = generateExecutionPlan(proposalId);
-
-  if (plan && proposal) {
-    appendOperatorMessage({
-      role: "assistant",
-      content: "Execution plan generated (dry-run).",
+export async function generateExecutionPlanAction(id: string): Promise<OperatorStateResponse> {
+  try {
+    const proposal = generateExecutionPlan(id);
+    appendMessage({
+      role: "skill",
+      content: `Execution plan generated (dry-run).\n${proposal.executionPlan?.summary ?? ""}`,
       metadata: {
+        action: "execution.plan",
+        proposalId: proposal.id,
+        plan: proposal.executionPlan,
+        tags: ["dry-run", "plan"],
         policySnapshot: policySnapshot(),
-        action: "analysis",
-        proposal,
-        plan,
       },
     });
-  } else {
-    appendOperatorMessage({
-      role: "assistant",
-      content: "Execution plan generation denied.",
-      metadata: {
-        policySnapshot: policySnapshot(),
-        action: "analysis",
-        proposal: proposal || undefined,
-      },
-    });
+  } catch (error) {
+    appendAuditMessage(`Generate plan failed: ${normalizeError(error)}`, "error");
   }
-
-  return {
-    status: statusFromPolicy(),
-    messages: listOperatorMessages(),
-  };
+  return state();
 }
 
-export async function executeProposalAction(
-  id: string
-): Promise<OperatorThreadSnapshot> {
-  ensureSystemMessage();
-  const proposalId = String(id || "").trim();
-  const outcome = await executeProposal(proposalId);
+export async function executeProposalAction(id: string): Promise<OperatorStateResponse> {
+  try {
+    const proposal = await executeProposal(id);
+    const result = proposal.executionResult;
 
-  if (outcome.ok) {
-    appendOperatorMessage({
-      role: "assistant",
-      content: "Execution completed successfully.",
-      metadata: {
-        policySnapshot: policySnapshot(),
-        action: "execution",
-        proposal: outcome.proposal ?? undefined,
-      },
-    });
-  } else {
-    const policyDenied = outcome.result?.policyDecision === "DENY";
-    const content = outcome.auditMessage
-      ? outcome.auditMessage
-      : policyDenied
-      ? "Execution failed: policy denied by centralized gate."
-      : `Execution failed: ${outcome.error ?? "unknown_error"}`;
-    appendOperatorMessage({
-      role: "assistant",
-      content,
-      metadata: {
-        policySnapshot: policySnapshot(),
-        action: "execution",
-        proposal: outcome.proposal ?? undefined,
-      },
-    });
+    if (result?.ok) {
+      appendMessage({
+        role: "skill",
+        content: "Execution completed successfully.",
+        metadata: {
+          action: "execution.success",
+          proposalId: proposal.id,
+          executionResult: result,
+          tags: ["execution", "success"],
+          policySnapshot: policySnapshot(),
+        },
+      });
+    } else {
+      appendMessage({
+        role: "skill",
+        content: `Execution failed: ${result?.error ?? proposal.executionError ?? "Unknown error"}`,
+        metadata: {
+          action: "execution.failure",
+          proposalId: proposal.id,
+          executionResult: result,
+          tags: ["execution", "failed"],
+          policySnapshot: policySnapshot(),
+        },
+      });
+    }
+  } catch (error) {
+    appendAuditMessage(`Execution failed: ${normalizeError(error)}`, "error");
   }
-
-  return {
-    status: statusFromPolicy(),
-    messages: listOperatorMessages(),
-  };
+  return state();
 }

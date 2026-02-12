@@ -1,61 +1,63 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createWorkItem, listWorkItems } from "@/lib/work/store";
+import { createWork, listWork, WorkCreateInput } from "@/lib/work";
 
-/**
- * Work API (canonical)
- * - GET  /api/work             -> list
- * - POST /api/work             -> create, returns { ok, id, item }
- */
+export const runtime = "nodejs";
+
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
-
-  // Optional filters (best-effort; if store doesn't support fields, filtering is harmless)
+  const action = url.searchParams.get("action") || "list";
   const q = (url.searchParams.get("q") || "").toLowerCase().trim();
   const status = (url.searchParams.get("status") || "").toUpperCase().trim();
   const owner = (url.searchParams.get("owner") || "").toLowerCase().trim();
 
-  let items = listWorkItems();
-
-  if (q) {
-    items = items.filter((it: any) =>
-      String((it.title || "") + " " + (it.description || "")).toLowerCase().includes(q)
+  if (action !== "list") {
+    return NextResponse.json(
+      { ok: false, error: { code: "BAD_ACTION", message: "Unsupported action" } },
+      { status: 400 }
     );
   }
-  if (status) {
-    items = items.filter((it: any) => String(it.status || "").toUpperCase() === status);
-  }
-  if (owner) {
-    items = items.filter((it: any) => String(it.owner || "").toLowerCase().includes(owner));
-  }
 
-  return NextResponse.json({ ok: true, items });
+  const filtered = listWork().filter((item) => {
+    if (status && item.status !== status) return false;
+    if (owner && (item.owner || "").toLowerCase() !== owner) return false;
+    if (q) {
+      const hay = [item.title, item.description || "", ...(item.tags || [])]
+        .join(" ")
+        .toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  return NextResponse.json({ ok: true, items: filtered });
 }
 
 export async function POST(req: NextRequest) {
-  let body: any = {};
+  let body: Partial<WorkCreateInput> = {};
   try {
     body = await req.json();
-  } catch {
-    body = {};
-  }
+  } catch {}
 
-  const title = typeof body.title === "string" ? body.title.trim() : "";
+  const title = (body.title || "").trim();
   if (!title) {
-    return NextResponse.json({ ok: false, error: "Missing title" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: { code: "VALIDATION", message: "title is required" } },
+      { status: 400 }
+    );
   }
 
-  const item = createWorkItem({
+  const item = createWork({
     title,
-    description: typeof body.description === "string" ? body.description : undefined,
-    kind: typeof body.kind === "string" ? body.kind : undefined,
-    acceptance: typeof body.acceptance === "string" ? body.acceptance : undefined,
-    slaHours: typeof body.slaHours === "number" ? body.slaHours : undefined,
-    owner: typeof body.owner === "string" ? body.owner : undefined,
-    priority: typeof body.priority === "string" ? body.priority : undefined,
-    status: typeof body.status === "string" ? body.status : undefined,
-    tags: Array.isArray(body.tags) ? body.tags : undefined,
-    data: body.meta ?? undefined,
+    description: body.description,
+    owner: body.owner,
+    tags: body.tags,
+    priority: body.priority,
+    slaHours: body.slaHours,
+    dueAt: body.dueAt,
+    acceptanceCriteria: body.acceptanceCriteria,
+    escalationPolicy: body.escalationPolicy,
+    actor: body.actor || "operator",
   });
 
-  return NextResponse.json({ ok: true, id: item.id, item }, { status: 201 });
+  return NextResponse.json({ ok: true, item }, { status: 201 });
 }

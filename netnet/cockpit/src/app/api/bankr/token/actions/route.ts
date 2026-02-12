@@ -1,20 +1,7 @@
 import { NextResponse } from "next/server";
 import { tokenActionCatalog } from "@/lib/bankr/token";
-import { enforcePolicy } from "@/lib/policy/enforce";
-import type { PolicyAction } from "@/lib/policy/types";
 
 export async function GET() {
-  const gate = enforcePolicy("token.manage", {
-    route: "/api/bankr/token/actions",
-    venue: "bankr",
-  });
-  if (!gate.ok) {
-    return NextResponse.json(
-      { ok: false, error: "Policy blocked", details: gate.reasons },
-      { status: 403 }
-    );
-  }
-
   return NextResponse.json({
     ok: true,
     execution: { mode: "PROPOSE_ONLY", requiresApproval: true },
@@ -36,26 +23,6 @@ export async function POST(req: Request) {
     return NextResponse.json(
       { ok: false, error: { code: "UNKNOWN_ACTION", message: "Unknown token action", known: catalog.map(a => a.action) } },
       { status: 400 }
-    );
-  }
-
-  const policyAction: PolicyAction =
-    action === "launch"
-      ? "token.launch"
-      : action === "fee_route"
-      ? "token.manage"
-      : "proof.build";
-  const gate = enforcePolicy(policyAction, {
-    route: "/api/bankr/token/actions",
-    chain: typeof params.chain === "string" ? params.chain : undefined,
-    venue: "bankr",
-    toToken: typeof params.symbol === "string" ? params.symbol : undefined,
-    amountUsd: typeof params.amountUsd === "number" ? params.amountUsd : undefined,
-  });
-  if (!gate.ok) {
-    return NextResponse.json(
-      { ok: false, error: "Policy blocked", details: gate.reasons },
-      { status: 403 }
     );
   }
 

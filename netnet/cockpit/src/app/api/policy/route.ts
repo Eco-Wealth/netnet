@@ -19,15 +19,7 @@ function canWrite(req: NextRequest) {
 
 export async function GET() {
   const policy = getPolicy();
-  return NextResponse.json({
-    ok: true,
-    policy,
-    autonomyLevels: ["READ_ONLY", "PROPOSE_ONLY", "EXECUTE_WITH_LIMITS"],
-    safety: {
-      defaultMode: "PROPOSE_ONLY",
-      note: "Spend-adjacent actions require explicit policy allowance and operator approval.",
-    },
-  });
+  return NextResponse.json({ ok: true, policy });
 }
 
 export async function POST(req: NextRequest) {

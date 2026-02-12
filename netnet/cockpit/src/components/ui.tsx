@@ -1,294 +1,206 @@
 import * as React from "react";
-import { defaultPrimaryInsightTitle, toInsightTitle } from "@/lib/insight";
-import type { InsightFields } from "@/lib/insight";
-import { Insight } from "@/components/Insight";
+import type { InsightSpec } from "@/lib/insight";
+import { insightTitle } from "@/lib/insight";
 
-function cx(...parts: Array<string | false | null | undefined>) {
+function cx(...parts: Array<string | undefined | false>) {
   return parts.filter(Boolean).join(" ");
 }
 
-export function Page({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <main className={cx("nn-page", className)}>{children}</main>;
-}
-
-export function PageHeader({
-  title,
-  subtitle,
-  right,
-  className,
-}: {
-  title: React.ReactNode;
-  subtitle?: React.ReactNode;
-  right?: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <header className={cx("nn-page-header", className)}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="nn-page-title">{title}</h1>
-          {subtitle ? <div className="nn-page-subtitle mt-1">{subtitle}</div> : null}
-        </div>
-        {right ? <div className="shrink-0">{right}</div> : null}
-      </div>
-    </header>
-  );
-}
-
 export function Card({
+  className,
   title,
   subtitle,
-  right,
   children,
-  className,
 }: {
+  className?: string;
   title?: string;
   subtitle?: string;
-  right?: React.ReactNode;
   children: React.ReactNode;
-  className?: string;
 }) {
   return (
-    <section className={cx("nn-panel", "p-[var(--pad-2)]", className)}>
-      {(title || subtitle || right) ? (
-        <header className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            {title ? <div className="text-[15px] font-semibold leading-tight">{title}</div> : null}
-            {subtitle ? <div className="nn-muted mt-1 text-[13px] leading-snug">{subtitle}</div> : null}
-          </div>
-          {right ? <div className="shrink-0">{right}</div> : null}
-        </header>
+    <div
+      className={cx(
+        "rounded-2xl border border-white/10 bg-white/[0.04] shadow-sm",
+        "backdrop-blur-sm",
+        className
+      )}
+    >
+      {title ? (
+        <div className="border-b border-white/10 px-4 py-3 md:px-5">
+          <div className="text-sm font-semibold text-white">{title}</div>
+          {subtitle ? <div className="mt-1 text-xs text-white/60">{subtitle}</div> : null}
+        </div>
       ) : null}
-      <div className={cx(title || subtitle || right ? "mt-[var(--gap-2)]" : "", "grid gap-[var(--gap-2)]")}>
-        {children}
-      </div>
-    </section>
-  );
-}
-
-export function Row({
-  left,
-  right,
-  children,
-  className,
-}: {
-  left?: React.ReactNode;
-  right?: React.ReactNode;
-  children?: React.ReactNode;
-  className?: string;
-}) {
-  if (children) {
-    return <div className={cx("flex items-center justify-between gap-3", className)}>{children}</div>;
-  }
-  return (
-    <div className={cx("flex items-center justify-between gap-3", className)}>
-      <div className="min-w-0">{left}</div>
-      {right ? <div className="shrink-0">{right}</div> : null}
+      {children}
     </div>
   );
 }
 
+export function CardHeader({
+  className,
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return <div className={cx("p-4 md:p-5", className)}>{children}</div>;
+}
+
+export function CardContent({
+  className,
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return <div className={cx("px-4 pb-4 md:px-5 md:pb-5", className)}>{children}</div>;
+}
+
+export function Label({
+  className,
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={cx("text-xs font-medium tracking-wide text-white/70", className)}>
+      {children}
+    </div>
+  );
+}
+
+export function Muted({
+  className,
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return <div className={cx("text-sm text-white/60", className)}>{children}</div>;
+}
+
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "solid" | "ghost";
-  size?: "sm" | "md";
-  insight?: InsightFields;
+  variant?: "solid" | "ghost" | "subtle" | "danger";
+  size?: "sm" | "md" | "lg";
+  insight?: InsightSpec;
 };
 
-export function Button({ variant = "solid", size = "md", className, insight, title, ...rest }: ButtonProps) {
-  const derivedTitle = insight
-    ? toInsightTitle(insight)
-    : variant === "solid"
-    ? defaultPrimaryInsightTitle()
-    : undefined;
+export function Button({
+  className,
+  variant = "solid",
+  size = "md",
+  insight,
+  ...rest
+}: ButtonProps) {
+  const variantClass =
+    variant === "ghost"
+      ? "bg-transparent text-white border border-white/15 hover:bg-white/10"
+      : variant === "subtle"
+      ? "bg-white/10 text-white hover:bg-white/15 border border-white/10"
+      : variant === "danger"
+      ? "bg-red-500/90 text-white hover:bg-red-500 border border-red-400/40"
+      : "bg-white text-black hover:bg-neutral-200 border border-white/10";
+
+  const sizeClass =
+    size === "sm"
+      ? "px-3 py-1.5 text-xs"
+      : size === "lg"
+      ? "px-5 py-3 text-sm"
+      : "px-4 py-2 text-sm";
+
+  const title = rest.title || (insight ? insightTitle(insight) : undefined);
 
   return (
     <button
       {...rest}
-      title={typeof title === "string" ? title : derivedTitle}
+      title={title}
+      aria-label={rest["aria-label"] || title}
       className={cx(
-        "nn-btn",
-        size === "sm" && "nn-btn--sm",
-        variant === "solid" ? "nn-btn--solid" : "nn-btn--ghost",
-        "nn-focus disabled:opacity-50 disabled:cursor-not-allowed",
+        "rounded-xl font-medium transition disabled:opacity-40 disabled:cursor-not-allowed",
+        "focus:outline-none focus:ring-2 focus:ring-white/20",
+        variantClass,
+        sizeClass,
         className
       )}
     />
   );
 }
 
-type InputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, "size"> & {
-  size?: "sm" | "md";
-};
-export function Input({ size = "md", className, type, ...rest }: InputProps) {
-  const isChoice = type === "checkbox" || type === "radio";
+export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  const { className, ...rest } = props;
   return (
     <input
-      type={type}
       {...rest}
       className={cx(
-        isChoice
-          ? "h-4 w-4 accent-[hsl(var(--accent))]"
-          : "nn-input nn-focus w-full text-[14px]",
-        !isChoice && size === "sm" && "nn-input--sm text-[13px]",
+        "w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white",
+        "placeholder:text-white/35",
+        "focus:outline-none focus:ring-2 focus:ring-white/15",
         className
       )}
     />
   );
 }
 
-type TextAreaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement>;
-export function TextArea({ className, ...rest }: TextAreaProps) {
+export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const { className, ...rest } = props;
   return (
     <textarea
       {...rest}
       className={cx(
-        "nn-focus w-full rounded-[var(--r-md)] border border-[color:var(--border)] bg-[color:var(--surface)] p-3 text-[14px] leading-snug",
+        "w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white",
+        "placeholder:text-white/35",
+        "focus:outline-none focus:ring-2 focus:ring-white/15",
         className
       )}
     />
   );
 }
 
-// Back-compat alias for existing imports.
-export const Textarea = TextArea;
-
-export function Label({ children, htmlFor, className }: { children: React.ReactNode; htmlFor?: string; className?: string }) {
+/** Used by GovernancePolicyEditor */
+export function Pill({ children }: { children: React.ReactNode }) {
   return (
-    <label htmlFor={htmlFor} className={cx("text-[12px] font-semibold tracking-wide text-[color:var(--muted)]", className)}>
+    <span className="inline-flex items-center rounded-full border border-white/15 bg-white/10 px-2 py-1 text-[11px] text-white/80">
       {children}
-    </label>
-  );
-}
-
-export function Code({ children, className }: { children: React.ReactNode; className?: string }) {
-  return (
-    <code
-      className={cx(
-        "rounded-[8px] border border-[color:var(--border)] bg-[color:var(--surface-2)] px-1.5 py-0.5 font-mono text-[12px]",
-        className
-      )}
-    >
-      {children}
-    </code>
-  );
-}
-
-export function StatusChip({
-  children,
-  tone: toneVariant,
-  status,
-  className,
-}: {
-  children?: React.ReactNode;
-  tone?: "neutral" | "success" | "warn" | "danger";
-  status?: string;
-  className?: string;
-}) {
-  const text = children ?? status ?? "";
-  const normalized = String(status ?? children ?? "").toUpperCase();
-  const toneClass =
-    toneVariant === "success" || normalized === "DONE" || normalized === "PASS"
-      ? "border-emerald-500/40 text-emerald-300"
-      : toneVariant === "danger" || normalized === "BLOCKED" || normalized === "ERROR" || normalized === "FAILED"
-      ? "border-rose-500/40 text-rose-300"
-      : toneVariant === "warn" || normalized === "IN_PROGRESS" || normalized === "RUNNING"
-      ? "border-amber-500/40 text-amber-300"
-      : "border-[color:var(--border)] text-[color:var(--muted)]";
-
-  return (
-    <span className={cx("inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium", toneClass, className)}>
-      {text}
     </span>
   );
 }
 
-export function Muted({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cx("nn-muted text-[13px]", className)}>{children}</div>;
-}
-
-export function Pill({ children }: { children: React.ReactNode }) {
-  return <span className="nn-chip">{children}</span>;
-}
-
-export function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
+/** Used by GovernancePolicyEditor */
+export function SectionTitle({
+  title,
+  subtitle,
+}: {
+  title: string;
+  subtitle?: string;
+}) {
   return (
-    <div className="grid gap-1">
-      <div className="text-[15px] font-semibold leading-tight">{title}</div>
-      {subtitle ? <div className="nn-muted text-[13px] leading-snug">{subtitle}</div> : null}
+    <div className="space-y-0.5">
+      <div className="text-sm font-semibold text-white">{title}</div>
+      {subtitle ? <div className="text-xs text-white/60">{subtitle}</div> : null}
     </div>
   );
 }
 
+/** Used by GovernancePolicyEditor */
 export function Switch({
   label,
   checked,
   onChange,
-  hint,
 }: {
   label: string;
   checked: boolean;
   onChange: (next: boolean) => void;
-  hint?: string;
 }) {
   return (
-    <label className="flex items-center justify-between gap-3 rounded-[var(--r-md)] border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2">
-      <div className="min-w-0">
-        <div className="text-[13px] font-semibold leading-tight">{label}</div>
-        {hint ? <div className="nn-muted mt-1 text-[12px] leading-snug">{hint}</div> : null}
-      </div>
+    <label className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white">
+      <span className="text-white/80">{label}</span>
       <input
-        className="h-4 w-4 accent-[hsl(var(--accent))]"
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
+        className="h-4 w-4 accent-white"
       />
     </label>
-  );
-}
-
-export function Field({
-  label,
-  hint,
-  children,
-  className,
-}: {
-  label: React.ReactNode;
-  hint?: React.ReactNode;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={cx("grid gap-1.5", className)}>
-      <div className="flex items-center justify-between gap-2">
-        <Label>{label}</Label>
-        {hint ? <span className="text-[11px] text-[color:var(--muted)]">{hint}</span> : null}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-export function ActionBar({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cx("nn-action-row", className)}>{children}</div>;
-}
-
-/** Hover insight wrapper (basic; Unit H will upgrade) */
-export function HoverInfo({
-  label,
-  what,
-  when,
-  requires,
-  output,
-}: {
-  label: React.ReactNode;
-  what: string;
-  when?: string;
-  requires?: string;
-  output?: string;
-}) {
-  return (
-    <Insight insight={{ what, when, requires, output }}>
-      <span>{label}</span>
-    </Insight>
   );
 }

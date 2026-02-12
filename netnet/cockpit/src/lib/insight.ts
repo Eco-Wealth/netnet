@@ -1,26 +1,17 @@
-export type InsightFields = {
+export type InsightSpec = {
   what: string;
   when?: string;
   requires?: string;
   output?: string;
 };
 
-export function toInsightTitle(insight: InsightFields): string {
-  return [
+export function insightTitle(insight: InsightSpec): string {
+  const parts = [
     `What: ${insight.what}`,
     insight.when ? `When: ${insight.when}` : null,
     insight.requires ? `Requires: ${insight.requires}` : null,
     insight.output ? `Output: ${insight.output}` : null,
-  ]
-    .filter(Boolean)
-    .join(" | ");
+  ].filter(Boolean);
+  return parts.join("\n");
 }
 
-export function defaultPrimaryInsightTitle(): string {
-  return toInsightTitle({
-    what: "Primary operator action",
-    when: "Use after reviewing context and policy status",
-    requires: "Operator approval if spend-adjacent. API/compute usage may apply.",
-    output: "Action result and/or proof artifact",
-  });
-}

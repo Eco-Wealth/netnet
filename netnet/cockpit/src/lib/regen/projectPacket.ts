@@ -44,86 +44,95 @@ export type RegenProjectPacketV1 = {
 };
 
 export type RegenProjectRequest = {
-  agentId?: string;
-  wallet?: string;
-  operator?: string;
-  url?: string;
-  why?: string;
   title?: string;
   summary?: string;
+
   buyerClass?: string;
   buyerName?: string;
   buyerMandate?: string;
+
   country?: string;
   region?: string;
   lat?: number;
   lon?: number;
+
   methodology?: string;
   mrvAssumptions?: string[];
   requiredFields?: string[];
   dataSources?: string[];
   cadence?: string;
   confidence?: "low" | "medium" | "high";
+
   unit?: string;
   volumeEstimate?: string;
   priceAssumption?: string;
   timeline?: string;
+
   landControl?: string;
   risks?: string[];
   mitigations?: string[];
   nextSteps?: string[];
+
+  // Optional proof subject/context metadata used by route contracts.
+  agentId?: string;
+  wallet?: string;
+  operator?: string;
+  url?: string;
+  why?: string;
 };
 
+function cleanList(v?: string[]) {
+  return (v || []).map((s) => s.trim()).filter(Boolean);
+}
+
+function dropEmpty<T extends Record<string, unknown>>(obj: T | undefined): T | undefined {
+  if (!obj) return undefined;
+  const values = Object.values(obj);
+  const hasValue = values.some((v) => {
+    if (v == null) return false;
+    if (typeof v === "string") return v.trim().length > 0;
+    if (Array.isArray(v)) return v.length > 0;
+    return true;
+  });
+  return hasValue ? obj : undefined;
+}
+
 export function buildRegenProjectPacket(input: RegenProjectRequest): RegenProjectPacketV1 {
-  const ts = new Date().toISOString();
-
-  const title = (input.title || "").trim();
-  const summary = (input.summary || "").trim();
-
-  const assumptions = (input.mrvAssumptions || []).map((s) => s.trim()).filter(Boolean);
-  const requiredFields = (input.requiredFields || []).map((s) => s.trim()).filter(Boolean);
-
-  const packet: RegenProjectPacketV1 = {
+  return {
     schema: "netnet.regen.project.v1",
-    ts,
-    title,
-    summary,
-    buyer: {
+    ts: new Date().toISOString(),
+    title: (input.title || "").trim(),
+    summary: (input.summary || "").trim(),
+    buyer: dropEmpty({
       class: input.buyerClass,
       name: input.buyerName,
       mandate: input.buyerMandate,
-    },
-    location: {
+    }),
+    location: dropEmpty({
       country: input.country,
       region: input.region,
       lat: input.lat,
       lon: input.lon,
-    },
+    }),
     mrv: {
       methodology: input.methodology,
-      assumptions,
-      requiredFields,
-      dataSources: input.dataSources || [],
+      assumptions: cleanList(input.mrvAssumptions),
+      requiredFields: cleanList(input.requiredFields),
+      dataSources: cleanList(input.dataSources),
       cadence: input.cadence,
       confidence: input.confidence,
     },
-    commercial: {
+    commercial: dropEmpty({
       unit: input.unit,
       volumeEstimate: input.volumeEstimate,
       priceAssumption: input.priceAssumption,
       timeline: input.timeline,
-    },
-    constraints: {
+    }),
+    constraints: dropEmpty({
       landControl: input.landControl,
-      risks: input.risks || [],
-      mitigations: input.mitigations || [],
-    },
-    nextSteps: input.nextSteps || [],
+      risks: cleanList(input.risks),
+      mitigations: cleanList(input.mitigations),
+    }),
+    nextSteps: cleanList(input.nextSteps),
   };
-
-  // Remove empty objects
-  if (packet.buyer && !packet.buyer.class && !packet.buyer.name && !packet.buyer.mandate) delete (packet as any).buyer;
-  if (packet.location && !packet.location.country && !packet.location.region && packet.location.lat == null && packet.location.lon == null) delete (packet as any).location;
-
-  return packet;
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { Button, Input } from "@/components/ui";
 
 type Tab = "balances" | "positions" | "history";
 
@@ -59,37 +58,35 @@ export function WalletStatePanel() {
             <p className="text-sm text-neutral-600">Read-only state surfaces for Bankr-connected agents.</p>
           </div>
           <div className="flex items-center gap-2">
-            <Input
+            <input
               value={wallet}
               onChange={(e) => setWallet(e.target.value)}
               placeholder="optional: wallet address"
-              className="w-[260px] border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-500"
+              className="w-[260px] rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-neutral-200"
             />
-            <Button
+            <button
               onClick={() => load(tab)}
-              variant="ghost"
-              className="border-neutral-200 bg-neutral-900 text-white shadow-sm hover:bg-neutral-800"
+              className="rounded-xl border border-neutral-200 bg-neutral-900 px-3 py-2 text-sm text-white shadow-sm hover:bg-neutral-800"
               title="Reload the selected tab"
             >
               Refresh
-            </Button>
+            </button>
           </div>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
           {tabs.map((t) => (
-            <Button
+            <button
               key={t.id}
               onClick={() => setTab(t.id)}
               title={t.hint}
-              size="sm"
-              variant={tab === t.id ? "solid" : "ghost"}
               className={[
+                "rounded-xl border px-3 py-1.5 text-sm transition",
                 tab === t.id ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-200 bg-white text-neutral-800 hover:bg-neutral-50",
               ].join(" ")}
             >
               {t.label}
-            </Button>
+            </button>
           ))}
         </div>
 

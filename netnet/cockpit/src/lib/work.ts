@@ -1,14 +1,6 @@
-export type WorkStatus =
-  | "NEW"
-  | "OPEN"
-  | "PROPOSED"
-  | "READY"
-  | "IN_PROGRESS"
-  | "BLOCKED"
-  | "DONE"
-  | "CANCELED";
+export type WorkStatus = "NEW" | "IN_PROGRESS" | "BLOCKED" | "DONE" | "CANCELED";
 
-export type WorkPriority = "LOW" | "MED" | "MEDIUM" | "HIGH" | "CRIT" | "CRITICAL";
+export type WorkPriority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
 export type WorkEventType =
   | "CREATED"
@@ -33,12 +25,6 @@ export type WorkItem = {
   id: string;
   title: string;
   description?: string;
-  kind?: string;
-  acceptance?: string;
-  sla?: {
-    hours?: number;
-    dueAt?: string;
-  };
 
   owner?: string; // human or agent handle
   tags?: string[];
@@ -62,12 +48,9 @@ export type WorkItem = {
 export type WorkCreateInput = {
   title: string;
   description?: string;
-  kind?: string;
   owner?: string;
   tags?: string[];
   priority?: WorkPriority;
-  status?: WorkStatus;
-  acceptance?: string;
   slaHours?: number;
   dueAt?: string;
   acceptanceCriteria?: string;
@@ -116,15 +99,12 @@ export function createWork(input: WorkCreateInput): WorkItem {
     id,
     title: input.title.trim(),
     description: input.description?.trim() || undefined,
-    kind: input.kind?.trim() || undefined,
     owner: input.owner?.trim() || undefined,
     tags: input.tags?.filter(Boolean).map((t) => t.trim()).slice(0, 20),
     priority: input.priority || "MEDIUM",
-    status: input.status || "OPEN",
+    status: "NEW",
     createdAt: at,
     updatedAt: at,
-    acceptance: input.acceptance?.trim() || undefined,
-    sla: input.slaHours || input.dueAt ? { hours: input.slaHours, dueAt: input.dueAt } : undefined,
     slaHours: input.slaHours,
     dueAt: input.dueAt,
     acceptanceCriteria: input.acceptanceCriteria?.trim() || undefined,

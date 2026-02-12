@@ -1,27 +1,34 @@
-import type { MessageEnvelope } from "@/lib/operator/model";
 import { getOperatorEngine } from "@/lib/operator/engine";
+import { getSkillContextSummary } from "@/lib/operator/skillContext";
+import type { MessageEnvelope } from "@/lib/operator/types";
 
-// Execution boundary guard:
-// This module must only delegate to the deterministic operator engine layer.
-// It must not import executor/db/store or trigger side effects.
-function assertAssistantEnvelope(envelope: MessageEnvelope): MessageEnvelope {
-  if (envelope.role !== "assistant") {
-    throw new Error("invalid_operator_reply_role");
-  }
-  const action = envelope.metadata?.action;
-  if (action && action !== "analysis" && action !== "proposal") {
-    throw new Error("invalid_operator_reply_action");
-  }
-  if (action !== "proposal" && envelope.metadata?.proposal) {
-    throw new Error("llm_isolation_violation");
-  }
-  return envelope;
+function buildSystemPrompt(): string {
+  return [
+    "You are the Netnet Operator Assistant.",
+    "Stay policy-safe and audit-friendly.",
+    "Never execute actions directly.",
+    "When suggesting action, prefer returning JSON only in this shape:",
+    '{ "type":"skill.proposal", "skillId":"...", "route":"...", "reasoning":"...", "proposedBody":{}, "riskLevel":"low|medium|high" }',
+    "If user asks for plain explanation, respond in concise markdown and include no side effects.",
+    "Skill registry summary:",
+    getSkillContextSummary(),
+  ].join("\n");
 }
 
-export async function generateAssistantReply(
-  messages: MessageEnvelope[]
-): Promise<MessageEnvelope> {
+export async function generateAssistantReply(messages: MessageEnvelope[]): Promise<MessageEnvelope> {
   const engine = getOperatorEngine();
-  const reply = await engine.generate(messages);
-  return assertAssistantEnvelope(reply);
+  const promptMessage: MessageEnvelope = {
+    id: "system_prompt",
+    role: "system",
+    content: buildSystemPrompt(),
+    createdAt: Date.now(),
+  };
+
+  const input = [
+    promptMessage,
+    ...messages.filter((message) => message.role === "system" || message.role === "operator" || message.role === "assistant"),
+  ];
+
+  return engine.generate(input);
 }
+

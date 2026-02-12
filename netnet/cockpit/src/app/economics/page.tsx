@@ -1,27 +1,29 @@
 import Link from "next/link";
-import { Card, Code, Page, PageHeader } from "@/components/ui";
 
 export default function EconomicsPage() {
   return (
-    <Page className="max-w-3xl">
-      <PageHeader
-        title="Economics"
-        subtitle="Read-only surfaces for routing and planning. Generate operator-approval packets before execution."
-      />
+    <main className="mx-auto max-w-3xl p-6 space-y-6">
+      <header className="space-y-2">
+        <h1 className="text-2xl font-semibold">Economics</h1>
+        <p className="text-sm text-neutral-500">
+          Read-only surfaces for revenue routing. Use the allocation planner to generate an operator-approval packet.
+        </p>
+      </header>
 
-      <Card title="Allocation planner" subtitle="Proposal-first planning with policy gates.">
-        <div className="text-sm text-[color:var(--muted)]">
-          Endpoint: <Code>/api/agent/allocate</Code>
+      <section className="rounded-xl border p-4 space-y-2">
+        <div className="text-sm font-medium">Allocation planner</div>
+        <div className="text-sm text-neutral-600">
+          Endpoint: <code className="rounded bg-neutral-100 px-1">/api/agent/allocate</code>
         </div>
-        <div className="nn-action-row text-sm">
-          <Link className="underline hover:opacity-90" href="/proof">Proof</Link>
-          <Link className="underline hover:opacity-90" href="/execute">Execute</Link>
-          <Link className="underline hover:opacity-90" href="/retire">Retire</Link>
+        <div className="flex items-center gap-3 text-sm">
+          <Link className="underline" href="/proof">Proof</Link>
+          <Link className="underline" href="/execute">Execute</Link>
+          <Link className="underline" href="/retire">Retire</Link>
         </div>
-        <div className="text-xs text-[color:var(--muted)]">
+        <div className="text-xs text-neutral-500">
           Example (curl): POST JSON {"{ action: 'plan', realizedFeesUsd: 25 }"} to receive allocations + nextAction.
         </div>
-      </Card>
-    </Page>
+      </section>
+    </main>
   );
 }

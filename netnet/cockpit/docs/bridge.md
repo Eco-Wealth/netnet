@@ -6,11 +6,15 @@ These routes are intentionally thin wrappers with:
 - strict input validation (zod)
 - timeouts and friendly errors
 - 60s caching for registry/projects
-- normalized error responses: `{ ok:false, error:{ code, message, details? } }`
+- normalized error responses: `{ ok:false, error:{ code, message, details } }`
+  - `details.source` (which upstream surface failed)
+  - `details.retryable` (whether retry makes sense)
+  - `details.upstreamStatus` and optional `details.upstreamError`
 
 ## Env vars
 
-- `BRIDGE_API_BASE_URL` (default: `https://api.bridge.eco`)
+- `BRIDGE_API_BASE_URL` (preferred, default: `https://api.bridge.eco`)
+- `BRIDGE_ECO_API_BASE` (legacy alias; still supported)
 - `BRIDGE_API_KEY` (optional; forwarded via `Authorization: Bearer` and `X-API-Key`)
 - `BRIDGE_TIMEOUT_MS` (default: `12000`)
 
@@ -26,4 +30,4 @@ These routes are intentionally thin wrappers with:
 
 Bridge’s upstream URL paths may differ depending on your account/environment.
 If Bridge uses different paths, change them in:
-- `netnet/cockpit/app/api/bridge/*/route.ts`
+- `netnet/cockpit/src/app/api/bridge/*/route.ts`

@@ -2,7 +2,18 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { Button, Input, Textarea } from "@/components/ui";
-import type { WorkItem } from "@/lib/work";
+
+type WorkItem = {
+  id: string;
+  title: string;
+  status: string;
+  priority: string;
+  owner?: string;
+  kind?: string;
+  dueAt?: string;
+  acceptance?: string;
+  acceptanceCriteria?: string;
+};
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -14,8 +25,8 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return data as T;
 }
 
-const statusOptions = ["OPEN", "IN_PROGRESS", "BLOCKED", "DONE"] as const;
-const priorityOptions = ["LOW", "MED", "HIGH", "CRIT"] as const;
+const statusOptions = ["NEW", "IN_PROGRESS", "BLOCKED", "DONE", "CANCELED"] as const;
+const priorityOptions = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
 const kindOptions = ["TASK", "BUG", "RESEARCH", "DOCS"] as const;
 
 function classNames(...xs: Array<string | false | null | undefined>) {
@@ -36,7 +47,7 @@ export function OpsConsole() {
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState("");
   const [kind, setKind] = useState<(typeof kindOptions)[number]>("TASK");
-  const [priority, setPriority] = useState<(typeof priorityOptions)[number]>("MED");
+  const [priority, setPriority] = useState<(typeof priorityOptions)[number]>("MEDIUM");
   const [slaHours, setSlaHours] = useState<number>(48);
   const [acceptance, setAcceptance] = useState("");
 
@@ -81,7 +92,7 @@ export function OpsConsole() {
           priority,
           owner: owner || undefined,
           slaHours,
-          acceptance: acceptance || undefined,
+          acceptanceCriteria: acceptance || undefined,
         }),
       });
       setTitle("");
@@ -108,7 +119,7 @@ export function OpsConsole() {
   }
 
   function SLAChip({ item }: { item: WorkItem }) {
-    const dueAt = item?.sla?.dueAt ? new Date(item.sla.dueAt) : null;
+    const dueAt = item?.dueAt ? new Date(item.dueAt) : null;
     const overdue = dueAt ? dueAt.getTime() < Date.now() && item.status !== "DONE" : false;
     return (
       <span
@@ -137,14 +148,16 @@ export function OpsConsole() {
               <div>
                 <div className="text-sm font-semibold">{it.title}</div>
                 <div className="text-xs text-white/60">
-                  {it.kind} • {it.priority} {it.owner ? `• ${it.owner}` : ""}
+                  {it.kind || "TASK"} • {it.priority} {it.owner ? `• ${it.owner}` : ""}
                 </div>
               </div>
               <SLAChip item={it} />
             </div>
 
-            {it.acceptance?.length ? (
-              <div className="mt-2 text-xs text-white/70 whitespace-pre-wrap">{it.acceptance}</div>
+            {(it.acceptance || it.acceptanceCriteria)?.length ? (
+              <div className="mt-2 text-xs text-white/70 whitespace-pre-wrap">
+                {it.acceptance || it.acceptanceCriteria}
+              </div>
             ) : null}
 
             <div className="mt-3 flex items-center gap-2 flex-wrap">

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { computeIncentivesPacket } from "@/lib/economics";
-import { enforcePolicy } from "@/lib/policy/enforce";
 import {
   fetchProjects,
   getRetirementQuote,
@@ -188,20 +187,6 @@ export async function GET(req: NextRequest) {
           return NextResponse.json({ error: "amount must be positive" }, { status: 400 });
         }
 
-        const gate = enforcePolicy("retire.quote", {
-          route: "/api/agent/carbon",
-          chain,
-          venue: "bridge-eco",
-          fromToken: token,
-          amountUsd: amount,
-        });
-        if (!gate.ok) {
-          return NextResponse.json(
-            { ok: false, error: "Policy blocked", details: gate.reasons },
-            { status: 403 }
-          );
-        }
-
         const quote = await getRetirementQuote(projectId, amount, token, chain);
         return NextResponse.json({
           ...quote,
@@ -271,20 +256,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const gate = enforcePolicy("retire.execute", {
-      route: "/api/agent/carbon",
-      chain,
-      venue: "bridge-eco",
-      fromToken: token,
-      amountUsd: amount,
-    });
-    if (!gate.ok) {
-      return NextResponse.json(
-        { ok: false, error: "Policy blocked", details: gate.reasons },
-        { status: 403 }
-      );
-    }
-
     const retirement = await initiateRetirement({
       projectId,
       amount,
@@ -296,33 +267,15 @@ export async function POST(req: NextRequest) {
       metadata,
     });
 
-    const proof = {
-      schema: "netnet.proof.v1",
-      kind: "carbon_retire_initiate",
-      ts: new Date().toISOString(),
-      subject: {
-        operator: beneficiaryName,
-        chain,
-        token,
-      },
-      refs: {
-        url: retirement.deepLink,
-      },
-      claims: {
-        projectId,
-        amount,
-        beneficiaryName,
-        retirementReason,
-      },
-    };
-
     return NextResponse.json({
-      ok: true,
-      mode: "PROPOSE_ONLY",
-      requiresApproval: true,
+      success: true,
       ...retirement,
-      economics: computeIncentivesPacket({ action: "carbon_retire_initiate", token, chain, amountToken: String(amount) }),
-      proof,
+      economics: computeIncentivesPacket({
+        action: "carbon_retire_initiate",
+        token,
+        chain,
+        amountToken: String(amount),
+      }),
       instructions: [
         `1. Send ${amount} ${token} on ${chain} to: ${retirement.paymentAddress}`,
         "2. Save the transaction hash",

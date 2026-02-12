@@ -18,7 +18,9 @@ function requestId() {
   return globalThis.crypto?.randomUUID?.() ?? `req_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 
-export function withRequestId(handler: (req: Request) => Promise<Response>) {
+export function withRequestId(
+  handler: (req: Request) => Promise<Response>
+) {
   return async function wrapped(req: Request) {
     const rid = requestId();
     const res = await handler(req);

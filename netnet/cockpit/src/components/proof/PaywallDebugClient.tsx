@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Button } from "@/components/ui";
 
 type Initial = {
   bypassEnabled: boolean;
@@ -70,15 +69,13 @@ export default function PaywallDebugClient({ initial }: { initial: Initial }) {
           <div className="font-medium">Paywall Debug</div>
           <div className="text-xs opacity-70">Unit 3: x402 testability</div>
         </div>
-        <Button
+        <button
           onClick={probePaywall}
           disabled={loading}
-          variant="ghost"
-          size="sm"
-          className="text-xs"
+          className="rounded-lg border px-3 py-1.5 text-xs"
         >
           {loading ? "Probing…" : "Probe /api/proof-paid"}
-        </Button>
+        </button>
       </div>
 
       <div className="mt-3 grid grid-cols-1 gap-2">

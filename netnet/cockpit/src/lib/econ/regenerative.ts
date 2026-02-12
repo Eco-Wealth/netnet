@@ -185,14 +185,9 @@ export function generateActionDelta(input: {
   principlesApplied?: PrincipleId[];
 }): ActionDeltaV1 {
   const id = input.id || `act_${Math.random().toString(36).slice(2, 10)}`;
-  const fallbackPrinciples: PrincipleId[] = [
-    "measure_then_act",
-    "transparency",
-    "operator_accountability",
-  ];
   const principles: PrincipleId[] = input.principlesApplied?.length
     ? input.principlesApplied
-    : fallbackPrinciples;
+    : ["measure_then_act", "transparency", "operator_accountability"];
 
   // Default heuristic deltas if not provided (kept conservative).
   const provided = input.deltas || [];

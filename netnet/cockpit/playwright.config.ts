@@ -18,6 +18,12 @@ export default defineConfig({
     : {
         command: 'npm run dev',
         url: 'http://localhost:3000',
+        env: {
+          ...process.env,
+          X402_PAY_TO: process.env.X402_PAY_TO || '0x1111111111111111111111111111111111111111',
+          X402_DEV_BYPASS: process.env.X402_DEV_BYPASS || 'false',
+          X402_DEV_PAID_TOKEN: process.env.X402_DEV_PAID_TOKEN || 'netnet-local-paid-token',
+        },
         reuseExistingServer: !process.env.CI,
         timeout: 60_000,
       },

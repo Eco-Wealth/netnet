@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { withWork, appendWorkEvent } from "@/lib/work/client";
 import { useWorkSession } from "./useWorkSession";
-import { Button, HoverInfo } from "@/components/ui";
 
 type ApiResult = { ok: boolean; [k: string]: any };
 
@@ -16,6 +15,7 @@ export default function Workbench() {
   const { workId, setWorkId } = useWorkSession();
   const [out, setOut] = useState<any>(null);
   const [busy, setBusy] = useState(false);
+  const outputError = out?.result?.ok === false ? out.result.error : null;
 
   const actions = useMemo(
     () => [
@@ -35,14 +35,7 @@ export default function Workbench() {
       const { workId: created, result } = await withWork(
         { title: action.label, kind: action.kind, tags: ["workbench"] },
         async (wid) => {
-          if (wid) {
-            await appendWorkEvent(wid, {
-              type: "NOTE",
-              by: "agent",
-              note: "Calling endpoint",
-              patch: { url: action.url },
-            });
-          }
+          if (wid) await appendWorkEvent(wid, { type: "INFO", message: "Calling endpoint", data: { url: action.url } });
           return await getJson(action.url);
         }
       );
@@ -54,16 +47,16 @@ export default function Workbench() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl p-4 md:p-5">
+    <div className="mx-auto max-w-3xl p-6">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">Workbench</h1>
         <div className="text-sm opacity-80">
           Current work:{" "}
           <span className="font-mono">{workId || "none"}</span>
           {workId ? (
-            <Button className="ml-2" size="sm" variant="ghost" onClick={() => setWorkId(null)}>
+            <button className="ml-3 underline" onClick={() => setWorkId(null)}>
               clear
-            </Button>
+            </button>
           ) : null}
         </div>
       </div>
@@ -74,37 +67,30 @@ export default function Workbench() {
 
       <div className="mt-5 grid gap-2">
         {actions.map((a) => (
-          <Button
+          <button
             key={a.key}
             disabled={busy}
             onClick={() => run(a)}
-            variant="ghost"
-            className="justify-start rounded-xl px-3 py-3 text-left disabled:opacity-50"
-            insight={{
-              what: `Call ${a.url} and attach result to work history.`,
-              when: "Use for quick operator/agent checks.",
-              requires: "No onchain signing here. API/compute only.",
-              output: "Work event + endpoint payload.",
-            }}
+            className="rounded-xl border px-4 py-3 text-left hover:bg-black/5 disabled:opacity-50"
           >
-            <div className="w-full">
-              <div className="font-medium">{a.label}</div>
-              <div className="mt-1 font-mono text-xs opacity-70">{a.url}</div>
-            </div>
-          </Button>
+            <div className="font-medium">{a.label}</div>
+            <div className="mt-1 font-mono text-xs opacity-70">{a.url}</div>
+          </button>
         ))}
       </div>
 
       <div className="mt-6 rounded-xl border p-4">
-        <div className="text-sm font-medium">
-          <HoverInfo
-            label={<span>Output</span>}
-            what="Latest result from the selected action."
-            when="Use before wiring downstream integrations."
-            requires="None."
-            output="Raw JSON payload."
-          />
-        </div>
+        <div className="text-sm font-medium">Output</div>
+        {outputError ? (
+          <div className="mt-2 rounded-lg border border-amber-400/40 bg-amber-500/10 p-3 text-xs">
+            <div className="font-medium">Upstream degraded</div>
+            <div className="mt-1 opacity-80">
+              {outputError.message ?? "External upstream request failed."}
+              {" "}
+              Core cockpit flows remain available while this dependency recovers.
+            </div>
+          </div>
+        ) : null}
         <pre className="mt-2 max-h-[420px] overflow-auto rounded-lg bg-black/5 p-3 text-xs">
           {out ? JSON.stringify(out, null, 2) : busy ? "Running..." : "—"}
         </pre>

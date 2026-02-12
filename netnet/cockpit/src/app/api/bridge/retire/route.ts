@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { initiateRetirement, type RetirementRequest } from "@/lib/bridge";
 import { computeIncentivesPacket } from "@/lib/economics";
-import { enforcePolicy } from "@/lib/policy/enforce";
 
 /**
  * POST /api/bridge/retire
@@ -82,20 +81,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const gate = enforcePolicy("retire.execute", {
-      route: "/api/bridge/retire",
-      chain,
-      venue: "bridge-eco",
-      fromToken: token,
-      amountUsd: typeof amount === "number" ? amount : undefined,
-    });
-    if (!gate.ok) {
-      return NextResponse.json(
-        { ok: false, error: "Policy blocked", details: gate.reasons },
-        { status: 403 }
-      );
-    }
-
     const retirement = await initiateRetirement({
       projectId,
       amount,
@@ -106,31 +91,8 @@ export async function POST(req: NextRequest) {
       retirementReason,
       metadata,
     });
-
-    const proof = {
-      schema: "netnet.proof.v1",
-      kind: "bridge_retire_initiate",
-      ts: new Date().toISOString(),
-      subject: {
-        operator: beneficiaryName,
-        chain,
-        token,
-      },
-      refs: {
-        url: retirement.deepLink,
-      },
-      claims: {
-        projectId,
-        amount,
-        beneficiaryName,
-        retirementReason: retirementReason ?? null,
-      },
-    };
-
+    
     return NextResponse.json({
-      ok: true,
-      mode: "PROPOSE_ONLY",
-      requiresApproval: true,
       ...retirement,
       economics: computeIncentivesPacket({
         action: "bridge_retire_initiate",
@@ -138,7 +100,6 @@ export async function POST(req: NextRequest) {
         chain,
         amountToken: String(amount),
       }),
-      proof,
     });
 } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);

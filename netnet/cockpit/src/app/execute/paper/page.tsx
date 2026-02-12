@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Button, Input } from "@/components/ui";
 
 type ApiResp = any;
 
@@ -93,47 +92,46 @@ export default function PaperTradePage() {
 
           <label className="text-sm">
             <div className="mb-1 text-neutral-400">Amount (USD)</div>
-            <Input value={amountUsd} onChange={(e) => setAmountUsd(e.target.value)} inputMode="decimal" />
+            <input className="w-full rounded-lg border border-neutral-800 bg-black px-3 py-2" value={amountUsd} onChange={(e) => setAmountUsd(e.target.value)} inputMode="decimal" />
           </label>
 
           <label className="text-sm">
             <div className="mb-1 text-neutral-400">Token in</div>
-            <Input value={tokenIn} onChange={(e) => setTokenIn(e.target.value)} />
+            <input className="w-full rounded-lg border border-neutral-800 bg-black px-3 py-2" value={tokenIn} onChange={(e) => setTokenIn(e.target.value)} />
           </label>
 
           <label className="text-sm">
             <div className="mb-1 text-neutral-400">Token out</div>
-            <Input value={tokenOut} onChange={(e) => setTokenOut(e.target.value)} />
+            <input className="w-full rounded-lg border border-neutral-800 bg-black px-3 py-2" value={tokenOut} onChange={(e) => setTokenOut(e.target.value)} />
           </label>
         </div>
 
         <div className="mt-4 grid gap-3">
           <label className="text-sm">
             <div className="mb-1 text-neutral-400">Beneficiary name (required)</div>
-            <Input value={beneficiaryName} onChange={(e) => setBeneficiaryName(e.target.value)} placeholder="e.g., EcoWealth Corp" />
+            <input className="w-full rounded-lg border border-neutral-800 bg-black px-3 py-2" value={beneficiaryName} onChange={(e) => setBeneficiaryName(e.target.value)} placeholder="e.g., EcoWealth Corp" />
           </label>
           <label className="text-sm">
             <div className="mb-1 text-neutral-400">Reason (required)</div>
-            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why is this trade being considered?" />
+            <input className="w-full rounded-lg border border-neutral-800 bg-black px-3 py-2" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why is this trade being considered?" />
           </label>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button
+          <button
             onClick={onQuote}
             disabled={loading}
-            className="border-neutral-800"
+            className="rounded-xl border border-neutral-800 bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-60"
           >
             Simulate quote
-          </Button>
-          <Button
+          </button>
+          <button
             onClick={onPlan}
             disabled={loading || !beneficiaryName.trim() || !reason.trim()}
-            variant="ghost"
-            className="border-neutral-800 bg-black text-white"
+            className="rounded-xl border border-neutral-800 bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
           >
             Build execution plan (DRY_RUN)
-          </Button>
+          </button>
         </div>
 
         <div className="mt-4 rounded-xl border border-neutral-800 bg-black p-3 text-xs text-neutral-200">

@@ -9,8 +9,7 @@ What it does:
 - Calls `/api/health` for a quick service check.
 - Calls `/api/ecotoken/scan?chain=...&address=...` to generate verification links.
 - Calls `/api/agent/trade?action=info` and `/api/agent/carbon?action=info` to show safe-by-default capabilities.
-- Creates a proposed work item via `POST /api/work` (canonical route).
-- Compatibility aliases are available: `GET|POST /api/work/items`, `POST /api/work/:id/events`.
+- Attempts to create a proposed work item via `POST /api/work/items` (if present); errors are displayed without breaking the page.
 
 Notes:
 - This is a wiring unit: it does not add new execution authority.

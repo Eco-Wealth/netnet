@@ -30,3 +30,15 @@ export async function fetchJson<T>(
     clearTimeout(id);
   }
 }
+
+export async function httpJson(
+  url: string,
+  init: RequestInit & { timeoutMs?: number } = {}
+): Promise<
+  | { ok: true; status: number; data: unknown }
+  | { ok: false; status: number; error: unknown }
+> {
+  const res = await fetchJson<unknown>(url, init);
+  if (res.ok) return { ok: true, status: res.status, data: res.data };
+  return { ok: false, status: res.status, error: res.error };
+}

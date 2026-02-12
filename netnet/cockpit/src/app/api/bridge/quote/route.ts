@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { jsonErr, jsonOk } from "@/lib/api/errors";
 import { bridgePost, getBridgeConfig } from "@/lib/bridge/client";
-import { enforcePolicy } from "@/lib/policy/enforce";
+import { upstreamJsonErr } from "@/lib/api/upstream";
 
 const Body = z.object({
   projectId: z.string().min(1),
@@ -26,30 +26,23 @@ export async function POST(req: Request) {
     return jsonErr(400, "INVALID_BODY", "Invalid request body.", parsed.error.flatten());
   }
 
-  const gate = enforcePolicy("retire.quote", {
-    route: "/api/bridge/quote",
-    chain: parsed.data.chain,
-    venue: "bridge-eco",
-    fromToken: parsed.data.token,
-    amountUsd: parsed.data.amount,
-  });
-  if (!gate.ok) {
-    return jsonErr(403, "POLICY_BLOCKED", "Policy blocked.", { details: gate.reasons });
-  }
-
   const cfg = getBridgeConfig();
 
   const res = await bridgePost<any>("/v1/quote", parsed.data);
 
   if (!res.ok) {
-    return jsonErr(
-      res.status || 502,
-      "BRIDGE_UPSTREAM_ERROR",
-      "Bridge quote request failed.",
-      { upstreamStatus: res.status, upstreamError: (res as any).error }
-    );
+    return upstreamJsonErr("bridge.quote", res, "Bridge quote request failed.");
   }
 
   // Attach pay-to if known/configured at our layer (useful for UI).
-  return jsonOk({ data: res.data, payTo: process.env.X402_PAY_TO || null, bridgeBaseUrl: cfg.baseUrl }, { status: 200 });
+  return jsonOk(
+    {
+      data: res.data,
+      payTo: process.env.X402_PAY_TO || null,
+      bridgeBaseUrl: cfg.baseUrl,
+      source: "bridge.quote",
+      degraded: false,
+    },
+    { status: 200 }
+  );
 }

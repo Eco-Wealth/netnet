@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { jsonErr, jsonOk } from "@/lib/api/errors";
 import { bridgeGet } from "@/lib/bridge/client";
+import { upstreamJsonErr } from "@/lib/api/upstream";
 
 const Query = z.object({
   type: z.string().optional(),
@@ -25,13 +26,8 @@ export async function GET(req: Request) {
   const res = await bridgeGet<any>("/v1/projects", parsed.data, 60_000);
 
   if (!res.ok) {
-    return jsonErr(
-      res.status || 502,
-      "BRIDGE_UPSTREAM_ERROR",
-      "Bridge projects request failed.",
-      { upstreamStatus: res.status, upstreamError: (res as any).error }
-    );
+    return upstreamJsonErr("bridge.projects", res, "Bridge projects request failed.");
   }
 
-  return jsonOk({ data: res.data }, { status: 200 });
+  return jsonOk({ data: res.data, source: "bridge.projects", degraded: false }, { status: 200 });
 }

@@ -1,109 +1,112 @@
-"use client";
+// Unit 41 — Skill→Work integration (client helper)
+// This module only uses the Work API; it does not assume any specific storage backend.
+// Safe-by-default: all functions fail soft (return null/false) so actions never break UX.
 
-type Json = Record<string, any>;
+export type WorkKind =
+  | "CARBON_RETIRE"
+  | "TRADE_PLAN"
+  | "TOKEN_OPS"
+  | "PROOF"
+  | "OPS"
+  | "OTHER";
 
-async function jsonFetch<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    headers: {
-      "content-type": "application/json",
-      ...(init?.headers || {}),
-    },
-  });
-
-  const text = await res.text();
-  let body: any = null;
-  try {
-    body = text ? JSON.parse(text) : null;
-  } catch {
-    body = { raw: text };
-  }
-
-  if (!res.ok) {
-    const msg = body?.error || body?.message || `HTTP ${res.status}`;
-    throw new Error(msg);
-  }
-
-  return body as T;
-}
-
-export type WorkPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
-export type WorkStatus = "PROPOSED" | "READY" | "IN_PROGRESS" | "BLOCKED" | "DONE" | "CANCELED";
-
-export type CreateWorkInput = {
+export type WorkCreateInput = {
   title: string;
-  description?: string;
-  owner?: string;
-  priority?: WorkPriority;
-  status?: WorkStatus;
+  kind?: WorkKind;
   tags?: string[];
-  // free-form fields allowed; server should ignore unknown keys
-  [k: string]: any;
+  meta?: Record<string, unknown>;
 };
 
 export type WorkEventInput = {
-  type: string;          // e.g. "NOTE" | "ACTION" | "RESULT" | "ERROR"
-  by?: string;           // e.g. "agent" | "operator"
-  note?: string;         // human-readable
-  patch?: Json;          // machine payload (optional)
-  [k: string]: any;
+  type: "START" | "INFO" | "WARN" | "ERROR" | "SUCCESS";
+  message: string;
+  data?: Record<string, unknown>;
 };
 
-export async function createWork(input: CreateWorkInput) {
-  const out = await jsonFetch<{ ok: boolean; id?: string; item?: any }>(`/api/work`, {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
-  // normalize: prefer id field; fall back to item.id
-  const id = out.id || out.item?.id;
-  return { ...out, id };
+type RouteEventType =
+  | "CREATED"
+  | "UPDATED"
+  | "STATUS_CHANGED"
+  | "COMMENT"
+  | "APPROVAL_REQUESTED"
+  | "APPROVED"
+  | "REJECTED"
+  | "ESCALATED";
+
+function toRouteEventType(input: WorkEventInput["type"]): RouteEventType {
+  if (input === "WARN") return "ESCALATED";
+  if (input === "ERROR") return "REJECTED";
+  if (input === "SUCCESS") return "APPROVED";
+  return "COMMENT";
 }
 
-/**
- * Append an event to a work item.
- * Canonical endpoint: POST /api/work/[id]
- */
-export async function appendWorkEvent(workId: string, ev: WorkEventInput) {
-  const body = {
-    type: ev.type,
-    by: ev.by ?? "agent",
-    note: ev.note ?? "",
-    patch: ev.patch ?? null,
-  };
+async function jsonFetch<T>(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<T | null> {
+  try {
+    const res = await fetch(input, {
+      ...init,
+      headers: {
+        "content-type": "application/json",
+        ...(init?.headers || {}),
+      },
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
 
-  return jsonFetch<{ ok: boolean; item?: any }>(`/api/work/${encodeURIComponent(workId)}`, {
+export async function createWork(input: WorkCreateInput): Promise<string | null> {
+  const out = await jsonFetch<{ ok: boolean; item?: { id?: string } }>(`/api/work`, {
     method: "POST",
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      title: input.title,
+      tags: input.tags,
+      description: input.meta ? JSON.stringify(input.meta) : undefined,
+    }),
   });
+  return out?.ok && out.item?.id ? out.item.id : null;
+}
+
+export async function appendWorkEvent(
+  workId: string,
+  ev: WorkEventInput
+): Promise<boolean> {
+  const out = await jsonFetch<{ ok: boolean }>(`/api/work/${encodeURIComponent(workId)}`, {
+    method: "POST",
+    body: JSON.stringify({
+      type: toRouteEventType(ev.type),
+      note: ev.message,
+      patch: ev.data,
+    }),
+  });
+  return !!out?.ok;
 }
 
 export async function withWork<T>(
-  input: CreateWorkInput,
-  run: (workId?: string) => Promise<T>
+  create: WorkCreateInput,
+  run: (workId: string | null) => Promise<T>
 ): Promise<{ workId: string | null; result: T }> {
-  let workId: string | null = null;
-  try {
-    const created = await createWork(input);
-    workId = created.id ?? null;
-  } catch {
-    // Keep caller flow alive in read-only/propose-only mode if work API is unavailable.
-    workId = null;
-  }
-
-  const result = await run(workId ?? undefined);
-
+  const workId = await createWork(create);
   if (workId) {
-    try {
-      await appendWorkEvent(workId, {
-        type: "NOTE",
-        by: "agent",
-        note: "Action completed.",
-        patch: { ok: true },
-      });
-    } catch {
-      // Non-fatal for caller flow.
-    }
+    await appendWorkEvent(workId, { type: "START", message: "Action started" });
   }
-
-  return { workId, result };
+  try {
+    const result = await run(workId);
+    if (workId) {
+      await appendWorkEvent(workId, { type: "SUCCESS", message: "Action completed" });
+    }
+    return { workId, result };
+  } catch (e: any) {
+    if (workId) {
+      await appendWorkEvent(workId, {
+        type: "ERROR",
+        message: e?.message ? String(e.message) : "Action failed",
+      });
+    }
+    throw e;
+  }
 }

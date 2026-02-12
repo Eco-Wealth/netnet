@@ -1,4 +1,4 @@
-import { getIncentiveBpsConfig } from "@/lib/economics";
+import { readIncentivesConfig } from "@/lib/incentives";
 import { readLedgerSummarySafe } from "@/lib/revenue/ledgerCompat";
 
 export type RevenueInfo = {
@@ -46,13 +46,12 @@ export async function getRevenueInfo(): Promise<RevenueInfo> {
 
 export async function getRevenueReport(args: { days: number }): Promise<RevenueReport> {
   const windowDays = Math.max(1, Math.min(365, Math.floor(args.days || 7)));
-  const incentives = getIncentiveBpsConfig();
-  const fallback = {
+  const incentives = await readIncentivesConfig().catch(() => ({
     treasuryBps: 5000,
     operatorBps: 2000,
     inferenceBps: 2000,
     microRetireBps: 1000,
-  };
+  }));
 
   const ledger = await readLedgerSummarySafe({ days: windowDays });
 
@@ -72,10 +71,10 @@ export async function getRevenueReport(args: { days: number }): Promise<RevenueR
     windowDays,
     totals: { inferredUsdSpend, realizedFeesUsd, microRetireUsd, netUsd },
     incentives: {
-      treasuryBps: incentives?.treasuryBps ?? fallback.treasuryBps,
-      operatorBps: incentives?.operatorBps ?? fallback.operatorBps,
-      inferenceBps: incentives?.inferenceBps ?? fallback.inferenceBps,
-      microRetireBps: incentives?.microRetireBps ?? fallback.microRetireBps,
+      treasuryBps: incentives.treasuryBps,
+      operatorBps: incentives.operatorBps,
+      inferenceBps: incentives.inferenceBps,
+      microRetireBps: incentives.microRetireBps,
     },
     sources: { ledger: ledger.source },
     notes,

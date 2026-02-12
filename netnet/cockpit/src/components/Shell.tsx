@@ -2,169 +2,118 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import React, { useMemo } from "react";
-import { toInsightTitle } from "@/lib/insight";
-import { Insight } from "@/components/Insight";
+import { Card } from "@/components/ui";
+import Insight from "@/components/Insight";
+import type { InsightSpec } from "@/lib/insight";
 
-type NavItem = {
-  href: string;
-  label: string;
-  what: string;
-  when: string;
-  requires: string;
-  output: string;
+type ShellProps = {
+  title?: string;
+  subtitle?: string;
+  children: React.ReactNode;
 };
 
-const NAV: NavItem[] = [
+const NAV = [
   {
     href: "/proof",
     label: "Proof",
-    what: "Build verifiable proof objects for actions.",
-    when: "After planning or execution when you need machine-readable receipts.",
-    requires: "No fund movement. Operator attribution recommended. Low compute usage only.",
-    output: "proof object + shareable references.",
+    insight: {
+      what: "Build and inspect proof objects for operator and agent actions.",
+      when: "After scans, proposals, or execution outputs need a verifiable receipt.",
+      requires: "No funds movement; read/propose mode is sufficient.",
+      output: "Exportable proof JSON and share-ready proof text.",
+    } satisfies InsightSpec,
   },
   {
     href: "/retire",
     label: "Retire",
-    what: "Prepare carbon retirement intents and tracking details.",
-    when: "When offset plans are needed for actions or portfolios.",
-    requires: "Operator approval + policy caps. Potential spend only in external execution.",
-    output: "retirement proposal + proof links.",
+    insight: {
+      what: "Step through credit retirement flow in a safe operator-guided path.",
+      when: "When you need a retirement quote, tracking, and downstream proof.",
+      requires: "Policy approval for spend-adjacent execution paths.",
+      output: "Retirement intent, transaction tracking state, and proof handoff.",
+    } satisfies InsightSpec,
   },
   {
     href: "/execute",
     label: "Execute",
-    what: "Draft and queue operator/agent actions.",
-    when: "When translating policy-approved intent into stepwise plans.",
-    requires: "Autonomy level and policy gates. Compute and possible downstream gas if approved.",
-    output: "proposal packet, work item, and status events.",
-  },
-  {
-    href: "/operator",
-    label: "Operator",
-    what: "Run the operator AI console scaffold with local message threading.",
-    when: "When coordinating plans and intent before model/execution integrations.",
-    requires: "READ_ONLY mode in Unit 016. No external APIs or execution paths.",
-    output: "In-memory thread with operator and assistant scaffold messages.",
-  },
-  {
-    href: "/work",
-    label: "Work",
-    what: "Track tasks, ownership, and event trails.",
-    when: "Any time work crosses human/agent boundaries.",
-    requires: "Named owner and acceptance criteria preferred. No spend by default.",
-    output: "auditable work timeline.",
+    insight: {
+      what: "Draft constrained operator tasks for agents and workflows.",
+      when: "When moving from idea to reviewed, policy-aware action plans.",
+      requires: "Explicit caps and approvals for any spend-adjacent action.",
+      output: "Queued or proposed execution payloads and audit context.",
+    } satisfies InsightSpec,
   },
   {
     href: "/identity",
     label: "Identity",
-    what: "Define actor identity and operator intent.",
-    when: "Before issuing actions and proofs.",
-    requires: "Accurate beneficiary/operator metadata.",
-    output: "attribution context for proofs and work.",
+    insight: {
+      what: "Manage agent/operator identity metadata used in proofs.",
+      when: "Before creating proofs or coordinating actions across systems.",
+      requires: "Local browser state only; no external execution permissions.",
+      output: "Stable identity fields included in generated proof objects.",
+    } satisfies InsightSpec,
   },
   {
     href: "/governance",
     label: "Governance",
-    what: "Set autonomy levels, limits, and kill switches.",
-    when: "Before enabling any spend-adjacent behavior.",
-    requires: "Operator decision + review. No spend by default.",
-    output: "enforced policy envelope.",
+    insight: {
+      what: "Set autonomy level, caps, allowlists, and kill switches.",
+      when: "Before enabling proposals or any execution behavior.",
+      requires: "Operator authority to change global policy.",
+      output: "Persisted policy envelope used by spend-adjacent routes.",
+    } satisfies InsightSpec,
+  },
+  {
+    href: "/operator",
+    label: "Operator",
+    insight: {
+      what: "Chat-first operator seat for proposals, approvals, planning, and controlled execution.",
+      when: "Use as the main command center for coordinating skills and strategy templates.",
+      requires: "Policy gates and explicit operator approvals for spend-adjacent actions.",
+      output: "Auditable message envelopes, proposal state, plan previews, and execution results.",
+    } satisfies InsightSpec,
   },
 ];
 
-function cn(...parts: Array<string | false | null | undefined>) {
-  return parts.filter(Boolean).join(" ");
-}
-
-function isActivePath(pathname: string, href: string) {
-  if (href === "/") return pathname === "/";
-  if (href === "/proof") return pathname === "/" || pathname.startsWith("/proof");
-  return pathname === href || pathname.startsWith(href + "/");
-}
-
-/**
- * Shell: global wrapper + top nav.
- * - Compact density (tight but readable)
- * - Hover/tap “insight” per tab (purpose + hint)
- */
-export default function Shell({
-  title = "netnet cockpit",
-  subtitle,
-  children,
-}: {
-  title?: string;
-  subtitle?: string;
-  children: React.ReactNode;
-}) {
-  const pathname = usePathname() || "/";
-  const active = useMemo(() => NAV.find((n) => isActivePath(pathname, n.href)), [pathname]);
+export default function Shell({ title, subtitle, children }: ShellProps) {
+  const pathname = usePathname();
+  const inferredTitle =
+    title ||
+    NAV.find((n) => pathname?.startsWith(n.href))?.label ||
+    "Cockpit";
 
   return (
-    <div className="min-h-screen bg-[var(--bg)] text-[var(--fg)]">
-      {/* Top bar */}
-      <div className="sticky top-0 z-40 border-b border-[color:var(--border)] bg-[var(--bg)]/90 backdrop-blur">
-        <div className="mx-auto w-full max-w-5xl px-3 py-2">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="truncate text-sm font-semibold tracking-tight">{title}</div>
-              <div className="truncate text-xs text-[color:var(--muted)]">
-                {subtitle ?? (active ? `${active.what} Output: ${active.output}` : "Operator-first. Safe-by-default.")}
-              </div>
-            </div>
-            {active ? (
-              <span className="nn-chip hidden sm:inline-flex">
-                {active.label}
-              </span>
-            ) : null}
+    <div className="min-h-screen bg-white text-black">
+      <div className="mx-auto max-w-5xl px-4 py-6">
+        <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <div className="text-2xl font-semibold">{inferredTitle}</div>
+            {subtitle ? <div className="mt-1 text-sm opacity-75">{subtitle}</div> : null}
           </div>
-          <div className="mt-2">
-            <NavBar pathname={pathname} />
-          </div>
-        </div>
+          <nav className="flex flex-wrap gap-2">
+            {NAV.map((item) => {
+              const active = pathname?.startsWith(item.href);
+              return (
+                <Insight key={item.href} insight={item.insight}>
+                  <Link
+                    href={item.href}
+                    className={[
+                      "rounded-full border px-3 py-1 text-sm transition",
+                      active ? "border-black" : "opacity-75 hover:opacity-100",
+                    ].join(" ")}
+                  >
+                    {item.label}
+                  </Link>
+                </Insight>
+              );
+            })}
+          </nav>
+        </header>
+
+        <main className="mt-6">
+          <Card>{children}</Card>
+        </main>
       </div>
-
-      {/* Content */}
-      <main className="mx-auto w-full max-w-5xl px-3 py-4">{children}</main>
     </div>
-  );
-}
-
-function NavBar({ pathname }: { pathname: string }) {
-  return (
-    <nav className="flex items-center gap-1 overflow-x-auto pb-0.5 [scrollbar-width:none]">
-      {NAV.map((item) => {
-        const active = isActivePath(pathname, item.href);
-
-        return (
-          <Insight
-            key={item.href}
-            insight={{
-              what: item.what,
-              when: item.when,
-              requires: item.requires,
-              output: item.output,
-            }}
-          >
-            <div className="relative flex items-center">
-              <Link
-                href={item.href}
-                className={cn(
-                  "group relative inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium",
-                  "border border-[color:var(--border)] bg-[hsl(var(--panel))]",
-                  "hover:bg-[hsl(var(--panel2))]",
-                  active && "bg-[hsl(var(--panel2))] ring-1 ring-[color:var(--ring)]"
-                )}
-                aria-current={active ? "page" : undefined}
-                title={toInsightTitle(item)}
-              >
-                <span className="leading-none">{item.label}</span>
-              </Link>
-            </div>
-          </Insight>
-        );
-      })}
-    </nav>
   );
 }
