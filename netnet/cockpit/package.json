@@ -5,7 +5,10 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "build:prod": "NODE_ENV=production next build",
+    "start": "NODE_ENV=production next start",
+    "start:prod": "NODE_ENV=production next start -p 3000",
+    "typecheck": "tsc --noEmit",
     "lint": "next lint",
     "test": "playwright test",
     "audit:check": "node ./scripts/audit-check.mjs"

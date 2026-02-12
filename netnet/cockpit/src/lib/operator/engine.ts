@@ -131,7 +131,12 @@ function extractContentFromResponse(json: unknown): string {
 class OpenRouterEngine implements OperatorEngine {
   async generate(messages: MessageEnvelope[]): Promise<MessageEnvelope> {
     const apiKey = process.env.OPENROUTER_API_KEY?.trim();
-    if (!apiKey) return fallbackReply(messages, "no_api_key");
+    if (!apiKey) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error("OPENROUTER_API_KEY missing in production");
+      }
+      return fallbackReply(messages, "no_api_key");
+    }
 
     const model = process.env.OPENROUTER_MODEL?.trim() || "openai/gpt-4o-mini";
     const promptMessages = await buildPromptMessages(messages);

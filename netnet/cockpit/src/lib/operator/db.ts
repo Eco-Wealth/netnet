@@ -6,7 +6,40 @@ import Database from "better-sqlite3";
 import type { MessageEnvelope } from "@/lib/operator/model";
 import type { SkillProposalEnvelope } from "@/lib/operator/proposal";
 
-const OPERATOR_DB_PATH = path.join(process.cwd(), "data", "operator.db");
+const PROJECT_PACKAGE_NAME = "netnet-cockpit";
+
+function isCockpitRoot(candidate: string): boolean {
+  const pkgPath = path.join(candidate, "package.json");
+  if (!fs.existsSync(pkgPath)) return false;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as {
+      name?: unknown;
+    };
+    return parsed.name === PROJECT_PACKAGE_NAME;
+  } catch {
+    return false;
+  }
+}
+
+function findRootFrom(start: string): string | null {
+  let current = path.resolve(start);
+  while (true) {
+    if (isCockpitRoot(current)) return current;
+    const parent = path.dirname(current);
+    if (parent === current) return null;
+    current = parent;
+  }
+}
+
+function resolveCockpitRoot(): string {
+  const fromCwd = findRootFrom(process.cwd());
+  if (fromCwd) return fromCwd;
+  const fromModuleDir = findRootFrom(__dirname);
+  if (fromModuleDir) return fromModuleDir;
+  return process.cwd();
+}
+
+const OPERATOR_DB_PATH = path.join(resolveCockpitRoot(), "data", "operator.db");
 
 type MessageRow = {
   id: string;
