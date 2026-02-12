@@ -49,7 +49,11 @@ check(function shared_types_are_declared() {
 check(function enforce_uses_decide_model() {
   mustContain(enforceSrc, /import\s+\{\s*decide,\s*programForAction\s*\}\s+from\s+"\.\/decide"/, "enforce imports decide/programForAction");
   mustContain(enforceSrc, /import\s+\{\s*loadPolicyConfig\s*\}\s+from\s+"\.\/config"/, "enforce imports loadPolicyConfig");
-  mustContain(enforceSrc, /const\s+programId\s*=\s*programForAction\(action\)/, "enforce maps action -> program");
+  mustContain(
+    enforceSrc,
+    /const\s+programId\s*=\s*programForAction\((action|effectiveAction)\)/,
+    "enforce maps action -> program"
+  );
   mustContain(enforceSrc, /const\s+decision\s*=\s*decide\(/, "enforce delegates to decide");
 });
 
@@ -57,6 +61,12 @@ check(function decide_covers_autonomy_levels() {
   mustContain(decideSrc, /program\.autonomy\s*===\s*"READ_ONLY"\)\s*mode\s*=\s*"BLOCK"/, "READ_ONLY => BLOCK");
   mustContain(decideSrc, /program\.autonomy\s*===\s*"PROPOSE_ONLY"\)\s*mode\s*=\s*"REQUIRE_APPROVAL"/, "PROPOSE_ONLY => REQUIRE_APPROVAL");
   mustContain(decideSrc, /program\.autonomy\s*===\s*"EXECUTE_WITH_LIMITS"\)\s*mode\s*=\s*"REQUIRE_APPROVAL"/, "EXECUTE_WITH_LIMITS => REQUIRE_APPROVAL");
+});
+
+check(function bankr_namespace_is_mapped() {
+  mustContain(decideSrc, /if\s*\(action\.startsWith\("bankr\."\)\)\s*return\s*"TOKEN_OPS"/, "programForAction maps bankr.* to TOKEN_OPS");
+  mustContain(typesSrc, /"bankr\.plan"/, "PolicyAction includes bankr.plan");
+  mustContain(typesSrc, /"bankr\.token\.actions\.plan"/, "PolicyAction includes bankr.token.actions.plan");
 });
 
 const failed = checks.filter((c) => !c.ok);

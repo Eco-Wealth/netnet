@@ -24,6 +24,9 @@ function resolveRegistryPath(): string | null {
 }
 
 function parseRegistryMarkdown(markdown: string): SkillInfo[] {
+  const cleanCell = (value: string) =>
+    value.replace(/^`(.+)`$/, "$1").replace(/^"+|"+$/g, "").trim();
+
   const rows = markdown
     .split("\n")
     .map((line) => line.trim())
@@ -41,11 +44,23 @@ function parseRegistryMarkdown(markdown: string): SkillInfo[] {
     if (parts.length !== 4) continue;
     if (parts[0].toLowerCase() === "id") continue;
 
-    const [id, route, description, ownership] = parts;
+    const [idRaw, routeRaw, descriptionRaw, ownershipRaw] = parts;
+    const id = cleanCell(idRaw);
+    const route = cleanCell(routeRaw);
+    const description = cleanCell(descriptionRaw);
+    const ownership = cleanCell(ownershipRaw);
+
+    if (!id || !route.startsWith("/")) continue;
+    if (id.toLowerCase() === "skill file") continue;
+
     skills.push({ id, route, description, ownership });
   }
 
-  return skills;
+  const deduped = new Map<string, SkillInfo>();
+  for (const skill of skills) {
+    deduped.set(`${skill.id}:${skill.route}`, skill);
+  }
+  return [...deduped.values()];
 }
 
 export function getSkills(): SkillInfo[] {

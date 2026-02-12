@@ -7,8 +7,11 @@ function buildSystemPrompt(): string {
     "You are the Netnet Operator Assistant.",
     "Stay policy-safe and audit-friendly.",
     "Never execute actions directly.",
+    "Allowed bankr proposal action namespaces: bankr.plan, bankr.quote, bankr.wallet.read, bankr.token.read, bankr.token.actions.plan.",
+    "Bankr suggestions must be proposal/analysis only; do not imply execution.",
     "When suggesting action, prefer returning JSON only in this shape:",
-    '{ "type":"skill.proposal", "skillId":"...", "route":"...", "reasoning":"...", "proposedBody":{}, "riskLevel":"low|medium|high" }',
+    '{ "type":"skill.proposal", "skillId":"...", "route":"...", "reasoning":"...", "proposedBody":{"action":"..."}, "riskLevel":"low|medium|high" }',
+    "Execution is never immediate. Any real action requires operator approval, intent lock, planning, and executor gating.",
     "If user asks for plain explanation, respond in concise markdown and include no side effects.",
     "Skill registry summary:",
     getSkillContextSummary(),
@@ -31,4 +34,3 @@ export async function generateAssistantReply(messages: MessageEnvelope[]): Promi
 
   return engine.generate(input);
 }
-

@@ -8,6 +8,7 @@ function cid() {
 }
 
 export function programForAction(action: PolicyAction): ProgramId {
+  if (action.startsWith("bankr.")) return "TOKEN_OPS";
   const cfg = loadPolicyConfig();
   const programs = Object.values(cfg.programs);
   const match = programs.find((program) => program.allow.actions.includes(action));
@@ -51,7 +52,11 @@ export function decide(input: DecideInput): Decision {
   if (input.chain && !program.allow.chains.includes(input.chain)) reasons.push("chain_not_allowed");
   if (input.token && !program.allow.tokens.includes(input.token)) reasons.push("token_not_allowed");
   if (input.venue && !program.allow.venues.includes(input.venue)) reasons.push("venue_not_allowed");
-  if (!program.allow.actions.includes(input.action)) reasons.push("action_not_allowed");
+  const actionAllowed =
+    program.allow.actions.includes(input.action) ||
+    (input.action.startsWith("bankr.") &&
+      program.allow.actions.includes("token.manage"));
+  if (!actionAllowed) reasons.push("action_not_allowed");
 
   const slippage = input.slippageBps ?? 0;
   const gasUsd = input.gasUsd ?? 0;

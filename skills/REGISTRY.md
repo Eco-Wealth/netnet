@@ -28,8 +28,14 @@ Exact API request/response contracts are canonical in:
 | `netnet-cockpit-bankr-wallet.md` | ACTIVE | `/api/bankr/wallet` |
 | `netnet-cockpit-bankr-token.md` | ACTIVE | `/api/bankr/token/info`, `/api/bankr/token/actions` |
 | `netnet-cockpit-bankr-launch.md` | ACTIVE | `/api/bankr/launch` |
+| `netnet-cockpit-bankr-agent.md` | ACTIVE | `/api/bankr/launch`, `/api/bankr/token/actions`, `/api/bankr/token/info`, `/api/bankr/wallet` |
 | `netnet-cockpit-programs.md` | ACTIVE | `/api/programs` |
 | `netnet-cockpit-security.md` | ACTIVE | `/api/security/audit` |
+
+## Operator Skill Context
+| id | route | description | ownership |
+|---|---|---|---|
+| bankr.agent | /api/bankr/* | Bankr agent planning + proposal generation for DCA/LP/rebalance/market-making workflows. | platform |
 
 ## Maintenance rules
 1. Any new API route in `netnet/cockpit/src/app/api/**` must be mapped here in the same change.
