@@ -1,11 +1,20 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import ConversationPanel from "@/components/operator/ConversationPanel";
+import InspectorPanel, {
+  type OperatorInspectorSelection,
+} from "@/components/operator/InspectorPanel";
 import OperatorTopBar from "@/components/operator/OperatorTopBar";
 import OpsBoard from "@/components/operator/OpsBoard";
 import ThreadSidebar, { type ThreadItem } from "@/components/operator/ThreadSidebar";
 import styles from "@/components/operator/OperatorSeat.module.css";
+import { Button } from "@/components/ui";
+import {
+  loadOperatorLayout,
+  saveOperatorLayout,
+  type OperatorLayoutMode,
+} from "@/lib/operator/layout";
 import type { SkillInfo } from "@/lib/operator/skillContext";
 import type { Strategy } from "@/lib/operator/strategy";
 import type { OperatorStrategyTemplate } from "@/lib/operator/strategies";
@@ -46,6 +55,8 @@ type DraftThread = {
   id: string;
   createdAt: number;
 };
+
+type MobilePanelKey = "ops" | "threads" | "inspector";
 
 function dayKey(timestamp: number): string {
   return new Date(timestamp).toISOString().slice(0, 10);
@@ -138,10 +149,30 @@ export default function OperatorConsoleClient({
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [threadAssignments, setThreadAssignments] = useState<Record<string, string>>({});
   const [draftThreads, setDraftThreads] = useState<DraftThread[]>([]);
+  const [layoutMode, setLayoutMode] = useState<OperatorLayoutMode>(() => loadOperatorLayout());
+  const [selected, setSelected] = useState<OperatorInspectorSelection>({ kind: "none" });
+  const [compactLayout, setCompactLayout] = useState(false);
+  const [mobilePanels, setMobilePanels] = useState<Record<MobilePanelKey, boolean>>({
+    ops: true,
+    threads: false,
+    inspector: false,
+  });
   const [pending, startTransition] = useTransition();
   const seenMessageIdsRef = useRef<Set<string>>(
     new Set(initialMessages.map((message) => message.id))
   );
+
+  useEffect(() => {
+    saveOperatorLayout(layoutMode);
+  }, [layoutMode]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 1023px)");
+    const sync = () => setCompactLayout(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
 
   const persistedThreads = useMemo(
     () => buildPersistedThreads(messages, threadAssignments),
@@ -179,6 +210,8 @@ export default function OperatorConsoleClient({
       )
       .sort((a, b) => a.createdAt - b.createdAt);
   }, [activeThreadId, messages, threadAssignments]);
+
+  const isFourPane = !compactLayout && layoutMode === "fourPane";
 
   const applyState = useCallback((next: OperatorStateResponse, targetThreadId: string | null) => {
     const seen = seenMessageIdsRef.current;
@@ -402,18 +435,38 @@ export default function OperatorConsoleClient({
     [activeThreadId, runActionNow]
   );
 
+  const handleSelectMessage = useCallback((messageId: string) => {
+    setSelected({ kind: "message", id: messageId });
+  }, []);
+
+  const handleSelectProposal = useCallback((proposalId: string) => {
+    setSelected({ kind: "proposal", id: proposalId });
+  }, []);
+
+  const handleSelectExecution = useCallback((proposalId: string) => {
+    setSelected({ kind: "execution", id: proposalId });
+  }, []);
+
+  const handleSelectStrategy = useCallback((strategyId: string) => {
+    setSelected({ kind: "strategy", id: strategyId });
+  }, []);
+
+  const toggleMobilePanel = useCallback((panel: MobilePanelKey) => {
+    setMobilePanels((prev) => ({ ...prev, [panel]: !prev[panel] }));
+  }, []);
+
   return (
     <div className={[styles["nn-root"], styles.seat].join(" ")}>
-      <div className={styles["nn-main"]}>
-        <aside className={[styles.left, styles.panel, styles["nn-sidebar"]].join(" ")}>
-          <ThreadSidebar
-            threads={threads}
-            activeThreadId={activeThreadId}
-            onSelectThread={onSelectThread}
-            onCreateThread={onCreateThread}
-          />
-        </aside>
-
+      <div
+        className={[
+          styles["nn-main"],
+          compactLayout
+            ? styles["nn-mainMobile"]
+            : isFourPane
+            ? styles["nn-mainFourPane"]
+            : styles["nn-mainTwoPane"],
+        ].join(" ")}
+      >
         <section className={[styles["nn-center"], styles.panel, styles["nn-centerColumn"]].join(" ")}>
           <OperatorTopBar
             policyMode={policyMode}
@@ -421,6 +474,8 @@ export default function OperatorConsoleClient({
             engineType={engineType}
             engineModel={engineModel}
             policyHealthy={policyHealthy}
+            layoutMode={layoutMode}
+            onLayoutModeChange={setLayoutMode}
           />
           <ConversationPanel
             messages={filteredMessages}
@@ -439,29 +494,133 @@ export default function OperatorConsoleClient({
             onGeneratePlan={handleGeneratePlan}
             onExecute={handleExecute}
             onDraftStrategy={handleDraftStrategy}
+            onSelectProposal={handleSelectProposal}
+            onSelectMessage={handleSelectMessage}
+            selected={selected}
             loadingAction={loadingAction}
           />
         </section>
 
-        <aside className={[styles.right, styles.panel, styles["nn-opsColumn"]].join(" ")}>
-          <OpsBoard
-            proposals={proposals}
-            messages={messages}
-            strategies={strategyMemory}
-            pnl={pnl}
-            policyMode={policyMode}
-            onCreateDraftProposal={handleCreateTemplateProposal}
-            onCreateBankrDraft={handleCreateBankrDraft}
-            onProposeBankrDraft={handleProposeBankrDraft}
-            onPinStrategy={handlePinStrategy}
-            onUnpinStrategy={handleUnpinStrategy}
-            onUpdateRunbook={handleUpdateRunbook}
-            onFocusProposal={focusProposal}
-            onFocusMessage={focusMessage}
-            loadingAction={loadingAction}
-          />
-        </aside>
+        {!compactLayout && isFourPane ? (
+          <aside className={[styles.left, styles.panel, styles["nn-sidebar"]].join(" ")}>
+            <ThreadSidebar
+              threads={threads}
+              activeThreadId={activeThreadId}
+              onSelectThread={onSelectThread}
+              onCreateThread={onCreateThread}
+            />
+          </aside>
+        ) : null}
+
+        {!compactLayout ? (
+          <aside className={[styles.right, styles.panel, styles["nn-opsColumn"]].join(" ")}>
+            <OpsBoard
+              proposals={proposals}
+              messages={messages}
+              strategies={strategyMemory}
+              pnl={pnl}
+              policyMode={policyMode}
+              onCreateDraftProposal={handleCreateTemplateProposal}
+              onCreateBankrDraft={handleCreateBankrDraft}
+              onProposeBankrDraft={handleProposeBankrDraft}
+              onPinStrategy={handlePinStrategy}
+              onUnpinStrategy={handleUnpinStrategy}
+              onUpdateRunbook={handleUpdateRunbook}
+              onFocusProposal={focusProposal}
+              onFocusMessage={focusMessage}
+              onSelectProposal={handleSelectProposal}
+              onSelectExecution={handleSelectExecution}
+              onSelectStrategy={handleSelectStrategy}
+              onSelectMessage={handleSelectMessage}
+              selected={selected}
+              loadingAction={loadingAction}
+            />
+          </aside>
+        ) : null}
+
+        {!compactLayout && isFourPane ? (
+          <aside className={[styles.inspector, styles.panel].join(" ")}>
+            <InspectorPanel
+              selected={selected}
+              data={{ messages, proposals, strategies: strategyMemory }}
+            />
+          </aside>
+        ) : null}
       </div>
+
+      {compactLayout ? (
+        <div className={styles["nn-mobileDrawerStack"]}>
+          <div className={styles["nn-mobileToggles"]}>
+            <Button
+              size="sm"
+              variant={mobilePanels.ops ? "solid" : "subtle"}
+              onClick={() => toggleMobilePanel("ops")}
+            >
+              Ops
+            </Button>
+            <Button
+              size="sm"
+              variant={mobilePanels.threads ? "solid" : "subtle"}
+              onClick={() => toggleMobilePanel("threads")}
+            >
+              Threads
+            </Button>
+            <Button
+              size="sm"
+              variant={mobilePanels.inspector ? "solid" : "subtle"}
+              onClick={() => toggleMobilePanel("inspector")}
+            >
+              Inspector
+            </Button>
+          </div>
+
+          {mobilePanels.ops ? (
+            <aside className={[styles.panel, styles["nn-mobileSection"]].join(" ")}>
+              <OpsBoard
+                proposals={proposals}
+                messages={messages}
+                strategies={strategyMemory}
+                pnl={pnl}
+                policyMode={policyMode}
+                onCreateDraftProposal={handleCreateTemplateProposal}
+                onCreateBankrDraft={handleCreateBankrDraft}
+                onProposeBankrDraft={handleProposeBankrDraft}
+                onPinStrategy={handlePinStrategy}
+                onUnpinStrategy={handleUnpinStrategy}
+                onUpdateRunbook={handleUpdateRunbook}
+                onFocusProposal={focusProposal}
+                onFocusMessage={focusMessage}
+                onSelectProposal={handleSelectProposal}
+                onSelectExecution={handleSelectExecution}
+                onSelectStrategy={handleSelectStrategy}
+                onSelectMessage={handleSelectMessage}
+                selected={selected}
+                loadingAction={loadingAction}
+              />
+            </aside>
+          ) : null}
+
+          {mobilePanels.threads ? (
+            <aside className={[styles.panel, styles["nn-sidebar"], styles["nn-mobileSection"]].join(" ")}>
+              <ThreadSidebar
+                threads={threads}
+                activeThreadId={activeThreadId}
+                onSelectThread={onSelectThread}
+                onCreateThread={onCreateThread}
+              />
+            </aside>
+          ) : null}
+
+          {mobilePanels.inspector ? (
+            <aside className={[styles.panel, styles["nn-mobileSection"]].join(" ")}>
+              <InspectorPanel
+                selected={selected}
+                data={{ messages, proposals, strategies: strategyMemory }}
+              />
+            </aside>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

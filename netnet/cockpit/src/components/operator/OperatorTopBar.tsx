@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui";
 import Tooltip from "@/components/operator/Tooltip";
 import styles from "@/components/operator/OperatorSeat.module.css";
+import type { OperatorLayoutMode } from "@/lib/operator/layout";
 
 type Mode = "READ" | "PROPOSE" | "EXECUTE";
 
@@ -12,6 +13,8 @@ type OperatorTopBarProps = {
   engineType: "openrouter" | "local";
   engineModel: string;
   policyHealthy: boolean;
+  layoutMode: OperatorLayoutMode;
+  onLayoutModeChange: (mode: OperatorLayoutMode) => void;
 };
 
 function toMode(policyMode: string): Mode {
@@ -32,6 +35,8 @@ export default function OperatorTopBar({
   engineType,
   engineModel,
   policyHealthy,
+  layoutMode,
+  onLayoutModeChange,
 }: OperatorTopBarProps) {
   const active = toMode(policyMode);
   const modeHelp: Record<Mode, string> = {
@@ -69,6 +74,33 @@ export default function OperatorTopBar({
             </span>
           </Tooltip>
         ))}
+      </div>
+
+      <div className={styles["nn-layoutModes"]}>
+        <Tooltip text="Chat + Ops (default)">
+          <button
+            type="button"
+            className={[
+              styles["nn-layoutChip"],
+              layoutMode === "twoPane" ? styles["nn-layoutChipActive"] : "",
+            ].join(" ")}
+            onClick={() => onLayoutModeChange("twoPane")}
+          >
+            2-Pane
+          </button>
+        </Tooltip>
+        <Tooltip text="Threads + Chat + Ops + Inspector">
+          <button
+            type="button"
+            className={[
+              styles["nn-layoutChip"],
+              layoutMode === "fourPane" ? styles["nn-layoutChipActive"] : "",
+            ].join(" ")}
+            onClick={() => onLayoutModeChange("fourPane")}
+          >
+            4-Pane
+          </button>
+        </Tooltip>
       </div>
 
       <div className={styles["nn-chipRow"]}>

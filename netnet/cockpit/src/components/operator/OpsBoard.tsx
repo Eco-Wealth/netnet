@@ -33,6 +33,16 @@ type OpsBoardProps = {
   onUpdateRunbook: (strategyId: string, markdown: string) => Promise<void>;
   onFocusProposal: (proposalId: string) => void;
   onFocusMessage: (messageId: string) => void;
+  onSelectProposal: (proposalId: string) => void;
+  onSelectExecution: (proposalId: string) => void;
+  onSelectStrategy: (strategyId: string) => void;
+  onSelectMessage: (messageId: string) => void;
+  selected:
+    | { kind: "proposal"; id?: string }
+    | { kind: "execution"; id?: string }
+    | { kind: "strategy"; id?: string }
+    | { kind: "message"; id?: string }
+    | { kind: "none"; id?: string };
   loadingAction: string | null;
 };
 
@@ -172,6 +182,11 @@ export default function OpsBoard({
   onUpdateRunbook,
   onFocusProposal,
   onFocusMessage,
+  onSelectProposal,
+  onSelectExecution,
+  onSelectStrategy,
+  onSelectMessage,
+  selected,
   loadingAction,
 }: OpsBoardProps) {
   const [open, setOpen] = useState<Record<SectionKey, boolean>>(DEFAULT_OPEN);
@@ -410,7 +425,10 @@ export default function OpsBoard({
               <button
                 type="button"
                 className={styles["nn-jumpItem"]}
-                onClick={() => onFocusMessage(lastAudit.id)}
+                onClick={() => {
+                  onSelectMessage(lastAudit.id);
+                  onFocusMessage(lastAudit.id);
+                }}
               >
                 Latest audit: {lastAudit.content.slice(0, 120)}
               </button>
@@ -431,8 +449,17 @@ export default function OpsBoard({
               <button
                 key={proposal.id}
                 type="button"
-                className={[styles["nn-listItem"], styles["nn-listItemButton"]].join(" ")}
-                onClick={() => onFocusProposal(proposal.id)}
+                className={[
+                  styles["nn-listItem"],
+                  styles["nn-listItemButton"],
+                  selected.kind === "proposal" && selected.id === proposal.id
+                    ? styles["nn-selectedFrame"]
+                    : "",
+                ].join(" ")}
+                onClick={() => {
+                  onSelectProposal(proposal.id);
+                  onFocusProposal(proposal.id);
+                }}
               >
                 <div className={styles["nn-listHead"]}>
                   <div>
@@ -465,8 +492,17 @@ export default function OpsBoard({
               <button
                 key={proposal.id}
                 type="button"
-                className={[styles["nn-listItem"], styles["nn-listItemButton"]].join(" ")}
-                onClick={() => onFocusProposal(proposal.id)}
+                className={[
+                  styles["nn-listItem"],
+                  styles["nn-listItemButton"],
+                  selected.kind === "proposal" && selected.id === proposal.id
+                    ? styles["nn-selectedFrame"]
+                    : "",
+                ].join(" ")}
+                onClick={() => {
+                  onSelectProposal(proposal.id);
+                  onFocusProposal(proposal.id);
+                }}
               >
                 <div className={styles["nn-listHead"]}>
                   <div>
@@ -504,8 +540,17 @@ export default function OpsBoard({
                 <button
                   key={proposal.id}
                   type="button"
-                  className={[styles["nn-listItem"], styles["nn-listItemButton"]].join(" ")}
-                  onClick={() => onFocusProposal(proposal.id)}
+                  className={[
+                    styles["nn-listItem"],
+                    styles["nn-listItemButton"],
+                    selected.kind === "execution" && selected.id === proposal.id
+                      ? styles["nn-selectedFrame"]
+                      : "",
+                  ].join(" ")}
+                  onClick={() => {
+                    onSelectExecution(proposal.id);
+                    onFocusProposal(proposal.id);
+                  }}
                 >
                   <div>{proposal.skillId}</div>
                   <div className={styles["nn-muted"]}>{proposal.route}</div>
@@ -521,8 +566,17 @@ export default function OpsBoard({
                 <button
                   key={proposal.id}
                   type="button"
-                  className={[styles["nn-listItem"], styles["nn-listItemButton"]].join(" ")}
-                  onClick={() => onFocusProposal(proposal.id)}
+                  className={[
+                    styles["nn-listItem"],
+                    styles["nn-listItemButton"],
+                    selected.kind === "execution" && selected.id === proposal.id
+                      ? styles["nn-selectedFrame"]
+                      : "",
+                  ].join(" ")}
+                  onClick={() => {
+                    onSelectExecution(proposal.id);
+                    onFocusProposal(proposal.id);
+                  }}
                 >
                   <div className={styles["nn-listHead"]}>
                     <div>{proposal.skillId}</div>
@@ -694,12 +748,21 @@ export default function OpsBoard({
               const runbook = runbookDrafts[strategy.id] ?? strategy.runbookMarkdown ?? "";
 
               return (
-                <div key={strategy.id} className={styles["nn-listItem"]}>
+                <div
+                  key={strategy.id}
+                  className={[
+                    styles["nn-listItem"],
+                    selected.kind === "strategy" && selected.id === strategy.id
+                      ? styles["nn-selectedFrame"]
+                      : "",
+                  ].join(" ")}
+                >
                   <div className={styles["nn-listHead"]}>
                     <button
                       type="button"
                       className={styles["nn-jumpItem"]}
                       onClick={() => {
+                        onSelectStrategy(strategy.id);
                         if (strategy.linkedProposalId) onFocusProposal(strategy.linkedProposalId);
                         else if (strategy.linkedMessageId) onFocusMessage(strategy.linkedMessageId);
                       }}

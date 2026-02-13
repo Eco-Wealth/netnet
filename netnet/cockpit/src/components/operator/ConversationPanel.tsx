@@ -26,6 +26,14 @@ type ConversationPanelProps = {
   onGeneratePlan: (id: string) => void;
   onExecute: (id: string) => void;
   onDraftStrategy: (id: string) => void;
+  onSelectProposal: (id: string) => void;
+  onSelectMessage: (id: string) => void;
+  selected:
+    | { kind: "proposal"; id?: string }
+    | { kind: "execution"; id?: string }
+    | { kind: "strategy"; id?: string }
+    | { kind: "message"; id?: string }
+    | { kind: "none"; id?: string };
   loadingAction: string | null;
 };
 
@@ -149,6 +157,8 @@ function roleClassName(role: MessageEnvelope["role"]): string {
 
 const ProposalInlineCard = memo(function ProposalInlineCard({
   proposal,
+  isSelected,
+  onSelectProposal,
   loadingAction,
   onApprove,
   onReject,
@@ -159,6 +169,8 @@ const ProposalInlineCard = memo(function ProposalInlineCard({
   onDraftStrategy,
 }: {
   proposal: SkillProposalEnvelope;
+  isSelected: boolean;
+  onSelectProposal: (id: string) => void;
   loadingAction: string | null;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
@@ -178,7 +190,14 @@ const ProposalInlineCard = memo(function ProposalInlineCard({
     <div
       id={`operator-proposal-${proposal.id}`}
       data-proposal-id={proposal.id}
-      className={styles["nn-proposalCard"]}
+      className={[
+        styles["nn-proposalCard"],
+        isSelected ? styles["nn-selectedFrame"] : "",
+      ].join(" ")}
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelectProposal(proposal.id);
+      }}
     >
       <div className={styles["nn-proposalHead"]}>
         <div>
@@ -205,7 +224,7 @@ const ProposalInlineCard = memo(function ProposalInlineCard({
         </span>
       </div>
 
-      <div className={styles["nn-actions"]}>
+      <div className={styles["nn-actions"]} onClick={(event) => event.stopPropagation()}>
         {proposal.status === "draft" ? (
           <>
             <Tooltip text="Approve this draft proposal.">
@@ -317,7 +336,11 @@ const ProposalInlineCard = memo(function ProposalInlineCard({
 type MessageRowProps = {
   message: MessageEnvelope;
   proposal: SkillProposalEnvelope | null;
+  isMessageSelected: boolean;
+  isProposalSelected: boolean;
   renderedMarkdown: JSX.Element | null;
+  onSelectMessage: (id: string) => void;
+  onSelectProposal: (id: string) => void;
   loadingAction: string | null;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
@@ -331,7 +354,11 @@ type MessageRowProps = {
 const MessageRow = memo(function MessageRow({
   message,
   proposal,
+  isMessageSelected,
+  isProposalSelected,
   renderedMarkdown,
+  onSelectMessage,
+  onSelectProposal,
   loadingAction,
   onApprove,
   onReject,
@@ -346,7 +373,12 @@ const MessageRow = memo(function MessageRow({
   return (
     <div
       id={`operator-message-${message.id}`}
-      className={[styles["nn-messageRow"], styles.messageRow].join(" ")}
+      className={[
+        styles["nn-messageRow"],
+        styles.messageRow,
+        isMessageSelected ? styles["nn-selectedFrame"] : "",
+      ].join(" ")}
+      onClick={() => onSelectMessage(message.id)}
     >
       <div className={[styles["nn-message"], roleClassName(message.role)].join(" ")}>
         <div className={[styles["nn-messageMeta"], styles.messageMeta].join(" ")}>
@@ -375,6 +407,8 @@ const MessageRow = memo(function MessageRow({
         {proposal ? (
           <ProposalInlineCard
             proposal={proposal}
+            isSelected={isProposalSelected}
+            onSelectProposal={onSelectProposal}
             loadingAction={loadingAction}
             onApprove={onApprove}
             onReject={onReject}
@@ -409,6 +443,9 @@ export default function ConversationPanel({
   onGeneratePlan,
   onExecute,
   onDraftStrategy,
+  onSelectProposal,
+  onSelectMessage,
+  selected,
   loadingAction,
 }: ConversationPanelProps) {
   const ordered = useMemo(() => [...messages].sort((a, b) => a.createdAt - b.createdAt), [messages]);
@@ -484,13 +521,23 @@ export default function ConversationPanel({
           const proposal = message.metadata?.proposalId
             ? proposalById.get(message.metadata.proposalId)
             : null;
+          const isMessageSelected =
+            selected.kind === "message" && selected.id === message.id;
+          const isProposalSelected =
+            selected.kind === "proposal" &&
+            proposal?.id !== undefined &&
+            selected.id === proposal.id;
 
           return (
             <MessageRow
               key={message.id}
               message={message}
               proposal={proposal || null}
+              isMessageSelected={isMessageSelected}
+              isProposalSelected={isProposalSelected}
               renderedMarkdown={markdownById.get(message.id) || null}
+              onSelectMessage={onSelectMessage}
+              onSelectProposal={onSelectProposal}
               loadingAction={proposal ? loadingAction : null}
               onApprove={onApprove}
               onReject={onReject}
