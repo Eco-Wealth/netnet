@@ -1,14 +1,17 @@
 import AgentIdentityCard from "@/components/AgentIdentityCard";
+import PageHeader from "@/components/PageHeader";
 
 export const metadata = { title: "Agent Identity" };
 
 export default function IdentityPage() {
   return (
-    <main className="mx-auto w-full max-w-xl p-4">
-      <h1 className="mb-2 text-2xl font-semibold">Identity</h1>
-      <p className="mb-4 text-sm text-white/70">
-        Local-only identity fields used to populate proof objects. No keys, no secrets.
-      </p>
+    <main className="nn-page-stack">
+      <PageHeader
+        title="Identity"
+        subtitle="Manage local identity fields used in proof payloads."
+        guidance="Set display name and optional wallet/profile fields. Changes save locally in-browser."
+        outputs="Produces: local identity metadata embedded into newly generated proof objects."
+      />
       <AgentIdentityCard />
     </main>
   );

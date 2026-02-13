@@ -47,31 +47,25 @@ export default function Workbench() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl p-6">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold">Workbench</h1>
-        <div className="text-sm opacity-80">
-          Current work:{" "}
-          <span className="font-mono">{workId || "none"}</span>
-          {workId ? (
-            <button className="ml-3 underline" onClick={() => setWorkId(null)}>
-              clear
-            </button>
-          ) : null}
+    <div className="nn-page-stack">
+      <div className="nn-surface flex flex-wrap items-center justify-between gap-3">
+        <div className="text-sm text-white/80">
+          Active work: <span className="font-mono">{workId || "none"}</span>
         </div>
+        {workId ? (
+          <button className="text-sm underline" onClick={() => setWorkId(null)}>
+            Clear active work
+          </button>
+        ) : null}
       </div>
 
-      <p className="mt-2 text-sm opacity-80">
-        This page demonstrates Unit 41: every action can create a Work item and append events via the Work API.
-      </p>
-
-      <div className="mt-5 grid gap-2">
+      <div className="nn-surface grid gap-2">
         {actions.map((a) => (
           <button
             key={a.key}
             disabled={busy}
             onClick={() => run(a)}
-            className="rounded-xl border px-4 py-3 text-left hover:bg-black/5 disabled:opacity-50"
+            className="rounded-xl border border-white/15 bg-white/[0.03] px-4 py-3 text-left hover:bg-white/[0.08] disabled:opacity-50"
           >
             <div className="font-medium">{a.label}</div>
             <div className="mt-1 font-mono text-xs opacity-70">{a.url}</div>
@@ -79,10 +73,10 @@ export default function Workbench() {
         ))}
       </div>
 
-      <div className="mt-6 rounded-xl border p-4">
+      <div className="nn-surface">
         <div className="text-sm font-medium">Output</div>
         {outputError ? (
-          <div className="mt-2 rounded-lg border border-amber-400/40 bg-amber-500/10 p-3 text-xs">
+          <div className="mt-2 rounded-lg border border-amber-400/40 bg-amber-500/10 p-3 text-xs text-amber-100">
             <div className="font-medium">Upstream degraded</div>
             <div className="mt-1 opacity-80">
               {outputError.message ?? "External upstream request failed."}
@@ -91,7 +85,7 @@ export default function Workbench() {
             </div>
           </div>
         ) : null}
-        <pre className="mt-2 max-h-[420px] overflow-auto rounded-lg bg-black/5 p-3 text-xs">
+        <pre className="mt-2 max-h-[420px] overflow-auto rounded-lg border border-white/10 bg-black/30 p-3 text-xs">
           {out ? JSON.stringify(out, null, 2) : busy ? "Running..." : "—"}
         </pre>
       </div>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { headers } from "next/headers";
+import PageHeader from "@/components/PageHeader";
 
 function getBaseUrl() {
   const h = headers();
@@ -20,23 +21,19 @@ export default async function SecurityPage() {
 
   return (
     <main className="nn-page-stack">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <div className="nn-page-kicker">Security</div>
-          <h1>Security</h1>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-white/75">
-          <Link className="underline hover:text-white" href="/proof">Proof</Link>
-          <span className="opacity-40">/</span>
-          <Link className="underline hover:text-white" href="/execute">Execute</Link>
-          <span className="opacity-40">/</span>
-          <Link className="underline hover:text-white" href="/retire">Retire</Link>
-        </div>
-      </div>
-
-      <p className="nn-page-lead">
-        Read-only self-audit for configuration + guardrails. Does not reveal secrets.
-      </p>
+      <PageHeader
+        title="Security"
+        subtitle="Read-only self-audit for guardrails and configuration health."
+        guidance="Scan warnings/failures first, apply remediation, then re-run the audit."
+        outputs="Produces: security audit summary counts and per-check remediation hints."
+        rightSlot={
+          <div className="flex items-center gap-2 text-sm text-white/75">
+            <Link className="underline hover:text-white" href="/proof">Proof</Link>
+            <span className="opacity-40">/</span>
+            <Link className="underline hover:text-white" href="/execute">Execute</Link>
+          </div>
+        }
+      />
 
       <div className="nn-surface">
         <div className="flex items-center justify-between">

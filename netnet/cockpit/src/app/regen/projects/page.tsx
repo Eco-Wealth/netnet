@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PageHeader from "@/components/PageHeader";
 import RegenProjectsClient from "./regen-projects-client";
 
 export const dynamic = "force-dynamic";
@@ -6,18 +7,17 @@ export const dynamic = "force-dynamic";
 export default function RegenProjectsPage() {
   return (
     <div className="nn-page-stack">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <div className="nn-page-kicker">Regen</div>
-          <h1>Project Generator</h1>
-          <div className="nn-page-lead">
-            Proposal-only. Generates a registry project packet + MRV assumptions. No submission without approval.
-          </div>
-        </div>
-        <Link className="text-sm underline text-white/80 hover:text-white" href="/work">
-          Work queue
-        </Link>
-      </div>
+      <PageHeader
+        title="Regen Projects"
+        subtitle="Draft proposal-ready project packets with MRV assumptions."
+        guidance="Enter core project details, generate the packet, then validate before creating a work item."
+        outputs="Produces: regen packet JSON, validation output, and optional work item."
+        rightSlot={
+          <Link className="text-sm underline text-white/80 hover:text-white" href="/work">
+            Work Queue
+          </Link>
+        }
+      />
       <RegenProjectsClient />
     </div>
   );

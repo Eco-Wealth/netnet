@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import PageHeader from "@/components/PageHeader";
 import { WorkItemCard } from "@/components/WorkItemCard";
 
 type WorkItem = any;
@@ -80,13 +81,12 @@ export default function WorkPage() {
 
   return (
     <div className="nn-page-stack">
-      <header className="nn-page-header">
-        <div className="nn-page-kicker">Ops Console</div>
-        <h1>Work System</h1>
-        <p className="nn-page-lead">
-          Queue, SLA metadata, and audit trail. Execution remains policy-gated.
-        </p>
-      </header>
+      <PageHeader
+        title="Work"
+        subtitle="Queue tasks, assign ownership, and track status."
+        guidance="Create an item with title + owner, then move it through status until complete."
+        outputs="Produces: work item records, status history, and task metadata for operator follow-up."
+      />
 
       <div className="flex flex-wrap gap-2 text-xs">
         {Object.entries(counts).map(([k, v]) => (
@@ -162,7 +162,7 @@ export default function WorkPage() {
               onClick={create}
               className="rounded-[11px] border border-white/15 bg-white px-4 py-2 text-sm font-medium text-black hover:bg-neutral-100"
             >
-              Create
+              Create Work Item
             </button>
             <button
               onClick={refresh}

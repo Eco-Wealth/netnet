@@ -42,7 +42,7 @@ export default function RunProgramsClient() {
 
   return (
     <div className="grid gap-4">
-      <Card title="Programs Runner" subtitle="Proposal-only: generate a step plan and a Work item.">
+      <Card title="Programs Runner" subtitle="Proposal-only packet generation.">
         <div className="grid gap-3">
           <div className="grid gap-2">
             <div className="text-sm font-medium">Program</div>
@@ -77,9 +77,9 @@ export default function RunProgramsClient() {
                 output: "Step plan, policy envelope, and work item reference.",
               }}
             >
-              {busy ? "Proposing…" : "Generate proposal"}
+              {busy ? "Drafting..." : "Draft Proposal"}
             </Button>
-            <Muted>Creates a Work item for review.</Muted>
+            <Muted>Also writes a work item for review.</Muted>
           </div>
         </div>
       </Card>

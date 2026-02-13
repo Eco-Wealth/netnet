@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { headers } from "next/headers";
+import PageHeader from "@/components/PageHeader";
 
 async function getJSON(path: string) {
   const res = await fetch(path, { cache: "no-store" });
@@ -20,45 +21,41 @@ export default async function TokenDashboardPage() {
   const actions = await getJSON(`${baseUrl}/api/bankr/token/actions`);
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-10">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Token lifecycle</h1>
-        <nav className="text-sm opacity-80 flex gap-4">
-          <Link href="/proof" className="hover:underline">Proof</Link>
-          <Link href="/execute" className="hover:underline">Execute</Link>
-          <Link href="/retire" className="hover:underline">Retire</Link>
-        </nav>
-      </div>
+    <main className="nn-page-stack">
+      <PageHeader
+        title="Token"
+        subtitle="Inspect Bankr token info and available proposal actions."
+        guidance="Review current token state first, then use actions to draft proposals in Operator."
+        outputs="Produces: token info JSON and available token action JSON for proposal drafting."
+        rightSlot={
+          <nav className="flex items-center gap-3 text-sm text-white/80">
+            <Link href="/proof" className="underline hover:text-white">
+              Proof
+            </Link>
+            <Link href="/execute" className="underline hover:text-white">
+              Execute
+            </Link>
+          </nav>
+        }
+      />
 
-      <p className="mt-3 text-sm opacity-80">
-        Read-only dashboard for Bankr-based token ops. Execution remains operator-approved.
-      </p>
-
-      <section className="mt-8 rounded-xl border p-4">
-        <h2 className="text-lg font-medium">Status</h2>
-        <pre className="mt-3 overflow-auto rounded-lg bg-black/5 p-3 text-xs">
+      <section className="nn-surface">
+        <h3>Status</h3>
+        <pre className="mt-2 max-h-[380px] overflow-auto rounded-lg border border-white/12 bg-black/30 p-3 text-xs">
           {JSON.stringify(info, null, 2)}
         </pre>
       </section>
 
-      <section className="mt-6 rounded-xl border p-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-medium">Available actions</h2>
-          <a
-            className="text-sm opacity-80 hover:underline"
-            href="/api/bankr/token/actions"
-            target="_blank"
-            rel="noreferrer"
-          >
+      <section className="nn-surface">
+        <div className="flex items-center justify-between gap-3">
+          <h3>Available Actions</h3>
+          <a className="text-sm underline text-white/80 hover:text-white" href="/api/bankr/token/actions" target="_blank" rel="noreferrer">
             Open JSON
           </a>
         </div>
-        <pre className="mt-3 overflow-auto rounded-lg bg-black/5 p-3 text-xs">
+        <pre className="mt-2 max-h-[380px] overflow-auto rounded-lg border border-white/12 bg-black/30 p-3 text-xs">
           {JSON.stringify(actions, null, 2)}
         </pre>
-        <p className="mt-3 text-sm opacity-80">
-          Next: Unit 30 wires real prompts for launch/manage/fee routing. This unit exposes a stable surface and proof-of-action schema.
-        </p>
       </section>
     </main>
   );

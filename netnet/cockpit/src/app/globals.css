@@ -164,6 +164,74 @@ h3 {
   gap: 4px;
 }
 
+.nn-page-headerCard {
+  border: 1px solid var(--nn-border);
+  border-radius: var(--nn-radius);
+  background: var(--nn-surface);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.nn-page-headerTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.nn-page-headerText {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.nn-page-headerActions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.nn-page-detail {
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.45);
+  overflow: hidden;
+}
+
+.nn-page-detailSummary {
+  cursor: pointer;
+  list-style: none;
+  padding: 6px 9px;
+  font-size: 12px;
+  color: var(--nn-muted);
+  user-select: none;
+}
+
+.nn-page-detailSummary::-webkit-details-marker {
+  display: none;
+}
+
+.nn-page-detailSummary::before {
+  content: ">";
+  display: inline-block;
+  margin-right: 6px;
+  transform: rotate(0deg);
+  transition: transform 140ms ease;
+}
+
+.nn-page-detail[open] .nn-page-detailSummary::before {
+  transform: rotate(90deg);
+}
+
+.nn-page-detailBody {
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+  padding: 7px 9px;
+  font-size: 12px;
+  color: var(--nn-muted);
+}
+
 .nn-page-kicker {
   font-size: 11px;
   text-transform: uppercase;

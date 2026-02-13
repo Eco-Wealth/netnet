@@ -1,4 +1,5 @@
 import OperatorConsoleClient from "./operator-console-client";
+import PageHeader from "@/components/PageHeader";
 import {
   getPnLSummary,
   listMessages,
@@ -22,19 +23,29 @@ export default function OperatorPage() {
 
   return (
     <div className={styles["nn-pagePad"]}>
-      <OperatorConsoleClient
-        initialMessages={listMessages()}
-        initialProposals={listProposals()}
-        initialStrategies={listStrategies()}
-        initialPnl={getPnLSummary()}
-        skills={getSkills()}
-        strategies={OPERATOR_STRATEGY_TEMPLATES}
-        policyMode={policy.autonomy}
-        policyHealthy={!policy.kill.all}
-        dbConnected
-        engineType={engineType}
-        engineModel={engineModel}
-      />
+      <div className={styles["nn-pageShell"]}>
+        <PageHeader
+          title="Operator"
+          subtitle="Chat-first command seat for proposal-first operations."
+          guidance="Start with Read/Propose prompts, then approve, lock intent, generate plan, and execute."
+          outputs="Produces: messages, proposal envelopes, intent/plan state, strategy memory, and execution results."
+        />
+        <div className={styles["nn-pageBody"]}>
+          <OperatorConsoleClient
+            initialMessages={listMessages()}
+            initialProposals={listProposals()}
+            initialStrategies={listStrategies()}
+            initialPnl={getPnLSummary()}
+            skills={getSkills()}
+            strategies={OPERATOR_STRATEGY_TEMPLATES}
+            policyMode={policy.autonomy}
+            policyHealthy={!policy.kill.all}
+            dbConnected
+            engineType={engineType}
+            engineModel={engineModel}
+          />
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import { Button, Card, Input, Muted, Textarea } from "@/components/ui";
+import PageHeader from "@/components/PageHeader";
+import { Button, Card, Input, Textarea } from "@/components/ui";
 
 export default function ExecutePage() {
   const [task, setTask] = React.useState("Retire $25 of biodiversity credits via Bridge.eco and return certificate_id.");
@@ -23,11 +24,12 @@ export default function ExecutePage() {
 
   return (
     <div className="nn-page-stack">
-      <header className="nn-page-header">
-        <div className="nn-page-kicker">Execute</div>
-        <h1>Execute</h1>
-        <Muted>Operator panel for an agent to run conservative, verifiable steps (trade, BD, retire, ship code).</Muted>
-      </header>
+      <PageHeader
+        title="Execute"
+        subtitle="Draft constrained tasks before any real execution path."
+        guidance="Write the task, add constraints, then queue the draft for policy-aware review."
+        outputs="Produces: execution draft text and placeholder queue output."
+      />
 
       <Card title="Task draft">
         <div className="space-y-3">
@@ -39,7 +41,7 @@ export default function ExecutePage() {
             <div className="text-sm mb-1 text-neutral-300">Notes / constraints</div>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} />
           </div>
-          <Button onClick={fakeRun}>Queue (placeholder)</Button>
+          <Button onClick={fakeRun}>Queue Draft</Button>
           {out ? (
             <pre className="whitespace-pre-wrap rounded-xl border border-neutral-900 bg-black/40 p-3 text-xs">{out}</pre>
           ) : null}

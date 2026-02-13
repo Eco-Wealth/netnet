@@ -50,79 +50,75 @@ export function WalletStatePanel() {
   ];
 
   return (
-    <div className="nn-page-stack">
-      <div className="nn-surface">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1>Wallet</h1>
-            <p className="nn-page-lead">Read-only state surfaces for Bankr-connected agents.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              value={wallet}
-              onChange={(e) => setWallet(e.target.value)}
-              placeholder="optional: wallet address"
-              className="w-[260px] rounded-[11px] border border-white/15 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-white/15"
-            />
-            <button
-              onClick={() => load(tab)}
-              className="rounded-[11px] border border-white/15 bg-white/[0.06] px-3 py-2 text-sm text-white hover:bg-white/[0.12]"
-              title="Reload the selected tab"
-            >
-              Refresh
-            </button>
-          </div>
+    <div className="nn-surface">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-sm text-white/70">Wallet query</div>
+        <div className="flex items-center gap-2">
+          <input
+            value={wallet}
+            onChange={(e) => setWallet(e.target.value)}
+            placeholder="optional: wallet address"
+            className="w-[260px] rounded-[11px] border border-white/15 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-white/15"
+          />
+          <button
+            onClick={() => load(tab)}
+            className="rounded-[11px] border border-white/15 bg-white/[0.06] px-3 py-2 text-sm text-white hover:bg-white/[0.12]"
+            title="Reload the selected tab"
+          >
+            Refresh
+          </button>
         </div>
+      </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              title={t.hint}
-              className={[
-                "rounded-xl border px-3 py-1.5 text-sm transition",
-                tab === t.id
-                  ? "border-sky-300/40 bg-sky-500/20 text-white"
-                  : "border-white/15 bg-white/[0.04] text-white/90 hover:bg-white/[0.09]",
-              ].join(" ")}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            title={t.hint}
+            className={[
+              "rounded-xl border px-3 py-1.5 text-sm transition",
+              tab === t.id
+                ? "border-sky-300/40 bg-sky-500/20 text-white"
+                : "border-white/15 bg-white/[0.04] text-white/90 hover:bg-white/[0.09]",
+            ].join(" ")}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-        <div className="mt-4 rounded-[14px] border border-white/15 bg-white/[0.03] p-4">
-          {loading && <p className="text-sm text-white/75">Loading...</p>}
-          {err && <p className="text-sm text-red-300">{err}</p>}
+      <div className="mt-4 rounded-[14px] border border-white/15 bg-white/[0.03] p-4">
+        {loading && <p className="text-sm text-white/75">Loading...</p>}
+        {err && <p className="text-sm text-red-300">{err}</p>}
 
-          {!loading && !err && data?.ok && (
-            <>
-              {tab === "balances" && (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="text-left text-white/70">
-                      <tr>
-                        <th className="py-2">Chain</th>
-                        <th>Symbol</th>
-                        <th className="text-right">Amount</th>
-                        <th className="text-right">USD</th>
+        {!loading && !err && data?.ok && (
+          <>
+            {tab === "balances" && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-left text-white/70">
+                    <tr>
+                      <th className="py-2">Chain</th>
+                      <th>Symbol</th>
+                      <th className="text-right">Amount</th>
+                      <th className="text-right">USD</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(data.balances || []).map((b: any, i: number) => (
+                      <tr key={i} className="border-t border-white/10">
+                        <td className="py-2">{b.chain}</td>
+                        <td>{b.symbol}</td>
+                        <td className="text-right">{b.amount}</td>
+                        <td className="text-right">{fmtUsd(b.usd)}</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {(data.balances || []).map((b: any, i: number) => (
-                        <tr key={i} className="border-t border-white/10">
-                          <td className="py-2">{b.chain}</td>
-                          <td>{b.symbol}</td>
-                          <td className="text-right">{b.amount}</td>
-                          <td className="text-right">{fmtUsd(b.usd)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {data.note && <p className="mt-3 text-xs text-white/60">{data.note}</p>}
-                </div>
-              )}
+                    ))}
+                  </tbody>
+                </table>
+                {data.note && <p className="mt-3 text-xs text-white/60">{data.note}</p>}
+              </div>
+            )}
 
               {tab === "positions" && (
                 <div className="space-y-3">
@@ -182,20 +178,8 @@ export function WalletStatePanel() {
                   {data.note && <p className="text-xs text-white/60">{data.note}</p>}
                 </div>
               )}
-            </>
-          )}
-        </div>
-
-        <div className="mt-4 rounded-[14px] border border-white/15 bg-white/[0.04] p-3 text-xs text-white/85">
-          <div className="font-medium">API</div>
-          <div className="mt-1 font-mono">
-            GET /api/bankr/wallet?action=balances|positions|history|state&amp;wallet=...
-          </div>
-          <div className="mt-2 text-white/65">
-            Defaults to mock data unless <span className="font-mono">BANKR_WALLET_API_BASE_URL</span> is set (or set{" "}
-            <span className="font-mono">BANKR_WALLET_MOCK=1</span>).
-          </div>
-        </div>
+          </>
+        )}
       </div>
     </div>
   );
