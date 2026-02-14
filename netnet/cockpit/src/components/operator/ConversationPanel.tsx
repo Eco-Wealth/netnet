@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import FirstRunTour from "@/components/operator/FirstRunTour";
 import Tooltip from "@/components/operator/Tooltip";
 import { Button, Textarea } from "@/components/ui";
@@ -38,6 +38,8 @@ type ConversationPanelProps = {
     | { kind: "none"; id?: string };
   loadingAction: string | null;
 };
+
+const MESSAGE_RENDER_STEP = 80;
 
 function escapeHtml(input: string): string {
   return input
@@ -467,6 +469,380 @@ const MessageRow = memo(function MessageRow({
   );
 });
 
+type ConversationFeedProps = {
+  messages: MessageEnvelope[];
+  proposals: SkillProposalEnvelope[];
+  clarity: ClarityLevel;
+  selected: ConversationPanelProps["selected"];
+  loadingAction: string | null;
+  setDraft: (next: string) => void;
+  onApprove: (id: string) => void;
+  onReject: (id: string) => void;
+  onRequestIntent: (id: string) => void;
+  onLockIntent: (id: string) => void;
+  onGeneratePlan: (id: string) => void;
+  onExecute: (id: string) => void;
+  onDraftStrategy: (id: string) => void;
+  onSelectProposal: (id: string) => void;
+  onSelectMessage: (id: string) => void;
+};
+
+const ConversationFeed = memo(function ConversationFeed({
+  messages,
+  proposals,
+  clarity,
+  selected,
+  loadingAction,
+  setDraft,
+  onApprove,
+  onReject,
+  onRequestIntent,
+  onLockIntent,
+  onGeneratePlan,
+  onExecute,
+  onDraftStrategy,
+  onSelectProposal,
+  onSelectMessage,
+}: ConversationFeedProps) {
+  const [expandedMessages, setExpandedMessages] = useState<Record<string, boolean>>({});
+  const [visibleCount, setVisibleCount] = useState(MESSAGE_RENDER_STEP);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const previousScrollHeightRef = useRef<number | null>(null);
+  const markdownCacheRef = useRef<Map<string, { content: string; rendered: JSX.Element }>>(
+    new Map()
+  );
+
+  const ordered = useMemo(() => [...messages].sort((a, b) => a.createdAt - b.createdAt), [messages]);
+  const totalMessages = ordered.length;
+  const boundedVisibleCount = Math.min(Math.max(visibleCount, MESSAGE_RENDER_STEP), totalMessages || 0);
+  const visibleStart = Math.max(0, totalMessages - boundedVisibleCount);
+  const visibleMessages = useMemo(() => ordered.slice(visibleStart), [ordered, visibleStart]);
+  const hasOlderMessages = visibleStart > 0;
+
+  const proposalById = useMemo(
+    () => new Map(proposals.map((proposal) => [proposal.id, proposal])),
+    [proposals]
+  );
+
+  useEffect(() => {
+    setVisibleCount((prev) => {
+      if (totalMessages <= MESSAGE_RENDER_STEP) return MESSAGE_RENDER_STEP;
+      return Math.min(Math.max(prev, MESSAGE_RENDER_STEP), totalMessages);
+    });
+  }, [totalMessages]);
+
+  useEffect(() => {
+    let targetMessageId: string | null = null;
+
+    if (selected.kind === "message" && selected.id) {
+      targetMessageId = selected.id;
+    } else if (selected.kind === "proposal" && selected.id) {
+      const proposalMessage = ordered.find((message) => message.metadata?.proposalId === selected.id);
+      targetMessageId = proposalMessage?.id || null;
+    }
+
+    if (!targetMessageId) return;
+
+    const targetIndex = ordered.findIndex((message) => message.id === targetMessageId);
+    if (targetIndex >= 0 && targetIndex < visibleStart) {
+      setVisibleCount(totalMessages - targetIndex);
+    }
+  }, [ordered, selected, totalMessages, visibleStart]);
+
+  useLayoutEffect(() => {
+    if (previousScrollHeightRef.current === null) return;
+    const node = scrollRef.current;
+    if (!node) {
+      previousScrollHeightRef.current = null;
+      return;
+    }
+    const delta = node.scrollHeight - previousScrollHeightRef.current;
+    node.scrollTop += Math.max(delta, 0);
+    previousScrollHeightRef.current = null;
+  }, [visibleMessages.length]);
+
+  const markdownById = useMemo(() => {
+    const rendered = new Map<string, JSX.Element>();
+    const cache = markdownCacheRef.current;
+    const activeIds = new Set(ordered.map((message) => message.id));
+
+    for (const cacheKey of cache.keys()) {
+      if (!activeIds.has(cacheKey)) cache.delete(cacheKey);
+    }
+
+    for (const message of visibleMessages) {
+      const hasProposal = Boolean(
+        message.metadata?.proposalId && proposalById.get(message.metadata.proposalId)
+      );
+      if (hasProposal) continue;
+
+      const cached = cache.get(message.id);
+      if (cached && cached.content === message.content) {
+        rendered.set(message.id, cached.rendered);
+        continue;
+      }
+
+      const nextRendered = renderMarkdown(message.content);
+      cache.set(message.id, { content: message.content, rendered: nextRendered });
+      rendered.set(message.id, nextRendered);
+    }
+    return rendered;
+  }, [ordered, proposalById, visibleMessages]);
+
+  const hasMessages = totalMessages > 0;
+  const showBeginnerPrompts = clarity === "beginner" && !hasMessages;
+  const showStandardHint = clarity === "standard" && hasMessages;
+
+  const toggleExpanded = useCallback((messageId: string) => {
+    setExpandedMessages((prev) => ({ ...prev, [messageId]: !prev[messageId] }));
+  }, []);
+
+  const loadOlderMessages = useCallback(() => {
+    const node = scrollRef.current;
+    if (node) previousScrollHeightRef.current = node.scrollHeight;
+    setVisibleCount((prev) => Math.min(totalMessages, prev + MESSAGE_RENDER_STEP));
+  }, [totalMessages]);
+
+  return (
+    <div ref={scrollRef} className={styles["nn-conversationScroll"]}>
+      {hasOlderMessages ? (
+        <div className={styles["nn-loadOlderWrap"]}>
+          <Button size="sm" variant="subtle" onClick={loadOlderMessages}>
+            Load older messages
+          </Button>
+        </div>
+      ) : null}
+
+      {showBeginnerPrompts ? (
+        <div className={styles["nn-emptyCoach"]}>
+          <div className={styles["nn-emptyTitle"]}>Try one of these:</div>
+          <div className={styles["nn-starterGrid"]}>
+            <Button
+              size="sm"
+              variant="subtle"
+              onClick={() => setDraft("Retire credits safely and show the approval steps.")}
+            >
+              Retire credits
+            </Button>
+            <Button
+              size="sm"
+              variant="subtle"
+              onClick={() => setDraft("Draft a Bankr strategy proposal for daily DCA.")}
+            >
+              Draft Bankr strategy
+            </Button>
+            <Button
+              size="sm"
+              variant="subtle"
+              onClick={() => setDraft("Explain this screen and what to do next.")}
+            >
+              Explain this screen
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {showStandardHint ? (
+        <div className={styles["nn-inlineHint"]}>
+          Ask for a plan, then approve proposals before locking intent.
+        </div>
+      ) : null}
+
+      {totalMessages === 0 && clarity !== "beginner" ? (
+        <div className={styles["nn-emptyCoach"]}>
+          <div className={styles["nn-emptyTitle"]}>Start with one of these prompts:</div>
+          <div className={styles["nn-starterGrid"]}>
+            <Button
+              size="sm"
+              variant="subtle"
+              onClick={() =>
+                setDraft("Read mode: summarize current policy, pending approvals, and risks.")
+              }
+            >
+              Read: summarize current seat status
+            </Button>
+            <Button
+              size="sm"
+              variant="subtle"
+              onClick={() =>
+                setDraft(
+                  "Propose mode: return a skill.proposal JSON for a low-risk wallet/token read."
+                )
+              }
+            >
+              Propose: draft a safe skill.proposal
+            </Button>
+            <Button
+              size="sm"
+              variant="subtle"
+              onClick={() =>
+                setDraft(
+                  "Create a strategy draft with objective, constraints, and rollback conditions."
+                )
+              }
+            >
+              Strategy: draft a runbook-ready strategy
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {proposals.length === 0 ? (
+        <div className={styles["nn-emptyHint"]}>
+          Proposals appear here after assistant analysis. Approvals are always manual.
+        </div>
+      ) : null}
+
+      {visibleMessages.map((message) => {
+        const proposal = message.metadata?.proposalId
+          ? proposalById.get(message.metadata.proposalId)
+          : null;
+        const isMessageSelected = selected.kind === "message" && selected.id === message.id;
+        const isProposalSelected =
+          selected.kind === "proposal" && proposal?.id !== undefined && selected.id === proposal.id;
+
+        const isLongAssistant =
+          message.role === "assistant" &&
+          !proposal &&
+          (message.content.length > 1300 || message.content.split("\n").length > 26);
+        const isExpanded = Boolean(expandedMessages[message.id]);
+
+        return (
+          <MessageRow
+            key={message.id}
+            message={message}
+            proposal={proposal || null}
+            isMessageSelected={isMessageSelected}
+            isProposalSelected={isProposalSelected}
+            clarity={clarity}
+            isLongAssistant={isLongAssistant}
+            isExpanded={isExpanded}
+            renderedMarkdown={markdownById.get(message.id) || null}
+            onToggleExpand={toggleExpanded}
+            onSelectMessage={onSelectMessage}
+            onSelectProposal={onSelectProposal}
+            loadingAction={proposal ? loadingAction : null}
+            onApprove={onApprove}
+            onReject={onReject}
+            onRequestIntent={onRequestIntent}
+            onLockIntent={onLockIntent}
+            onGeneratePlan={onGeneratePlan}
+            onExecute={onExecute}
+            onDraftStrategy={onDraftStrategy}
+          />
+        );
+      })}
+    </div>
+  );
+});
+
+type ConversationComposerProps = {
+  draft: string;
+  setDraft: (next: string) => void;
+  onSend: () => void;
+  loading: boolean;
+  policyMode: string;
+  clarity: ClarityLevel;
+  skillCount: number;
+  strategyCount: number;
+};
+
+const ConversationComposer = memo(function ConversationComposer({
+  draft,
+  setDraft,
+  onSend,
+  loading,
+  policyMode,
+  clarity,
+  skillCount,
+  strategyCount,
+}: ConversationComposerProps) {
+  const activeMode = modeForPolicy(policyMode);
+  const onDraftChange = useCallback(
+    (event: React.ChangeEvent<HTMLTextAreaElement>) => setDraft(event.target.value),
+    [setDraft]
+  );
+  const onDraftKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        onSend();
+      }
+    },
+    [onSend]
+  );
+
+  return (
+    <div className={[styles["nn-inputBar"], styles.composer].join(" ")}>
+      {clarity !== "pro" ? (
+        <div className={styles["nn-composerModes"]}>
+          <Tooltip text="Read mode analyzes only.">
+            <span
+              className={[
+                styles["nn-modeChip"],
+                activeMode === "READ" ? styles["nn-modeActive"] : styles["nn-modeInactive"],
+              ].join(" ")}
+            >
+              Read
+            </span>
+          </Tooltip>
+          <Tooltip text="Propose mode drafts structured actions.">
+            <span
+              className={[
+                styles["nn-modeChip"],
+                activeMode === "PROPOSE" ? styles["nn-modeActive"] : styles["nn-modeInactive"],
+              ].join(" ")}
+            >
+              Propose
+            </span>
+          </Tooltip>
+          <Tooltip text="Execute is locked until approval and intent lock.">
+            <span
+              className={[
+                styles["nn-modeChip"],
+                styles["nn-modeLocked"],
+                activeMode === "EXECUTE" ? styles["nn-modeActive"] : styles["nn-modeInactive"],
+              ].join(" ")}
+            >
+              Execute
+            </span>
+          </Tooltip>
+          <div className={styles["nn-muted"]}>
+            {clarity === "beginner"
+              ? "Ask a question, then approve proposals before execution."
+              : `Skills: ${skillCount} · Templates: ${strategyCount}`}
+          </div>
+        </div>
+      ) : null}
+
+      <div className={styles["nn-composerMain"]}>
+        <Textarea
+          data-tour-target="chat-input"
+          className={styles["nn-input"]}
+          rows={2}
+          value={draft}
+          onChange={onDraftChange}
+          placeholder="Ask for analysis, draft a proposal, or create a strategy."
+          onKeyDown={onDraftKeyDown}
+        />
+        <Tooltip text="Send your message to the operator assistant.">
+          <span>
+            <Button className={styles["nn-sendPrimary"]} onClick={onSend} disabled={loading || !draft.trim()}>
+              {loading ? "Sending..." : "Send"}
+            </Button>
+          </span>
+        </Tooltip>
+      </div>
+
+      {clarity !== "pro" ? (
+        <div className={styles["nn-actions"]}>
+          <div className={styles["nn-muted"]}>Ctrl/Cmd + Enter to send</div>
+        </div>
+      ) : null}
+    </div>
+  );
+});
+
 export default function ConversationPanel({
   messages,
   proposals,
@@ -490,238 +866,38 @@ export default function ConversationPanel({
   selected,
   loadingAction,
 }: ConversationPanelProps) {
-  const [expandedMessages, setExpandedMessages] = useState<Record<string, boolean>>({});
-  const ordered = useMemo(() => [...messages].sort((a, b) => a.createdAt - b.createdAt), [messages]);
-  const proposalById = useMemo(
-    () => new Map(proposals.map((proposal) => [proposal.id, proposal])),
-    [proposals]
-  );
-  const markdownById = useMemo(() => {
-    const rendered = new Map<string, JSX.Element>();
-    for (const message of ordered) {
-      const hasProposal = Boolean(
-        message.metadata?.proposalId && proposalById.get(message.metadata.proposalId)
-      );
-      if (!hasProposal) {
-        rendered.set(message.id, renderMarkdown(message.content));
-      }
-    }
-    return rendered;
-  }, [ordered, proposalById]);
-  const activeMode = modeForPolicy(policyMode);
-  const hasMessages = ordered.length > 0;
-  const showBeginnerPrompts = clarity === "beginner" && (!hasMessages || draft.length === 0);
-  const showStandardHint = clarity === "standard" && hasMessages;
-
-  const toggleExpanded = useCallback((messageId: string) => {
-    setExpandedMessages((prev) => ({ ...prev, [messageId]: !prev[messageId] }));
-  }, []);
-
   return (
     <div id="operator-conversation-root" className={[styles["nn-columnBody"], styles.panelBody].join(" ")}>
       <FirstRunTour />
 
-      <div className={styles["nn-conversationScroll"]}>
-        {showBeginnerPrompts ? (
-          <div className={styles["nn-emptyCoach"]}>
-            <div className={styles["nn-emptyTitle"]}>Try one of these:</div>
-            <div className={styles["nn-starterGrid"]}>
-              <Button
-                size="sm"
-                variant="subtle"
-                onClick={() => setDraft("Retire credits safely and show the approval steps.")}
-              >
-                Retire credits
-              </Button>
-              <Button
-                size="sm"
-                variant="subtle"
-                onClick={() => setDraft("Draft a Bankr strategy proposal for daily DCA.")}
-              >
-                Draft Bankr strategy
-              </Button>
-              <Button
-                size="sm"
-                variant="subtle"
-                onClick={() => setDraft("Explain this screen and what to do next.")}
-              >
-                Explain this screen
-              </Button>
-            </div>
-          </div>
-        ) : null}
+      <ConversationFeed
+        messages={messages}
+        proposals={proposals}
+        clarity={clarity}
+        selected={selected}
+        loadingAction={loadingAction}
+        setDraft={setDraft}
+        onApprove={onApprove}
+        onReject={onReject}
+        onRequestIntent={onRequestIntent}
+        onLockIntent={onLockIntent}
+        onGeneratePlan={onGeneratePlan}
+        onExecute={onExecute}
+        onDraftStrategy={onDraftStrategy}
+        onSelectProposal={onSelectProposal}
+        onSelectMessage={onSelectMessage}
+      />
 
-        {showStandardHint ? (
-          <div className={styles["nn-inlineHint"]}>
-            Ask for a plan, then approve proposals before locking intent.
-          </div>
-        ) : null}
-
-        {ordered.length === 0 && clarity !== "beginner" ? (
-          <div className={styles["nn-emptyCoach"]}>
-            <div className={styles["nn-emptyTitle"]}>Start with one of these prompts:</div>
-            <div className={styles["nn-starterGrid"]}>
-              <Button
-                size="sm"
-                variant="subtle"
-                onClick={() =>
-                  setDraft("Read mode: summarize current policy, pending approvals, and risks.")
-                }
-              >
-                Read: summarize current seat status
-              </Button>
-              <Button
-                size="sm"
-                variant="subtle"
-                onClick={() =>
-                  setDraft(
-                    "Propose mode: return a skill.proposal JSON for a low-risk wallet/token read."
-                  )
-                }
-              >
-                Propose: draft a safe skill.proposal
-              </Button>
-              <Button
-                size="sm"
-                variant="subtle"
-                onClick={() =>
-                  setDraft(
-                    "Create a strategy draft with objective, constraints, and rollback conditions."
-                  )
-                }
-              >
-                Strategy: draft a runbook-ready strategy
-              </Button>
-            </div>
-          </div>
-        ) : null}
-
-        {proposals.length === 0 ? (
-          <div className={styles["nn-emptyHint"]}>
-            Proposals appear here after assistant analysis. Approvals are always manual.
-          </div>
-        ) : null}
-
-        {ordered.map((message) => {
-          const proposal = message.metadata?.proposalId
-            ? proposalById.get(message.metadata.proposalId)
-            : null;
-          const isMessageSelected =
-            selected.kind === "message" && selected.id === message.id;
-          const isProposalSelected =
-            selected.kind === "proposal" &&
-            proposal?.id !== undefined &&
-            selected.id === proposal.id;
-
-          const isLongAssistant =
-            message.role === "assistant" &&
-            !proposal &&
-            (message.content.length > 1300 || message.content.split("\n").length > 26);
-          const isExpanded = Boolean(expandedMessages[message.id]);
-
-          return (
-            <MessageRow
-              key={message.id}
-              message={message}
-              proposal={proposal || null}
-              isMessageSelected={isMessageSelected}
-              isProposalSelected={isProposalSelected}
-              clarity={clarity}
-              isLongAssistant={isLongAssistant}
-              isExpanded={isExpanded}
-              renderedMarkdown={markdownById.get(message.id) || null}
-              onToggleExpand={toggleExpanded}
-              onSelectMessage={onSelectMessage}
-              onSelectProposal={onSelectProposal}
-              loadingAction={proposal ? loadingAction : null}
-              onApprove={onApprove}
-              onReject={onReject}
-              onRequestIntent={onRequestIntent}
-              onLockIntent={onLockIntent}
-              onGeneratePlan={onGeneratePlan}
-              onExecute={onExecute}
-              onDraftStrategy={onDraftStrategy}
-            />
-          );
-        })}
-      </div>
-
-      <div className={[styles["nn-inputBar"], styles.composer].join(" ")}>
-        {clarity !== "pro" ? (
-          <div className={styles["nn-composerModes"]}>
-            <Tooltip text="Read mode analyzes only.">
-              <span
-                className={[
-                  styles["nn-modeChip"],
-                  activeMode === "READ" ? styles["nn-modeActive"] : styles["nn-modeInactive"],
-                ].join(" ")}
-              >
-                Read
-              </span>
-            </Tooltip>
-            <Tooltip text="Propose mode drafts structured actions.">
-              <span
-                className={[
-                  styles["nn-modeChip"],
-                  activeMode === "PROPOSE" ? styles["nn-modeActive"] : styles["nn-modeInactive"],
-                ].join(" ")}
-              >
-                Propose
-              </span>
-            </Tooltip>
-            <Tooltip text="Execute is locked until approval and intent lock.">
-              <span
-                className={[
-                  styles["nn-modeChip"],
-                  styles["nn-modeLocked"],
-                  activeMode === "EXECUTE" ? styles["nn-modeActive"] : styles["nn-modeInactive"],
-                ].join(" ")}
-              >
-                Execute
-              </span>
-            </Tooltip>
-            <div className={styles["nn-muted"]}>
-              {clarity === "beginner"
-                ? "Ask a question, then approve proposals before execution."
-                : `Skills: ${skills.length} · Templates: ${strategies.length}`}
-            </div>
-          </div>
-        ) : null}
-
-        <div className={styles["nn-composerMain"]}>
-          <Textarea
-            data-tour-target="chat-input"
-            className={styles["nn-input"]}
-            rows={2}
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder="Ask for analysis, draft a proposal, or create a strategy."
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                event.preventDefault();
-                onSend();
-              }
-            }}
-          />
-          <Tooltip text="Send your message to the operator assistant.">
-            <span>
-              <Button
-                className={styles["nn-sendPrimary"]}
-                onClick={onSend}
-                disabled={loading || !draft.trim()}
-              >
-                {loading ? "Sending..." : "Send"}
-              </Button>
-            </span>
-          </Tooltip>
-        </div>
-
-        {clarity !== "pro" ? (
-          <div className={styles["nn-actions"]}>
-            <div className={styles["nn-muted"]}>Ctrl/Cmd + Enter to send</div>
-          </div>
-        ) : null}
-      </div>
+      <ConversationComposer
+        draft={draft}
+        setDraft={setDraft}
+        onSend={onSend}
+        loading={loading}
+        policyMode={policyMode}
+        clarity={clarity}
+        skillCount={skills.length}
+        strategyCount={strategies.length}
+      />
     </div>
   );
 }
