@@ -7,6 +7,7 @@ import { generateAssistantReply } from "@/lib/operator/llm";
 import { extractSkillProposalEnvelope } from "@/lib/operator/proposal";
 import { GET as bankrWalletGet } from "@/app/api/bankr/wallet/route";
 import { GET as bankrTokenInfoGet } from "@/app/api/bankr/token/info/route";
+import { simulateBankrAction } from "@/lib/bankr/simulate";
 import {
   isBankrStrategyAction,
   type BankrStrategyAction,
@@ -302,6 +303,30 @@ export async function generateExecutionPlanAction(id: string): Promise<OperatorS
 
 export async function executeProposalAction(id: string): Promise<OperatorStateResponse> {
   try {
+    const preflight = getProposal(id);
+    const isBankrRoute = Boolean(preflight?.route.includes("/api/bankr/"));
+    const preflightMetadata =
+      preflight && preflight.metadata && typeof preflight.metadata === "object"
+        ? (preflight.metadata as Record<string, unknown>)
+        : undefined;
+    const simulationRecord =
+      preflightMetadata && typeof preflightMetadata.simulation === "object"
+        ? (preflightMetadata.simulation as Record<string, unknown>)
+        : undefined;
+    const simulationOk = Boolean(
+      simulationRecord &&
+        typeof simulationRecord.ok === "boolean" &&
+        simulationRecord.ok === true
+    );
+
+    if (isBankrRoute && !simulationOk) {
+      appendAuditMessage(
+        "Execution blocked: run Simulate first for Bankr proposals.",
+        "bankr.simulate.required"
+      );
+      return state();
+    }
+
     const proposal = await executeProposal(id);
     const result = proposal.executionResult;
 
@@ -333,6 +358,60 @@ export async function executeProposalAction(id: string): Promise<OperatorStateRe
   } catch (error) {
     appendAuditMessage(`Execution failed: ${normalizeError(error)}`, "error");
   }
+  return state();
+}
+
+export async function simulateBankrProposalAction(
+  id: string
+): Promise<OperatorStateResponse> {
+  const proposal = getProposal(id);
+  if (!proposal) {
+    appendAuditMessage("Simulation failed: proposal not found.", "bankr.simulate");
+    return state();
+  }
+
+  if (!proposal.route.includes("/api/bankr/")) {
+    appendAuditMessage("Simulation skipped: proposal is not Bankr.", "bankr.simulate");
+    return state();
+  }
+
+  const gate = enforcePolicy("bankr.simulate", {
+    route: proposal.route,
+    venue: "bankr",
+    chain:
+      typeof proposal.proposedBody.chain === "string"
+        ? proposal.proposedBody.chain
+        : undefined,
+    fromToken:
+      typeof proposal.proposedBody.token === "string"
+        ? proposal.proposedBody.token
+        : undefined,
+  });
+  if (!gate.ok) {
+    appendAuditMessage("Simulation blocked: policy_denied.", "bankr.simulate");
+    return state();
+  }
+
+  try {
+    const body =
+      proposal.proposedBody &&
+      typeof proposal.proposedBody === "object" &&
+      !Array.isArray(proposal.proposedBody)
+        ? (toSerializable(proposal.proposedBody) as Record<string, unknown>)
+        : {};
+    const simulation = simulateBankrAction({
+      ...body,
+      route: proposal.route,
+    });
+    proposal.metadata = {
+      ...(proposal.metadata || {}),
+      simulation,
+    };
+    upsertProposal(proposal);
+  } catch (error) {
+    appendAuditMessage(`Simulation failed: ${normalizeError(error)}`, "bankr.simulate");
+  }
+
   return state();
 }
 

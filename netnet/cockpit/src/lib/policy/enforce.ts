@@ -72,6 +72,18 @@ export function enforcePolicy(
   action: PolicyAction,
   context: EnforcePolicyContext = {}
 ): PolicyDecision {
+  const cfg = loadPolicyConfig();
+  if (action === "bankr.simulate") {
+    return {
+      ok: true,
+      action,
+      mode: "READ_ONLY",
+      requiresApproval: false,
+      reasons: [],
+      policy: toEnvelope(cfg.programs.TOKEN_OPS),
+    };
+  }
+
   // Strategy proposal reuses existing work proposal semantics.
   const effectiveAction: PolicyAction =
     action === "strategy.propose"
@@ -79,7 +91,6 @@ export function enforcePolicy(
       : action === "bankr.wallet"
       ? "bankr.wallet.read"
       : action;
-  const cfg = loadPolicyConfig();
   const programId = programForAction(effectiveAction);
   const program = cfg.programs[programId];
   const policy = toEnvelope(program);

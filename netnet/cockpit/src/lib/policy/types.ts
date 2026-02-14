@@ -23,6 +23,7 @@ export type PolicyAction =
   | "bankr.token.info"
   | "bankr.token.actions"
   | "bankr.launch"
+  | "bankr.simulate"
   | "bankr.plan"
   | "bankr.quote"
   | "bankr.token.read"

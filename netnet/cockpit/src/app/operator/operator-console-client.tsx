@@ -33,6 +33,7 @@ import {
   rejectProposalAction,
   requestExecutionIntentAction,
   sendOperatorMessageAction,
+  simulateBankrProposalAction,
   unpinStrategyAction,
   updateStrategyRunbookAction,
   type OperatorStateResponse,
@@ -387,6 +388,12 @@ export default function OperatorConsoleClient({
     [activeThreadId, runAction]
   );
 
+  const handleSimulate = useCallback(
+    (id: string) =>
+      runAction(`simulate:${id}`, () => simulateBankrProposalAction(id), activeThreadId),
+    [activeThreadId, runAction]
+  );
+
   const handleDraftStrategy = useCallback(
     (id: string) =>
       runAction(`strategy:${id}`, () => proposeStrategyFromAssistantProposal(id), activeThreadId),
@@ -539,6 +546,7 @@ export default function OperatorConsoleClient({
               onLockIntent={handleLockIntent}
               onGeneratePlan={handleGeneratePlan}
               onExecute={handleExecute}
+              onSimulate={handleSimulate}
               onDraftStrategy={handleDraftStrategy}
               onSelectProposal={handleSelectProposal}
               onSelectMessage={handleSelectMessage}

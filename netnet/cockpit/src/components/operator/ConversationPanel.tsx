@@ -27,6 +27,7 @@ type ConversationPanelProps = {
   onLockIntent: (id: string) => void;
   onGeneratePlan: (id: string) => void;
   onExecute: (id: string) => void;
+  onSimulate: (id: string) => void;
   onDraftStrategy: (id: string) => void;
   onSelectProposal: (id: string) => void;
   onSelectMessage: (id: string) => void;
@@ -48,6 +49,48 @@ const USD_FORMATTER = new Intl.NumberFormat("en-US", {
 
 function formatUsd(value: number): string {
   return USD_FORMATTER.format(value);
+}
+
+type ProposalSimulation = {
+  ok: boolean;
+  summary: string;
+  inputs: Record<string, unknown>;
+  steps: string[];
+  warnings: string[];
+  timestamp: string;
+};
+
+function readProposalSimulation(proposal: SkillProposalEnvelope): ProposalSimulation | null {
+  const raw = proposal.metadata?.simulation;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const value = raw as Record<string, unknown>;
+
+  if (typeof value.ok !== "boolean") return null;
+  if (typeof value.summary !== "string") return null;
+  if (!Array.isArray(value.steps) || !value.steps.every((step) => typeof step === "string")) {
+    return null;
+  }
+  if (
+    !Array.isArray(value.warnings) ||
+    !value.warnings.every((warning) => typeof warning === "string")
+  ) {
+    return null;
+  }
+  if (typeof value.timestamp !== "string") return null;
+
+  const inputs =
+    value.inputs && typeof value.inputs === "object" && !Array.isArray(value.inputs)
+      ? (value.inputs as Record<string, unknown>)
+      : {};
+
+  return {
+    ok: value.ok,
+    summary: value.summary,
+    inputs,
+    steps: value.steps,
+    warnings: value.warnings,
+    timestamp: value.timestamp,
+  };
 }
 
 function escapeHtml(input: string): string {
@@ -187,6 +230,7 @@ const ProposalInlineCard = memo(function ProposalInlineCard({
   onLockIntent,
   onGeneratePlan,
   onExecute,
+  onSimulate,
   onDraftStrategy,
 }: {
   proposal: SkillProposalEnvelope;
@@ -199,14 +243,24 @@ const ProposalInlineCard = memo(function ProposalInlineCard({
   onLockIntent: (id: string) => void;
   onGeneratePlan: (id: string) => void;
   onExecute: (id: string) => void;
+  onSimulate: (id: string) => void;
   onDraftStrategy: (id: string) => void;
 }) {
   const [showJson, setShowJson] = useState(false);
-  const canExecute =
+  const isBankrProposal = proposal.route.includes("/api/bankr/");
+  const simulation = useMemo(() => readProposalSimulation(proposal), [proposal]);
+  const canExecuteBase =
     proposal.status === "approved" &&
     proposal.executionIntent === "locked" &&
     proposal.executionStatus === "idle" &&
     Boolean(proposal.executionPlan);
+  const canExecute = canExecuteBase && (!isBankrProposal || Boolean(simulation?.ok));
+  const showSimulate =
+    isBankrProposal &&
+    proposal.status === "approved" &&
+    proposal.executionIntent === "locked" &&
+    proposal.executionStatus === "idle";
+  const executeNeedsSimulation = showSimulate && !Boolean(simulation?.ok);
 
   const headlineStatus = useMemo(() => {
     if (proposal.executionStatus === "failed") return "failed";
@@ -375,14 +429,35 @@ const ProposalInlineCard = memo(function ProposalInlineCard({
           </Tooltip>
         ) : null}
 
-        {canExecute ? (
-          <Tooltip text="Execute approved, locked, planned proposal.">
+        {showSimulate ? (
+          <Tooltip text="Validate Bankr inputs without running execution.">
+            <span>
+              <Button
+                size="sm"
+                variant="subtle"
+                onClick={() => onSimulate(proposal.id)}
+                disabled={loadingAction !== null}
+              >
+                {loadingAction === `simulate:${proposal.id}` ? "Simulating..." : "Simulate"}
+              </Button>
+            </span>
+          </Tooltip>
+        ) : null}
+
+        {canExecuteBase ? (
+          <Tooltip
+            text={
+              executeNeedsSimulation
+                ? "Run Simulate first."
+                : "Execute approved, locked, planned proposal."
+            }
+          >
             <span data-tour-target="execute-button">
               <Button
                 size="sm"
                 className={styles["nn-primaryAction"]}
                 onClick={() => onExecute(proposal.id)}
-                disabled={loadingAction !== null}
+                disabled={loadingAction !== null || executeNeedsSimulation}
               >
                 {loadingAction === `execute:${proposal.id}` ? "Executing..." : "Execute"}
               </Button>
@@ -405,6 +480,40 @@ const ProposalInlineCard = memo(function ProposalInlineCard({
           </Tooltip>
         ) : null}
       </div>
+
+      {simulation ? (
+        <div className={styles["nn-simulationPanel"]}>
+          <div className={styles["nn-simulationHead"]}>
+            <div className={styles["nn-simulationTitle"]}>Simulation</div>
+            <span
+              className={[
+                styles["nn-statusBadge"],
+                simulation.ok ? styles["nn-success"] : styles["nn-failure"],
+              ].join(" ")}
+            >
+              {simulation.ok ? "ok" : "needs fix"}
+            </span>
+          </div>
+          <div className={styles["nn-simulationSummary"]}>{simulation.summary}</div>
+          {simulation.steps.length > 0 ? (
+            <ul className={styles["nn-simulationSteps"]}>
+              {simulation.steps.slice(0, 6).map((step, index) => (
+                <li key={`${proposal.id}-sim-step-${index}`}>{step}</li>
+              ))}
+              {simulation.steps.length > 6 ? (
+                <li className={styles["nn-muted"]}>+{simulation.steps.length - 6} more</li>
+              ) : null}
+            </ul>
+          ) : null}
+          {simulation.warnings.length > 0 ? (
+            <ul className={styles["nn-simulationWarnings"]}>
+              {simulation.warnings.map((warning, index) => (
+                <li key={`${proposal.id}-sim-warning-${index}`}>{warning}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className={styles["nn-proposalToggleRow"]} onClick={(event) => event.stopPropagation()}>
         <button
@@ -445,6 +554,7 @@ type MessageRowProps = {
   onLockIntent: (id: string) => void;
   onGeneratePlan: (id: string) => void;
   onExecute: (id: string) => void;
+  onSimulate: (id: string) => void;
   onDraftStrategy: (id: string) => void;
 };
 
@@ -467,6 +577,7 @@ const MessageRow = memo(function MessageRow({
   onLockIntent,
   onGeneratePlan,
   onExecute,
+  onSimulate,
   onDraftStrategy,
 }: MessageRowProps) {
   const tags = message.metadata?.tags || [];
@@ -519,6 +630,7 @@ const MessageRow = memo(function MessageRow({
             onLockIntent={onLockIntent}
             onGeneratePlan={onGeneratePlan}
             onExecute={onExecute}
+            onSimulate={onSimulate}
             onDraftStrategy={onDraftStrategy}
           />
         ) : (
@@ -563,6 +675,7 @@ type ConversationFeedProps = {
   onLockIntent: (id: string) => void;
   onGeneratePlan: (id: string) => void;
   onExecute: (id: string) => void;
+  onSimulate: (id: string) => void;
   onDraftStrategy: (id: string) => void;
   onSelectProposal: (id: string) => void;
   onSelectMessage: (id: string) => void;
@@ -581,6 +694,7 @@ const ConversationFeed = memo(function ConversationFeed({
   onLockIntent,
   onGeneratePlan,
   onExecute,
+  onSimulate,
   onDraftStrategy,
   onSelectProposal,
   onSelectMessage,
@@ -809,6 +923,7 @@ const ConversationFeed = memo(function ConversationFeed({
             onLockIntent={onLockIntent}
             onGeneratePlan={onGeneratePlan}
             onExecute={onExecute}
+            onSimulate={onSimulate}
             onDraftStrategy={onDraftStrategy}
           />
         );
@@ -941,6 +1056,7 @@ export default function ConversationPanel({
   onLockIntent,
   onGeneratePlan,
   onExecute,
+  onSimulate,
   onDraftStrategy,
   onSelectProposal,
   onSelectMessage,
@@ -964,6 +1080,7 @@ export default function ConversationPanel({
         onLockIntent={onLockIntent}
         onGeneratePlan={onGeneratePlan}
         onExecute={onExecute}
+        onSimulate={onSimulate}
         onDraftStrategy={onDraftStrategy}
         onSelectProposal={onSelectProposal}
         onSelectMessage={onSelectMessage}
