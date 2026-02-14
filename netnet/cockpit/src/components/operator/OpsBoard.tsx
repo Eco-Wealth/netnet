@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useMemo, useState } from "react";
 import { Button, Input, Textarea } from "@/components/ui";
+import OnboardingCard from "@/components/operator/OnboardingCard";
 import Tooltip from "@/components/operator/Tooltip";
 import styles from "@/components/operator/OperatorSeat.module.css";
 import type { ClarityLevel } from "@/lib/operator/clarity";
@@ -405,6 +406,8 @@ export default function OpsBoard({
   return (
     <div className={[styles["nn-columnBody"], styles.panelBody].join(" ")}>
       <div className={styles["nn-opsBoard"]}>
+        <OnboardingCard />
+
         <Section
           id="ops-now"
           title="Now"
