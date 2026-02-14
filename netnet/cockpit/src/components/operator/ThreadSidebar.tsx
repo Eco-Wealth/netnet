@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui";
 import styles from "@/components/operator/OperatorSeat.module.css";
 import Tooltip from "@/components/operator/Tooltip";
+import type { ClarityLevel } from "@/lib/operator/clarity";
 
 export type ThreadItem = {
   id: string;
@@ -16,6 +17,7 @@ type ThreadSidebarProps = {
   activeThreadId: string | null;
   onSelectThread: (id: string) => void;
   onCreateThread: () => void;
+  clarity: ClarityLevel;
 };
 
 function formatTime(timestamp: number): string {
@@ -32,18 +34,31 @@ export default function ThreadSidebar({
   activeThreadId,
   onSelectThread,
   onCreateThread,
+  clarity,
 }: ThreadSidebarProps) {
   return (
     <div className={styles["nn-columnBody"]}>
       <div className={styles["nn-sectionHeader"]}>
         <div>
           <div className={styles["nn-sectionTitle"]}>Threads</div>
-          <div className={styles["nn-muted"]}>Sessions</div>
+          {clarity !== "pro" ? (
+            <div className={styles["nn-muted"]}>
+              {clarity === "beginner"
+                ? "Threads are separate work sessions."
+                : "Sessions"}
+            </div>
+          ) : null}
         </div>
-        <Tooltip text="Start a fresh chat session.">
+        <Tooltip
+          text={
+            clarity === "beginner"
+              ? "Start a new thread so this work stays separate."
+              : "Start a fresh chat session."
+          }
+        >
           <span>
             <Button size="sm" onClick={onCreateThread}>
-              New chat
+              New thread
             </Button>
           </span>
         </Tooltip>

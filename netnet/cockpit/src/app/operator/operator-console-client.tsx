@@ -19,6 +19,7 @@ import type { SkillInfo } from "@/lib/operator/skillContext";
 import type { Strategy } from "@/lib/operator/strategy";
 import type { OperatorStrategyTemplate } from "@/lib/operator/strategies";
 import type { MessageEnvelope, SkillProposalEnvelope } from "@/lib/operator/types";
+import { useClarity } from "@/lib/operator/useClarity";
 import {
   approveProposalAction,
   createBankrDraftAction,
@@ -57,6 +58,7 @@ type DraftThread = {
 };
 
 type MobilePanelKey = "ops" | "threads" | "inspector";
+const HELP_DISMISSED_KEY = "nn.operator.helpDismissed";
 
 function dayKey(timestamp: number): string {
   return new Date(timestamp).toISOString().slice(0, 10);
@@ -141,6 +143,7 @@ export default function OperatorConsoleClient({
   engineType,
   engineModel,
 }: Props) {
+  const { clarity, setClarity } = useClarity();
   const [messages, setMessages] = useState<MessageEnvelope[]>(initialMessages);
   const [proposals, setProposals] = useState<SkillProposalEnvelope[]>(initialProposals);
   const [strategyMemory, setStrategyMemory] = useState<Strategy[]>(initialStrategies);
@@ -152,6 +155,7 @@ export default function OperatorConsoleClient({
   const [layoutMode, setLayoutMode] = useState<OperatorLayoutMode>(() => loadOperatorLayout());
   const [selected, setSelected] = useState<OperatorInspectorSelection>({ kind: "none" });
   const [compactLayout, setCompactLayout] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [mobilePanels, setMobilePanels] = useState<Record<MobilePanelKey, boolean>>({
     ops: true,
     threads: false,
@@ -173,6 +177,14 @@ export default function OperatorConsoleClient({
     media.addEventListener("change", sync);
     return () => media.removeEventListener("change", sync);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const dismissed = window.localStorage.getItem(HELP_DISMISSED_KEY) === "1";
+    if (clarity === "beginner" && !dismissed) {
+      setHelpOpen(true);
+    }
+  }, [clarity]);
 
   const persistedThreads = useMemo(
     () => buildPersistedThreads(messages, threadAssignments),
@@ -455,6 +467,17 @@ export default function OperatorConsoleClient({
     setMobilePanels((prev) => ({ ...prev, [panel]: !prev[panel] }));
   }, []);
 
+  const toggleHelp = useCallback(() => {
+    setHelpOpen((prev) => !prev);
+  }, []);
+
+  const dismissHelp = useCallback(() => {
+    setHelpOpen(false);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(HELP_DISMISSED_KEY, "1");
+    }
+  }, []);
+
   return (
     <div className={[styles["nn-root"], styles.seat].join(" ")}>
       <div
@@ -476,7 +499,34 @@ export default function OperatorConsoleClient({
             policyHealthy={policyHealthy}
             layoutMode={layoutMode}
             onLayoutModeChange={setLayoutMode}
+            clarity={clarity}
+            onClarityChange={setClarity}
+            helpOpen={helpOpen}
+            onToggleHelp={toggleHelp}
           />
+          {helpOpen ? (
+            <div className={styles["nn-helpPanel"]}>
+              <div className={styles["nn-helpTitle"]}>What am I looking at?</div>
+              <div className={styles["nn-helpList"]}>
+                <div>
+                  <strong>Read / Propose / Execute</strong>: Read analyzes, Propose drafts, Execute only runs
+                  after approval + lock + plan.
+                </div>
+                <div>
+                  <strong>Proposal</strong>: Structured action draft from the assistant that you explicitly approve or
+                  reject.
+                </div>
+                <div>
+                  <strong>Lock intent</strong>: Final operator confirmation before execution path unlocks.
+                </div>
+              </div>
+              <div className={styles["nn-helpActions"]}>
+                <Button size="sm" variant="subtle" onClick={dismissHelp}>
+                  Dismiss
+                </Button>
+              </div>
+            </div>
+          ) : null}
           <ConversationPanel
             messages={filteredMessages}
             proposals={proposals}
@@ -485,6 +535,7 @@ export default function OperatorConsoleClient({
             onSend={onSend}
             loading={pending && loadingAction === "send"}
             policyMode={policyMode}
+            clarity={clarity}
             skills={skills}
             strategies={strategies}
             onApprove={handleApprove}
@@ -508,6 +559,7 @@ export default function OperatorConsoleClient({
               activeThreadId={activeThreadId}
               onSelectThread={onSelectThread}
               onCreateThread={onCreateThread}
+              clarity={clarity}
             />
           </aside>
         ) : null}
@@ -518,9 +570,10 @@ export default function OperatorConsoleClient({
               proposals={proposals}
               messages={messages}
               strategies={strategyMemory}
-              pnl={pnl}
-              policyMode={policyMode}
-              onCreateDraftProposal={handleCreateTemplateProposal}
+            pnl={pnl}
+            policyMode={policyMode}
+            clarity={clarity}
+            onCreateDraftProposal={handleCreateTemplateProposal}
               onCreateBankrDraft={handleCreateBankrDraft}
               onProposeBankrDraft={handleProposeBankrDraft}
               onPinStrategy={handlePinStrategy}
@@ -582,6 +635,7 @@ export default function OperatorConsoleClient({
                 strategies={strategyMemory}
                 pnl={pnl}
                 policyMode={policyMode}
+                clarity={clarity}
                 onCreateDraftProposal={handleCreateTemplateProposal}
                 onCreateBankrDraft={handleCreateBankrDraft}
                 onProposeBankrDraft={handleProposeBankrDraft}
@@ -607,6 +661,7 @@ export default function OperatorConsoleClient({
                 activeThreadId={activeThreadId}
                 onSelectThread={onSelectThread}
                 onCreateThread={onCreateThread}
+                clarity={clarity}
               />
             </aside>
           ) : null}

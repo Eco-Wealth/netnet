@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui";
 import Tooltip from "@/components/operator/Tooltip";
 import styles from "@/components/operator/OperatorSeat.module.css";
+import { clarityLabel, type ClarityLevel } from "@/lib/operator/clarity";
 import type { OperatorLayoutMode } from "@/lib/operator/layout";
 
 type Mode = "READ" | "PROPOSE" | "EXECUTE";
@@ -15,6 +16,10 @@ type OperatorTopBarProps = {
   policyHealthy: boolean;
   layoutMode: OperatorLayoutMode;
   onLayoutModeChange: (mode: OperatorLayoutMode) => void;
+  clarity: ClarityLevel;
+  onClarityChange: (clarity: ClarityLevel) => void;
+  helpOpen: boolean;
+  onToggleHelp: () => void;
 };
 
 function toMode(policyMode: string): Mode {
@@ -37,6 +42,10 @@ export default function OperatorTopBar({
   policyHealthy,
   layoutMode,
   onLayoutModeChange,
+  clarity,
+  onClarityChange,
+  helpOpen,
+  onToggleHelp,
 }: OperatorTopBarProps) {
   const active = toMode(policyMode);
   const modeHelp: Record<Mode, string> = {
@@ -103,6 +112,38 @@ export default function OperatorTopBar({
         </Tooltip>
       </div>
 
+      <div
+        className={styles["nn-clarityDial"]}
+        role="group"
+        aria-label="Clarity level"
+      >
+        {(["beginner", "standard", "pro"] as ClarityLevel[]).map((level) => (
+          <Tooltip
+            key={level}
+            text={
+              level === "beginner"
+                ? "Extra guidance and labels."
+                : level === "standard"
+                ? "Balanced defaults."
+                : "Minimal text, faster scanning."
+            }
+          >
+            <button
+              type="button"
+              aria-label={`Set clarity to ${clarityLabel(level)}`}
+              aria-pressed={clarity === level}
+              className={[
+                styles["nn-layoutChip"],
+                clarity === level ? styles["nn-layoutChipActive"] : "",
+              ].join(" ")}
+              onClick={() => onClarityChange(level)}
+            >
+              {clarityLabel(level)}
+            </button>
+          </Tooltip>
+        ))}
+      </div>
+
       <div className={styles["nn-chipRow"]}>
         <span className={styles["nn-chip"]}>
           <span
@@ -124,10 +165,22 @@ export default function OperatorTopBar({
             {policyMode}
           </span>
         </Tooltip>
+        <Tooltip text="Open quick help for this screen.">
+          <span>
+            <Button
+              size="sm"
+              variant={helpOpen ? "solid" : "subtle"}
+              onClick={onToggleHelp}
+              aria-label="Toggle operator help panel"
+            >
+              Help
+            </Button>
+          </span>
+        </Tooltip>
         <Tooltip text="Reopen first-run walkthrough.">
           <span>
             <Button size="sm" variant="subtle" onClick={reopenTour}>
-              Help
+              Tour
             </Button>
           </span>
         </Tooltip>

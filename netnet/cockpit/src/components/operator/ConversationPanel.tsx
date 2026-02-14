@@ -1,10 +1,11 @@
 "use client";
 
-import { memo, useMemo } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import FirstRunTour from "@/components/operator/FirstRunTour";
 import Tooltip from "@/components/operator/Tooltip";
 import { Button, Textarea } from "@/components/ui";
 import styles from "@/components/operator/OperatorSeat.module.css";
+import type { ClarityLevel } from "@/lib/operator/clarity";
 import type { SkillInfo } from "@/lib/operator/skillContext";
 import type { OperatorStrategyTemplate } from "@/lib/operator/strategies";
 import type { MessageEnvelope, SkillProposalEnvelope } from "@/lib/operator/types";
@@ -17,6 +18,7 @@ type ConversationPanelProps = {
   onSend: () => void;
   loading: boolean;
   policyMode: string;
+  clarity: ClarityLevel;
   skills: SkillInfo[];
   strategies: OperatorStrategyTemplate[];
   onApprove: (id: string) => void;
@@ -153,6 +155,14 @@ function roleClassName(role: MessageEnvelope["role"]): string {
   if (role === "assistant") return styles["nn-messageAssistant"];
   if (role === "skill") return styles["nn-messageSkill"];
   return styles["nn-messageSystem"];
+}
+
+function roleLabel(role: MessageEnvelope["role"], clarity: ClarityLevel): string {
+  if (clarity === "pro") return "";
+  if (role === "operator") return clarity === "beginner" ? "You" : "operator";
+  if (role === "assistant") return clarity === "beginner" ? "Assistant" : "assistant";
+  if (role === "skill") return clarity === "beginner" ? "Skill" : "skill";
+  return clarity === "beginner" ? "System" : "system";
 }
 
 const ProposalInlineCard = memo(function ProposalInlineCard({
@@ -338,7 +348,11 @@ type MessageRowProps = {
   proposal: SkillProposalEnvelope | null;
   isMessageSelected: boolean;
   isProposalSelected: boolean;
+  clarity: ClarityLevel;
+  isLongAssistant: boolean;
+  isExpanded: boolean;
   renderedMarkdown: JSX.Element | null;
+  onToggleExpand: (id: string) => void;
   onSelectMessage: (id: string) => void;
   onSelectProposal: (id: string) => void;
   loadingAction: string | null;
@@ -356,7 +370,11 @@ const MessageRow = memo(function MessageRow({
   proposal,
   isMessageSelected,
   isProposalSelected,
+  clarity,
+  isLongAssistant,
+  isExpanded,
   renderedMarkdown,
+  onToggleExpand,
   onSelectMessage,
   onSelectProposal,
   loadingAction,
@@ -382,7 +400,9 @@ const MessageRow = memo(function MessageRow({
     >
       <div className={[styles["nn-message"], roleClassName(message.role)].join(" ")}>
         <div className={[styles["nn-messageMeta"], styles.messageMeta].join(" ")}>
-          <div className={styles["nn-role"]}>{message.role}</div>
+          {clarity === "pro" ? null : (
+            <div className={styles["nn-role"]}>{roleLabel(message.role, clarity)}</div>
+          )}
           <div className={styles["nn-time"]}>
             {new Date(message.createdAt).toLocaleTimeString([], {
               hour: "2-digit",
@@ -419,7 +439,28 @@ const MessageRow = memo(function MessageRow({
             onDraftStrategy={onDraftStrategy}
           />
         ) : (
-          renderedMarkdown
+          <>
+            <div
+              className={[
+                styles["nn-messageContentWrap"],
+                isLongAssistant && !isExpanded ? styles["nn-messageClamp"] : "",
+              ].join(" ")}
+            >
+              {renderedMarkdown}
+            </div>
+            {isLongAssistant ? (
+              <button
+                type="button"
+                className={styles["nn-expandButton"]}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onToggleExpand(message.id);
+                }}
+              >
+                {isExpanded ? "Show less" : "Show more"}
+              </button>
+            ) : null}
+          </>
         )}
       </div>
     </div>
@@ -434,6 +475,7 @@ export default function ConversationPanel({
   onSend,
   loading,
   policyMode,
+  clarity,
   skills,
   strategies,
   onApprove,
@@ -448,6 +490,7 @@ export default function ConversationPanel({
   selected,
   loadingAction,
 }: ConversationPanelProps) {
+  const [expandedMessages, setExpandedMessages] = useState<Record<string, boolean>>({});
   const ordered = useMemo(() => [...messages].sort((a, b) => a.createdAt - b.createdAt), [messages]);
   const proposalById = useMemo(
     () => new Map(proposals.map((proposal) => [proposal.id, proposal])),
@@ -466,13 +509,55 @@ export default function ConversationPanel({
     return rendered;
   }, [ordered, proposalById]);
   const activeMode = modeForPolicy(policyMode);
+  const hasMessages = ordered.length > 0;
+  const showBeginnerPrompts = clarity === "beginner" && (!hasMessages || draft.length === 0);
+  const showStandardHint = clarity === "standard" && hasMessages;
+
+  const toggleExpanded = useCallback((messageId: string) => {
+    setExpandedMessages((prev) => ({ ...prev, [messageId]: !prev[messageId] }));
+  }, []);
 
   return (
     <div id="operator-conversation-root" className={[styles["nn-columnBody"], styles.panelBody].join(" ")}>
       <FirstRunTour />
 
       <div className={styles["nn-conversationScroll"]}>
-        {ordered.length === 0 ? (
+        {showBeginnerPrompts ? (
+          <div className={styles["nn-emptyCoach"]}>
+            <div className={styles["nn-emptyTitle"]}>Try one of these:</div>
+            <div className={styles["nn-starterGrid"]}>
+              <Button
+                size="sm"
+                variant="subtle"
+                onClick={() => setDraft("Retire credits safely and show the approval steps.")}
+              >
+                Retire credits
+              </Button>
+              <Button
+                size="sm"
+                variant="subtle"
+                onClick={() => setDraft("Draft a Bankr strategy proposal for daily DCA.")}
+              >
+                Draft Bankr strategy
+              </Button>
+              <Button
+                size="sm"
+                variant="subtle"
+                onClick={() => setDraft("Explain this screen and what to do next.")}
+              >
+                Explain this screen
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        {showStandardHint ? (
+          <div className={styles["nn-inlineHint"]}>
+            Ask for a plan, then approve proposals before locking intent.
+          </div>
+        ) : null}
+
+        {ordered.length === 0 && clarity !== "beginner" ? (
           <div className={styles["nn-emptyCoach"]}>
             <div className={styles["nn-emptyTitle"]}>Start with one of these prompts:</div>
             <div className={styles["nn-starterGrid"]}>
@@ -528,6 +613,12 @@ export default function ConversationPanel({
             proposal?.id !== undefined &&
             selected.id === proposal.id;
 
+          const isLongAssistant =
+            message.role === "assistant" &&
+            !proposal &&
+            (message.content.length > 1300 || message.content.split("\n").length > 26);
+          const isExpanded = Boolean(expandedMessages[message.id]);
+
           return (
             <MessageRow
               key={message.id}
@@ -535,7 +626,11 @@ export default function ConversationPanel({
               proposal={proposal || null}
               isMessageSelected={isMessageSelected}
               isProposalSelected={isProposalSelected}
+              clarity={clarity}
+              isLongAssistant={isLongAssistant}
+              isExpanded={isExpanded}
               renderedMarkdown={markdownById.get(message.id) || null}
+              onToggleExpand={toggleExpanded}
               onSelectMessage={onSelectMessage}
               onSelectProposal={onSelectProposal}
               loadingAction={proposal ? loadingAction : null}
@@ -552,60 +647,62 @@ export default function ConversationPanel({
       </div>
 
       <div className={[styles["nn-inputBar"], styles.composer].join(" ")}>
-        <div className={styles["nn-composerModes"]}>
-          <Tooltip text="Read mode analyzes only.">
-            <span
-              className={[
-                styles["nn-modeChip"],
-                activeMode === "READ" ? styles["nn-modeActive"] : styles["nn-modeInactive"],
-              ].join(" ")}
-            >
-              Read
-            </span>
-          </Tooltip>
-          <Tooltip text="Propose mode drafts structured actions.">
-            <span
-              className={[
-                styles["nn-modeChip"],
-                activeMode === "PROPOSE" ? styles["nn-modeActive"] : styles["nn-modeInactive"],
-              ].join(" ")}
-            >
-              Propose
-            </span>
-          </Tooltip>
-          <Tooltip text="Execute is locked until approval and intent lock.">
-            <span
-              className={[
-                styles["nn-modeChip"],
-                styles["nn-modeLocked"],
-                activeMode === "EXECUTE" ? styles["nn-modeActive"] : styles["nn-modeInactive"],
-              ].join(" ")}
-            >
-              Execute
-            </span>
-          </Tooltip>
-          <div className={styles["nn-muted"]}>
-            Starters: {skills.length} skills, {strategies.length} strategy templates
+        {clarity !== "pro" ? (
+          <div className={styles["nn-composerModes"]}>
+            <Tooltip text="Read mode analyzes only.">
+              <span
+                className={[
+                  styles["nn-modeChip"],
+                  activeMode === "READ" ? styles["nn-modeActive"] : styles["nn-modeInactive"],
+                ].join(" ")}
+              >
+                Read
+              </span>
+            </Tooltip>
+            <Tooltip text="Propose mode drafts structured actions.">
+              <span
+                className={[
+                  styles["nn-modeChip"],
+                  activeMode === "PROPOSE" ? styles["nn-modeActive"] : styles["nn-modeInactive"],
+                ].join(" ")}
+              >
+                Propose
+              </span>
+            </Tooltip>
+            <Tooltip text="Execute is locked until approval and intent lock.">
+              <span
+                className={[
+                  styles["nn-modeChip"],
+                  styles["nn-modeLocked"],
+                  activeMode === "EXECUTE" ? styles["nn-modeActive"] : styles["nn-modeInactive"],
+                ].join(" ")}
+              >
+                Execute
+              </span>
+            </Tooltip>
+            <div className={styles["nn-muted"]}>
+              {clarity === "beginner"
+                ? "Ask a question, then approve proposals before execution."
+                : `Skills: ${skills.length} · Templates: ${strategies.length}`}
+            </div>
           </div>
-        </div>
+        ) : null}
 
-        <Textarea
-          data-tour-target="chat-input"
-          className={styles["nn-input"]}
-          rows={3}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          placeholder="Ask for analysis, draft a proposal, or create a strategy."
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-              event.preventDefault();
-              onSend();
-            }
-          }}
-        />
-
-        <div className={styles["nn-actions"]}>
-          <div className={styles["nn-muted"]}>Ctrl/Cmd + Enter to send</div>
+        <div className={styles["nn-composerMain"]}>
+          <Textarea
+            data-tour-target="chat-input"
+            className={styles["nn-input"]}
+            rows={2}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder="Ask for analysis, draft a proposal, or create a strategy."
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                event.preventDefault();
+                onSend();
+              }
+            }}
+          />
           <Tooltip text="Send your message to the operator assistant.">
             <span>
               <Button
@@ -618,6 +715,12 @@ export default function ConversationPanel({
             </span>
           </Tooltip>
         </div>
+
+        {clarity !== "pro" ? (
+          <div className={styles["nn-actions"]}>
+            <div className={styles["nn-muted"]}>Ctrl/Cmd + Enter to send</div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

@@ -194,6 +194,12 @@
   gap: 4px;
 }
 
+.nn-clarityDial {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .nn-layoutChip {
   border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 999px;
@@ -210,6 +216,35 @@
   border-color: rgba(56, 189, 248, 0.56);
   background: rgba(2, 132, 199, 0.3);
   color: rgba(241, 245, 249, 0.98);
+}
+
+.nn-helpPanel {
+  margin: 8px;
+  border: 1px solid rgba(56, 189, 248, 0.32);
+  border-radius: 10px;
+  background: rgba(2, 6, 23, 0.92);
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.nn-helpTitle {
+  font-size: 13px;
+  font-weight: 650;
+  color: rgba(241, 245, 249, 0.98);
+}
+
+.nn-helpList {
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: rgba(203, 213, 225, 0.92);
+}
+
+.nn-helpActions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .nn-modeChip {
@@ -390,6 +425,16 @@
   gap: 4px;
 }
 
+.nn-messageContentWrap {
+  min-width: 0;
+}
+
+.nn-messageClamp {
+  max-height: 220px;
+  overflow: hidden;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 1), rgba(0, 0, 0, 0.2));
+}
+
 .nn-role {
   font-size: 11px;
   letter-spacing: 0.06em;
@@ -443,6 +488,18 @@
   font-size: 12px;
 }
 
+.nn-expandButton {
+  margin-top: 6px;
+  border: 0;
+  background: transparent;
+  color: rgba(125, 211, 252, 0.95);
+  font-size: 12px;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .composer {
   margin-top: auto;
 }
@@ -462,8 +519,15 @@
   flex-wrap: wrap;
 }
 
+.nn-composerMain {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
 .nn-input {
-  min-height: 68px;
+  min-height: 56px;
   resize: vertical;
 }
 
@@ -471,7 +535,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
 }
 
@@ -892,6 +956,15 @@
 
   .nn-layoutModes {
     width: 100%;
+  }
+
+  .nn-clarityDial {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .nn-composerMain {
+    grid-template-columns: 1fr;
   }
 
   .nn-tourPanel {

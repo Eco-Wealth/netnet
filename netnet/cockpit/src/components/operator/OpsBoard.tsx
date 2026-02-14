@@ -4,6 +4,7 @@ import { memo, useCallback, useMemo, useState } from "react";
 import { Button, Input, Textarea } from "@/components/ui";
 import Tooltip from "@/components/operator/Tooltip";
 import styles from "@/components/operator/OperatorSeat.module.css";
+import type { ClarityLevel } from "@/lib/operator/clarity";
 import {
   fetchBankrTokenInfoSnapshot,
   fetchBankrWalletSnapshot,
@@ -25,6 +26,7 @@ type OpsBoardProps = {
     last7d: { sinceMs: number; count: number; usdIn: number; usdOut: number; net: number };
   };
   policyMode: string;
+  clarity: ClarityLevel;
   onCreateDraftProposal: (templateId: string, input: Record<string, string>) => Promise<void>;
   onCreateBankrDraft: (text: string) => Promise<void>;
   onProposeBankrDraft: (strategyId: string) => Promise<void>;
@@ -47,20 +49,14 @@ type OpsBoardProps = {
 };
 
 type SectionKey =
-  | "policy"
-  | "pending"
-  | "ready"
-  | "results"
+  | "now"
   | "strategies"
-  | "pnl";
+  | "health";
 
 const DEFAULT_OPEN: Record<SectionKey, boolean> = {
-  policy: true,
-  pending: true,
-  ready: true,
-  results: true,
+  now: true,
   strategies: true,
-  pnl: true,
+  health: true,
 };
 
 const BANKR_TEMPLATE_FIELDS: Record<
@@ -174,6 +170,7 @@ export default function OpsBoard({
   strategies,
   pnl,
   policyMode,
+  clarity,
   onCreateDraftProposal,
   onCreateBankrDraft,
   onProposeBankrDraft,
@@ -254,10 +251,6 @@ export default function OpsBoard({
   const sortedStrategies = useMemo(
     () => [...strategies].sort((a, b) => b.updatedAt - a.updatedAt),
     [strategies]
-  );
-  const bankrDrafts = useMemo(
-    () => sortedStrategies.filter((strategy) => strategy.type === "bankrOps"),
-    [sortedStrategies]
   );
   const lastAudit = useMemo(
     () =>
@@ -400,139 +393,100 @@ export default function OpsBoard({
     pnl.last24h.usdOut !== 0 ||
     pnl.last7d.usdIn !== 0 ||
     pnl.last7d.usdOut !== 0;
+  const nowItemsCount =
+    pendingApprovals.length + readyToExecute.length + running.length + recentResults.length;
+  const nowEmptyCopy =
+    clarity === "beginner"
+      ? "Start by asking the assistant to draft a Bankr strategy."
+      : clarity === "standard"
+      ? "Draft a strategy -> approve proposal -> lock intent -> execute."
+      : "No active items.";
 
   return (
     <div className={[styles["nn-columnBody"], styles.panelBody].join(" ")}>
       <div className={styles["nn-opsBoard"]}>
         <Section
-          id="ops-status"
-          title="1) Policy Mode + Guardrails"
-          help="Policy mode controls what this seat can do."
-          open={open.policy}
-          onToggle={() => toggle("policy")}
+          id="ops-now"
+          title="Now"
+          help="Pending approvals, ready actions, and execution updates."
+          open={open.now}
+          onToggle={() => toggle("now")}
         >
-          <div className={styles["nn-listItem"]}>
-            <div className={styles["nn-listHead"]}>
-              <div>Policy mode</div>
-              <span className={styles["nn-statusBadge"]}>{policyMode}</span>
+          {clarity !== "pro" ? (
+            <div className={styles["nn-muted"]}>
+              {clarity === "beginner"
+                ? "These are the items that need your action right now."
+                : "Action queue for approvals, intent lock, and execution."}
             </div>
-            <div className={styles["nn-chipRow"]}>
-              <span className={styles["nn-chip"]}>pending: {pendingApprovals.length}</span>
-              <span className={styles["nn-chip"]}>ready: {readyToExecute.length}</span>
-              <span className={styles["nn-chip"]}>running: {running.length}</span>
-            </div>
-            {lastAudit ? (
-              <button
-                type="button"
-                className={styles["nn-jumpItem"]}
-                onClick={() => {
-                  onSelectMessage(lastAudit.id);
-                  onFocusMessage(lastAudit.id);
-                }}
-              >
-                Latest audit: {lastAudit.content.slice(0, 120)}
-              </button>
-            ) : (
-              <div className={styles["nn-muted"]}>No audit messages yet.</div>
-            )}
-          </div>
-        </Section>
+          ) : null}
 
-        <Section
-          title="2) Pending Approvals"
-          help="Draft proposals need explicit operator approval."
-          open={open.pending}
-          onToggle={() => toggle("pending")}
-        >
+          {nowItemsCount === 0 ? <div className={styles["nn-emptyHint"]}>{nowEmptyCopy}</div> : null}
+
           {pendingApprovals.length ? (
-            pendingApprovals.map((proposal) => (
-              <button
-                key={proposal.id}
-                type="button"
-                className={[
-                  styles["nn-listItem"],
-                  styles["nn-listItemButton"],
-                  selected.kind === "proposal" && selected.id === proposal.id
-                    ? styles["nn-selectedFrame"]
-                    : "",
-                ].join(" ")}
-                onClick={() => {
-                  onSelectProposal(proposal.id);
-                  onFocusProposal(proposal.id);
-                }}
-              >
-                <div className={styles["nn-listHead"]}>
-                  <div>
-                    <div>{proposal.skillId}</div>
-                    <div className={styles["nn-muted"]}>{proposal.route}</div>
+            <div className={styles["nn-listBlock"]}>
+              <div className={styles["nn-muted"]}>Pending approvals</div>
+              {pendingApprovals.map((proposal) => (
+                <button
+                  key={proposal.id}
+                  type="button"
+                  className={[
+                    styles["nn-listItem"],
+                    styles["nn-listItemButton"],
+                    selected.kind === "proposal" && selected.id === proposal.id
+                      ? styles["nn-selectedFrame"]
+                      : "",
+                  ].join(" ")}
+                  onClick={() => {
+                    onSelectProposal(proposal.id);
+                    onFocusProposal(proposal.id);
+                  }}
+                >
+                  <div className={styles["nn-listHead"]}>
+                    <div>
+                      <div>{proposal.skillId}</div>
+                      <div className={styles["nn-muted"]}>{proposal.route}</div>
+                    </div>
+                    <span className={styles["nn-chip"]}>risk: {proposal.riskLevel}</span>
                   </div>
-                  <span className={styles["nn-chip"]}>risk: {proposal.riskLevel}</span>
-                </div>
-                <div className={styles["nn-muted"]}>
-                  {proposal.reasoning.slice(0, 120)}
-                  {proposal.reasoning.length > 120 ? "..." : ""}
-                </div>
-              </button>
-            ))
-          ) : (
-            <div className={styles["nn-emptyHint"]}>
-              No draft proposals yet. Ask the assistant for a structured proposal.
+                </button>
+              ))}
             </div>
-          )}
-        </Section>
+          ) : null}
 
-        <Section
-          title="3) Ready to Execute"
-          help="Approved + locked proposals can move to execution."
-          open={open.ready}
-          onToggle={() => toggle("ready")}
-        >
           {readyToExecute.length ? (
-            readyToExecute.map((proposal) => (
-              <button
-                key={proposal.id}
-                type="button"
-                className={[
-                  styles["nn-listItem"],
-                  styles["nn-listItemButton"],
-                  selected.kind === "proposal" && selected.id === proposal.id
-                    ? styles["nn-selectedFrame"]
-                    : "",
-                ].join(" ")}
-                onClick={() => {
-                  onSelectProposal(proposal.id);
-                  onFocusProposal(proposal.id);
-                }}
-              >
-                <div className={styles["nn-listHead"]}>
-                  <div>
+            <div className={styles["nn-listBlock"]}>
+              <div className={styles["nn-muted"]}>Ready to execute</div>
+              {readyToExecute.map((proposal) => (
+                <button
+                  key={proposal.id}
+                  type="button"
+                  className={[
+                    styles["nn-listItem"],
+                    styles["nn-listItemButton"],
+                    selected.kind === "proposal" && selected.id === proposal.id
+                      ? styles["nn-selectedFrame"]
+                      : "",
+                  ].join(" ")}
+                  onClick={() => {
+                    onSelectProposal(proposal.id);
+                    onFocusProposal(proposal.id);
+                  }}
+                >
+                  <div className={styles["nn-listHead"]}>
                     <div>{proposal.skillId}</div>
-                    <div className={styles["nn-muted"]}>{proposal.route}</div>
+                    <span className={styles["nn-statusBadge"]}>
+                      {proposal.executionPlan ? "plan ready" : "plan missing"}
+                    </span>
                   </div>
-                  <span className={styles["nn-statusBadge"]}>
-                    {proposal.executionPlan ? "plan ready" : "plan missing"}
-                  </span>
-                </div>
-                <div className={styles["nn-chipRow"]}>
-                  <span className={styles["nn-chip"]}>status: {proposal.status}</span>
-                  <span className={styles["nn-chip"]}>intent: {proposal.executionIntent}</span>
-                  <span className={styles["nn-chip"]}>
-                    execute: {proposal.executionPlan ? "enabled" : "blocked"}
-                  </span>
-                </div>
-              </button>
-            ))
-          ) : (
-            <div className={styles["nn-emptyHint"]}>No proposals are ready to execute.</div>
-          )}
-        </Section>
+                  <div className={styles["nn-chipRow"]}>
+                    <span className={styles["nn-chip"]}>intent: {proposal.executionIntent}</span>
+                    <span className={styles["nn-chip"]}>status: {proposal.status}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : null}
 
-        <Section
-          title="4) Executing / Recent Results"
-          help="Running and completed executions appear here."
-          open={open.results}
-          onToggle={() => toggle("results")}
-        >
           {running.length ? (
             <div className={styles["nn-listBlock"]}>
               <div className={styles["nn-muted"]}>Executing</div>
@@ -595,17 +549,23 @@ export default function OpsBoard({
                 </button>
               ))}
             </div>
-          ) : (
-            <div className={styles["nn-emptyHint"]}>No recent execution results.</div>
-          )}
+          ) : null}
         </Section>
 
         <Section
-          title="5) Strategies"
-          help="Strategy memory with pin, runbook, and propose controls."
+          title="Strategies"
+          help="Drafts, runbooks, and proposal conversion."
           open={open.strategies}
           onToggle={() => toggle("strategies")}
         >
+          {clarity !== "pro" ? (
+            <div className={styles["nn-muted"]}>
+              {clarity === "beginner"
+                ? "Create a strategy, then propose it when ready."
+                : "Track draft and pinned strategies with runbooks."}
+            </div>
+          ) : null}
+
           <div className={styles["nn-listItem"]}>
             <div className={styles["nn-listHead"]}>
               <div>Bankr Draft Composer</div>
@@ -845,13 +805,61 @@ export default function OpsBoard({
         </Section>
 
         <Section
-          title="6) PnL Summary"
-          help="Declared USD flows from executions only."
-          open={open.pnl}
-          onToggle={() => toggle("pnl")}
+          title="Health"
+          help="Policy mode, PnL snapshot, and Bankr read status."
+          open={open.health}
+          onToggle={() => toggle("health")}
         >
+          {clarity !== "pro" ? (
+            <div className={styles["nn-muted"]}>
+              {clarity === "beginner"
+                ? "Use this panel to confirm the seat is safe before execution."
+                : "Policy + telemetry snapshot for quick checks."}
+            </div>
+          ) : null}
+
+          <div className={styles["nn-listItem"]}>
+            <div className={styles["nn-listHead"]}>
+              <div>Policy mode</div>
+              <span className={styles["nn-statusBadge"]}>{policyMode}</span>
+            </div>
+            <div className={styles["nn-chipRow"]}>
+              <span className={styles["nn-chip"]}>pending: {pendingApprovals.length}</span>
+              <span className={styles["nn-chip"]}>ready: {readyToExecute.length}</span>
+              <span className={styles["nn-chip"]}>running: {running.length}</span>
+            </div>
+            {lastAudit ? (
+              <button
+                type="button"
+                className={styles["nn-jumpItem"]}
+                onClick={() => {
+                  onSelectMessage(lastAudit.id);
+                  onFocusMessage(lastAudit.id);
+                }}
+              >
+                Latest audit: {lastAudit.content.slice(0, 120)}
+              </button>
+            ) : (
+              <div className={styles["nn-muted"]}>No audit messages yet.</div>
+            )}
+          </div>
+
+          <div className={styles["nn-listItem"]}>
+            <div className={styles["nn-listHead"]}>
+              <div>Bankr status</div>
+              <span className={styles["nn-chip"]}>
+                wallet: {walletSnapshot ? "ok" : walletError ? "error" : "empty"}
+              </span>
+            </div>
+            <div className={styles["nn-muted"]}>Wallet updated: {formatTime(walletUpdatedAt)}</div>
+            <div className={styles["nn-muted"]}>Token updated: {formatTime(tokenUpdatedAt)}</div>
+            {(walletError || tokenError) ? (
+              <div className={styles["nn-muted"]}>Couldn&apos;t load (policy or missing config).</div>
+            ) : null}
+          </div>
+
           <Tooltip text="Declared USD flows recorded at execution time; not mark-to-market.">
-            <span className={styles["nn-muted"]}>Declared USD</span>
+            <span className={styles["nn-muted"]}>Declared USD flows</span>
           </Tooltip>
           {pnlConfigured ? (
             <>
