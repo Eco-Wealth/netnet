@@ -223,8 +223,6 @@ export default function OperatorConsoleClient({
       .sort((a, b) => a.createdAt - b.createdAt);
   }, [activeThreadId, messages, threadAssignments]);
 
-  const isFourPane = !compactLayout && layoutMode === "fourPane";
-
   const applyState = useCallback((next: OperatorStateResponse, targetThreadId: string | null) => {
     const seen = seenMessageIdsRef.current;
     const newMessages = next.messages.filter((message) => !seen.has(message.id));
@@ -483,11 +481,7 @@ export default function OperatorConsoleClient({
       <div
         className={[
           styles["nn-main"],
-          compactLayout
-            ? styles["nn-mainMobile"]
-            : isFourPane
-            ? styles["nn-mainFourPane"]
-            : styles["nn-mainTwoPane"],
+          compactLayout ? styles["nn-mainMobile"] : styles["nn-mainTwoPane"],
         ].join(" ")}
       >
         <section className={[styles["nn-center"], styles.panel, styles["nn-centerColumn"]].join(" ")}>
@@ -527,42 +521,32 @@ export default function OperatorConsoleClient({
               </div>
             </div>
           ) : null}
-          <ConversationPanel
-            messages={filteredMessages}
-            proposals={proposals}
-            draft={draft}
-            setDraft={setDraft}
-            onSend={onSend}
-            loading={pending && loadingAction === "send"}
-            policyMode={policyMode}
-            clarity={clarity}
-            skills={skills}
-            strategies={strategies}
-            onApprove={handleApprove}
-            onReject={handleReject}
-            onRequestIntent={handleRequestIntent}
-            onLockIntent={handleLockIntent}
-            onGeneratePlan={handleGeneratePlan}
-            onExecute={handleExecute}
-            onDraftStrategy={handleDraftStrategy}
-            onSelectProposal={handleSelectProposal}
-            onSelectMessage={handleSelectMessage}
-            selected={selected}
-            loadingAction={loadingAction}
-          />
-        </section>
-
-        {!compactLayout && isFourPane ? (
-          <aside className={[styles.left, styles.panel, styles["nn-sidebar"]].join(" ")}>
-            <ThreadSidebar
-              threads={threads}
-              activeThreadId={activeThreadId}
-              onSelectThread={onSelectThread}
-              onCreateThread={onCreateThread}
+          <div className={styles["nn-conversationPane"]}>
+            <ConversationPanel
+              messages={filteredMessages}
+              proposals={proposals}
+              draft={draft}
+              setDraft={setDraft}
+              onSend={onSend}
+              loading={pending && loadingAction === "send"}
+              policyMode={policyMode}
               clarity={clarity}
+              skills={skills}
+              strategies={strategies}
+              onApprove={handleApprove}
+              onReject={handleReject}
+              onRequestIntent={handleRequestIntent}
+              onLockIntent={handleLockIntent}
+              onGeneratePlan={handleGeneratePlan}
+              onExecute={handleExecute}
+              onDraftStrategy={handleDraftStrategy}
+              onSelectProposal={handleSelectProposal}
+              onSelectMessage={handleSelectMessage}
+              selected={selected}
+              loadingAction={loadingAction}
             />
-          </aside>
-        ) : null}
+          </div>
+        </section>
 
         {!compactLayout ? (
           <aside className={[styles.right, styles.panel, styles["nn-opsColumn"]].join(" ")}>
@@ -587,15 +571,6 @@ export default function OperatorConsoleClient({
               onSelectMessage={handleSelectMessage}
               selected={selected}
               loadingAction={loadingAction}
-            />
-          </aside>
-        ) : null}
-
-        {!compactLayout && isFourPane ? (
-          <aside className={[styles.inspector, styles.panel].join(" ")}>
-            <InspectorPanel
-              selected={selected}
-              data={{ messages, proposals, strategies: strategyMemory }}
             />
           </aside>
         ) : null}
