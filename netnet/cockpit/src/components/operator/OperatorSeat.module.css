@@ -600,9 +600,13 @@
 .nn-proposalHead {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 5px;
+}
+
+.nn-proposalHeaderMain {
+  min-width: 0;
 }
 
 .nn-proposalTitle {
@@ -613,6 +617,18 @@
 .nn-proposalRoute {
   font-size: 12px;
   color: rgba(148, 163, 184, 0.92);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nn-proposalPolicyLine {
+  font-size: 12px;
+  color: rgba(191, 219, 254, 0.9);
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .nn-inlineHint {
@@ -621,10 +637,48 @@
 }
 
 .nn-proposalMeta {
-  display: grid;
-  gap: 3px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   font-size: 11px;
   color: rgba(148, 163, 184, 0.95);
+}
+
+.nn-proposalActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 5px;
+}
+
+.nn-proposalToggleRow {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.nn-jsonToggle {
+  border: 0;
+  background: transparent;
+  color: rgba(125, 211, 252, 0.95);
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.nn-proposalJson {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  border-radius: 7px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(2, 6, 23, 0.92);
+  padding: 6px;
+  font-size: 11px;
+  line-height: 1.32;
+  color: rgba(226, 232, 240, 0.96);
 }
 
 .nn-opsBoard {

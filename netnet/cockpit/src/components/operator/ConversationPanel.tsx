@@ -40,6 +40,15 @@ type ConversationPanelProps = {
 };
 
 const MESSAGE_RENDER_STEP = 80;
+const USD_FORMATTER = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 2,
+});
+
+function formatUsd(value: number): string {
+  return USD_FORMATTER.format(value);
+}
 
 function escapeHtml(input: string): string {
   return input
@@ -192,11 +201,70 @@ const ProposalInlineCard = memo(function ProposalInlineCard({
   onExecute: (id: string) => void;
   onDraftStrategy: (id: string) => void;
 }) {
+  const [showJson, setShowJson] = useState(false);
   const canExecute =
     proposal.status === "approved" &&
     proposal.executionIntent === "locked" &&
     proposal.executionStatus === "idle" &&
     Boolean(proposal.executionPlan);
+
+  const headlineStatus = useMemo(() => {
+    if (proposal.executionStatus === "failed") return "failed";
+    if (proposal.executionStatus === "completed") return "executed";
+    if (
+      proposal.status === "approved" &&
+      proposal.executionIntent === "locked" &&
+      proposal.executionStatus === "idle"
+    ) {
+      return "locked";
+    }
+    return proposal.status;
+  }, [proposal.executionIntent, proposal.executionStatus, proposal.status]);
+
+  const policyDecision = useMemo(() => {
+    if (proposal.executionResult?.policyDecision) {
+      return proposal.executionResult.policyDecision;
+    }
+    const metadataPolicy = proposal.metadata?.policyDecision;
+    return typeof metadataPolicy === "string" && metadataPolicy.trim().length > 0
+      ? metadataPolicy
+      : "pending";
+  }, [proposal.executionResult?.policyDecision, proposal.metadata]);
+
+  const spendText = useMemo(() => {
+    const body = proposal.proposedBody || {};
+    const candidateValues = [body.amountUsd, body.spendUsd, body.maxSpendUsd];
+    for (const candidate of candidateValues) {
+      if (typeof candidate === "number" && Number.isFinite(candidate)) {
+        return formatUsd(candidate);
+      }
+    }
+    return "none";
+  }, [proposal.proposedBody]);
+
+  const jsonView = useMemo(
+    () =>
+      JSON.stringify(
+        {
+          id: proposal.id,
+          skillId: proposal.skillId,
+          route: proposal.route,
+          status: proposal.status,
+          executionIntent: proposal.executionIntent,
+          executionStatus: proposal.executionStatus,
+          riskLevel: proposal.riskLevel,
+          reasoning: proposal.reasoning,
+          proposedBody: proposal.proposedBody,
+          metadata: proposal.metadata,
+          executionPlan: proposal.executionPlan,
+          executionResult: proposal.executionResult,
+          executionError: proposal.executionError,
+        },
+        null,
+        2
+      ),
+    [proposal]
+  );
 
   return (
     <div
@@ -212,31 +280,27 @@ const ProposalInlineCard = memo(function ProposalInlineCard({
       }}
     >
       <div className={styles["nn-proposalHead"]}>
-        <div>
-          <div className={styles["nn-proposalTitle"]}>{proposal.skillId}</div>
+        <div className={styles["nn-proposalHeaderMain"]}>
+          <div className={styles["nn-proposalTitle"]}>Skill: {proposal.skillId || proposal.route}</div>
           <div className={styles["nn-proposalRoute"]}>{proposal.route}</div>
         </div>
         <div className={styles["nn-chipRow"]}>
-          <span className={styles["nn-chip"]}>risk: {proposal.riskLevel}</span>
-          <span className={styles["nn-chip"]}>status: {proposal.status}</span>
+          <span className={styles["nn-chip"]}>{headlineStatus}</span>
+          <span className={styles["nn-chip"]}>exec: {proposal.executionStatus}</span>
         </div>
       </div>
 
-      <div className={styles["nn-inlineHint"]}>{proposal.reasoning}</div>
-      <div className={styles["nn-proposalMeta"]}>
-        <span>intent: {proposal.executionIntent}</span>
-        <span>plan: {proposal.executionPlan ? proposal.executionPlan.summary : "none"}</span>
-        <span>
-          result:{" "}
-          {proposal.executionResult
-            ? proposal.executionResult.ok
-              ? "success"
-              : "failed"
-            : "none"}
-        </span>
+      <div className={styles["nn-proposalPolicyLine"]}>
+        Policy: {policyDecision} | Risk: {proposal.riskLevel} | Spend: {spendText}
       </div>
 
-      <div className={styles["nn-actions"]} onClick={(event) => event.stopPropagation()}>
+      <div className={styles["nn-proposalMeta"]}>
+        <span>intent: {proposal.executionIntent}</span>
+        <span>plan: {proposal.executionPlan ? "ready" : "none"}</span>
+        <span>{proposal.executionResult ? (proposal.executionResult.ok ? "result: success" : "result: failed") : "result: none"}</span>
+      </div>
+
+      <div className={styles["nn-proposalActions"]} onClick={(event) => event.stopPropagation()}>
         {proposal.status === "draft" ? (
           <>
             <Tooltip text="Approve this draft proposal.">
@@ -341,6 +405,23 @@ const ProposalInlineCard = memo(function ProposalInlineCard({
           </Tooltip>
         ) : null}
       </div>
+
+      <div className={styles["nn-proposalToggleRow"]} onClick={(event) => event.stopPropagation()}>
+        <button
+          type="button"
+          className={styles["nn-jsonToggle"]}
+          onClick={() => setShowJson((prev) => !prev)}
+          aria-expanded={showJson}
+        >
+          {showJson ? "Hide JSON" : "View JSON"}
+        </button>
+      </div>
+
+      {showJson ? (
+        <pre className={styles["nn-proposalJson"]}>
+          <code>{jsonView}</code>
+        </pre>
+      ) : null}
     </div>
   );
 });
