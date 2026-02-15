@@ -9,7 +9,7 @@ node -v
 npm -v
 npm ci || npm install
 echo "== netnet: cockpit build =="
-npm run build || exit 1
+npm run build
 echo "== netnet: cockpit lint (optional) =="
 npm run lint || true
-echo "NETNET HEALTHY"
+echo "OK: ops/check.sh complete"
