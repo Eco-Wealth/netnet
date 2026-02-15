@@ -15,3 +15,9 @@ interface MCPAdapter {
   chain: MCPChain;
   request(req: MCPRequest): Promise<MCPResponse>;
 }
+
+export type MarketSnapshot = {
+  timestamp: number;
+  regen: { latestBlock: number };
+  base: { latestBlock: number };
+};
