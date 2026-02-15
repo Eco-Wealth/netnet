@@ -1,3 +1,11 @@
+import type {
+  MCPAdapter,
+  MCPChain,
+  MCPRequest,
+  MCPResponse,
+  MarketSnapshot
+} from './types';
+
 import RegenAdapter from './adapters/regen';
 import BaseAdapter from './adapters/base';
 import EthAdapter from './adapters/eth';
@@ -20,17 +28,16 @@ class MCPClient {
 
   async getMarketSnapshot(): Promise<MarketSnapshot> {
     try {
-      const regenPromise = new RegenAdapter().getRegenStats();
-      const basePromise = new BaseAdapter().getBaseStats();
-      const [regenResponse, baseResponse] = await Promise.all([regenPromise, basePromise]);
+      const regen = await this.request("regen", { method: "latestBlock" });
+      const base = await this.request("base", { method: "latestBlock" });
 
       return {
         timestamp: Date.now(),
-        regen: { latestBlock: regenResponse.latestBlockHeight },
-        base: { latestBlock: baseResponse.latestBlockNumber },
+        regen: { latestBlock: Number(regen.data ?? 0) },
+        base: { latestBlock: Number(base.data ?? 0) }
       };
-    } catch (error) {
-      throw new Error('Failed to fetch market snapshot');
+    } catch {
+      throw new Error("Failed to fetch market snapshot");
     }
   }
 }
