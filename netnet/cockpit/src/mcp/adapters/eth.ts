@@ -1,0 +1,8 @@
+class EthAdapter implements MCPAdapter {
+  chain: MCPChain = "eth";
+  async request(req: MCPRequest): Promise<MCPResponse> {
+    return { ok: true, data: { stub: true, chain: this.chain } };
+  }
+}
+
+export default EthAdapter;
