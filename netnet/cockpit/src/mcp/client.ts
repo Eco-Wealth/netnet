@@ -1,16 +1,6 @@
-import type {
-  MCPAdapter,
-  MCPChain,
-  MCPRequest,
-  MCPResponse,
-  MarketSnapshot
-} from './types';
+import type { MCPAdapter, MCPChain, MCPRequest, MCPResponse, MarketSnapshot } from "./types";
 
-import RegenAdapter from './adapters/regen';
-import BaseAdapter from './adapters/base';
-import EthAdapter from './adapters/eth';
-
-class MCPClient {
+export default class MCPClient {
   private adapters: MCPAdapter[];
 
   constructor(adapters: MCPAdapter[]) {
@@ -18,28 +8,27 @@ class MCPClient {
   }
 
   getAdapter(chain: MCPChain): MCPAdapter {
-    return this.adapters.find(adapter => adapter.chain === chain)!;
+    const a = this.adapters.find(x => x.chain === chain);
+    if (!a) throw new Error(`Missing adapter for chain: ${chain}`);
+    return a;
   }
 
   async request(chain: MCPChain, req: MCPRequest): Promise<MCPResponse> {
-    const adapter = this.getAdapter(chain);
-    return adapter.request(req);
+    return this.getAdapter(chain).request(req);
   }
 
   async getMarketSnapshot(): Promise<MarketSnapshot> {
-    try {
-      const regen = await this.request("regen", { method: "latestBlock" });
-      const base = await this.request("base", { method: "latestBlock" });
+    const [regen, base, eth] = await Promise.all([
+      this.request("regen", { method: "latestBlock" }),
+      this.request("base", { method: "latestBlock" }),
+      this.request("eth", { method: "latestBlock" }),
+    ]);
 
-      return {
-        timestamp: Date.now(),
-        regen: { latestBlock: Number(regen.data ?? 0) },
-        base: { latestBlock: Number(base.data ?? 0) }
-      };
-    } catch {
-      throw new Error("Failed to fetch market snapshot");
-    }
+    return {
+      timestamp: Date.now(),
+      regen: { latestBlock: Number(regen.data ?? 0) },
+      base: { latestBlock: Number(base.data ?? 0) },
+      eth: { latestBlock: Number(eth.data ?? 0) },
+    };
   }
 }
-
-export default MCPClient;
