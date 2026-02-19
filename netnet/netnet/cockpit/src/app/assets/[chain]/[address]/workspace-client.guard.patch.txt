@@ -1,0 +1,14 @@
+This unit expects you to apply a small guard in:
+- netnet/cockpit/src/app/assets/[chain]/[address]/workspace-client.tsx
+
+Change idea:
+- If address is not a tx hash, show a friendly message and do not call /api/ecotoken/scan.
+
+Search for the call to /api/ecotoken/scan and wrap it with:
+
+import { isTxHash } from "@/lib/asset/txHash";
+
+if (!isTxHash(address)) {
+  setScanOut({ ok: false, error: "EcoToken scan requires a tx hash (0x…64). Paste a tx hash into the address field or use the tx view first." });
+  return;
+}

@@ -1,0 +1,5 @@
+{
+  "type": "test_artifact",
+  "version": "1.0",
+  "payload": { "status": "failed_case" }
+}

@@ -1,91 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
-import {
-  appendWorkEvent,
-  getWork,
-  updateWork,
-  WorkUpdateInput,
-  WorkEventType,
-} from "@/lib/work";
+import { NextResponse } from "next/server";
+import { getWorkItem } from "../../../../../vealth/work/workStore";
 
-export const runtime = "nodejs";
-
-export async function GET(_req: NextRequest, ctx: { params: { id: string } }) {
-  const item = getWork(ctx.params.id);
-  if (!item) {
-    return NextResponse.json(
-      { ok: false, error: { code: "NOT_FOUND", message: "work item not found" } },
-      { status: 404 }
-    );
-  }
-  return NextResponse.json({ ok: true, item });
-}
-
-export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
-  let body: Partial<WorkUpdateInput> = {};
-  try {
-    body = await req.json();
-  } catch {}
-
-  const item = updateWork(ctx.params.id, {
-    ...body,
-    actor: body.actor || "operator",
-    note: body.note,
-  });
-
-  if (!item) {
-    return NextResponse.json(
-      { ok: false, error: { code: "NOT_FOUND", message: "work item not found" } },
-      { status: 404 }
-    );
-  }
-
-  return NextResponse.json({ ok: true, item });
-}
-
-export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
-  // event append (comment/escalation/approval signals)
-  let body: any = {};
-  try {
-    body = await req.json();
-  } catch {}
-
-  const rawType = String(body.type || "").toUpperCase();
-  const allowed: WorkEventType[] = [
-    "CREATED",
-    "UPDATED",
-    "STATUS_CHANGED",
-    "COMMENT",
-    "APPROVAL_REQUESTED",
-    "APPROVED",
-    "REJECTED",
-    "ESCALATED",
-  ];
-  const type: WorkEventType = allowed.includes(rawType as WorkEventType)
-    ? (rawType as WorkEventType)
-    : "COMMENT";
-  const by = String(body.by || "operator");
-  const note = body.note ? String(body.note) : undefined;
-
-  if (!rawType) {
-    return NextResponse.json(
-      { ok: false, error: { code: "VALIDATION", message: "type is required" } },
-      { status: 400 }
-    );
-  }
-
-  const item = appendWorkEvent(ctx.params.id, {
-    type,
-    by,
-    note,
-    patch: body.patch,
-  });
-
-  if (!item) {
-    return NextResponse.json(
-      { ok: false, error: { code: "NOT_FOUND", message: "work item not found" } },
-      { status: 404 }
-    );
-  }
-
-  return NextResponse.json({ ok: true, item });
+export async function GET(request: Request, { params }: { params: { id: string } }) {
+  const id = params.id;
+  const item = getWorkItem(id);
+  if (!item) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json({ item });
 }

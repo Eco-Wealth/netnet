@@ -1,0 +1,94 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { withWork, appendWorkEvent } from "@/lib/work/client";
+import { useWorkSession } from "./useWorkSession";
+
+type ApiResult = { ok: boolean; [k: string]: any };
+
+async function getJson(url: string): Promise<ApiResult> {
+  const res = await fetch(url, { cache: "no-store" });
+  return (await res.json()) as ApiResult;
+}
+
+export default function Workbench() {
+  const { workId, setWorkId } = useWorkSession();
+  const [out, setOut] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+  const outputError = out?.result?.ok === false ? out.result.error : null;
+
+  const actions = useMemo(
+    () => [
+      { key: "health", label: "Ping /api/health", url: "/api/health", kind: "OPS" as const },
+      { key: "proofPaid", label: "Check /api/proof-paid (x402)", url: "/api/proof-paid", kind: "PROOF" as const },
+      { key: "carbonInfo", label: "Agent Carbon info", url: "/api/agent/carbon?action=info", kind: "CARBON_RETIRE" as const },
+      { key: "tradeInfo", label: "Agent Trade info", url: "/api/agent/trade?action=info", kind: "TRADE_PLAN" as const },
+      { key: "bridgeRegistry", label: "Bridge Registry", url: "/api/bridge/registry", kind: "CARBON_RETIRE" as const },
+    ],
+    []
+  );
+
+  async function run(action: (typeof actions)[number]) {
+    setBusy(true);
+    setOut(null);
+    try {
+      const { workId: created, result } = await withWork(
+        { title: action.label, kind: action.kind, tags: ["workbench"] },
+        async (wid) => {
+          if (wid) await appendWorkEvent(wid, { type: "INFO", message: "Calling endpoint", data: { url: action.url } });
+          return await getJson(action.url);
+        }
+      );
+      if (created) setWorkId(created);
+      setOut({ workId: created, result });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="nn-page-stack">
+      <div className="nn-surface flex flex-wrap items-center justify-between gap-3">
+        <div className="text-sm text-white/80">
+          Active work: <span className="font-mono">{workId || "none"}</span>
+        </div>
+        {workId ? (
+          <button className="text-sm underline" onClick={() => setWorkId(null)}>
+            Clear active work
+          </button>
+        ) : null}
+      </div>
+
+      <div className="nn-surface grid gap-2">
+        {actions.map((a) => (
+          <button
+            key={a.key}
+            disabled={busy}
+            onClick={() => run(a)}
+            className="rounded-xl border border-white/15 bg-white/[0.03] px-4 py-3 text-left hover:bg-white/[0.08] disabled:opacity-50"
+          >
+            <div className="font-medium">{a.label}</div>
+            <div className="mt-1 font-mono text-xs opacity-70">{a.url}</div>
+          </button>
+        ))}
+      </div>
+
+      <div className="nn-surface">
+        <div className="text-sm font-medium">Output</div>
+        {outputError ? (
+          <div className="mt-2 rounded-lg border border-amber-400/40 bg-amber-500/10 p-3 text-xs text-amber-100">
+            <div className="font-medium">Upstream degraded</div>
+            <div className="mt-1 opacity-80">
+              {outputError.message ?? "External upstream request failed."}
+              {" "}
+              Core cockpit flows remain available while this dependency recovers.
+            </div>
+          </div>
+        ) : null}
+        <pre className="mt-2 max-h-[420px] overflow-auto rounded-lg border border-white/10 bg-black/30 p-3 text-xs">
+          {out ? JSON.stringify(out, null, 2) : busy ? "Running..." : "—"}
+        </pre>
+      </div>
+    </div>
+  );
+}

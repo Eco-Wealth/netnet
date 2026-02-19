@@ -1,0 +1,12 @@
+{
+  "structuralScore": 0,
+  "components": {
+    "schemaValidity": 0,
+    "invariants": 0,
+    "completeness": 0,
+    "determinism": 0,
+    "diffLocality": 0,
+    "uiRenderability": 0
+  },
+  "hardFail": true
+}

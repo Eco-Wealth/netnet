@@ -1,0 +1,21 @@
+{
+  "runId": "passing_run_v1",
+  "timestamp": "2026-02-16T04:17:00Z",
+  "params": {
+    "capabilityId": "core.run_record_integrity",
+    "brainVersion": "v1",
+    "tokenCap": 1000,
+    "usdCap": 50,
+    "maxSteps": 10,
+    "model": "openrouter/auto",
+    "temperature": 0,
+    "seed": 1,
+    "timeoutMs": 300000
+  },
+  "tokenUsed": 10,
+  "usdUsed": 0.5,
+  "steps": 2,
+  "touchedPaths": [
+    "netnet/cockpit/src/vealth/types/runArtifacts.ts"
+  ]
+}

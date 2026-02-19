@@ -1,0 +1,24 @@
+{
+  "name": "netnet",
+  "version": "0.4.0",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "postinstall": "npm --prefix netnet/cockpit install",
+    "dev": "npm --prefix netnet/cockpit run dev",
+    "build": "npm --prefix netnet/cockpit run build",
+    "start": "npm --prefix netnet/cockpit run start",
+    "test": "npm --prefix netnet/cockpit run test",
+    "smoke": "bash scripts/smoke.sh",
+    "audit:check": "npm --prefix netnet/cockpit run audit:check",
+    "contracts:check": "node scripts/check-api-contract-sot.mjs",
+    "policy:integrity": "node scripts/check-policy-integrity.mjs",
+    "policy:routes": "node scripts/check-route-policy-enforcement.mjs",
+    "drift:check": "npm run contracts:check && npm run policy:integrity && npm run policy:routes"
+  },
+  "dependencies": {
+    "axios": "^1.13.5"
+  }
+}
