@@ -477,7 +477,7 @@
   },
   {
     "id": "U-069",
-    "status": "IN_PROGRESS",
+    "status": "IN_REVIEW",
     "spec": "Placeholder spec for unit U-069",
     "dependencies": [],
     "tests_required": true
