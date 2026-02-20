@@ -610,7 +610,7 @@
   },
   {
     "id": "U-088",
-    "status": "IN_PROGRESS",
+    "status": "IN_REVIEW",
     "spec": "Placeholder spec for unit U-088",
     "dependencies": [],
     "tests_required": true
