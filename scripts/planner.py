@@ -52,6 +52,16 @@ def update_unit_status(unit_id, new_status):
     save_backlog(units)
 
 
+def normalize_unit(unit_id):
+    # U-002 -> u_002
+    return unit_id.lower().replace("-", "_")
+
+
+def class_name(unit_id):
+    # U-002 -> U002
+    return unit_id.replace("-", "")
+
+
 def create_branch(branch):
     run_cmd(["git", "checkout", "test-vealth-branch"])
     run_cmd(["git", "pull", "origin", "test-vealth-branch"])
@@ -81,31 +91,31 @@ def run_tests():
 
 def process_unit(unit):
     unit_id = unit["id"]
-    branch = f"feature/vealth-{unit_id.lower()}"
+    module_name = normalize_unit(unit_id)
+    cls_name = class_name(unit_id)
+    branch = f"feature/vealth-{module_name}"
 
     print(f"\n=== PROCESSING {unit_id} ===")
 
     update_unit_status(unit_id, "IN_PROGRESS")
     create_branch(branch)
 
-    # create stub file
-    unit_file = REPO_ROOT / "regenmind" / "units" / f"{unit_id.lower()}.py"
+    unit_file = REPO_ROOT / "regenmind" / "units" / f"{module_name}.py"
     unit_file.parent.mkdir(parents=True, exist_ok=True)
 
     unit_file.write_text(
-        f"class {unit_id.replace('-', '')}:\n"
+        f"class {cls_name}:\n"
         f"    def execute(self):\n"
         f"        return '{unit_id} executed'\n"
     )
 
-    # create stub test
-    test_file = REPO_ROOT / "tests" / f"test_{unit_id.lower()}.py"
+    test_file = REPO_ROOT / "tests" / f"test_{module_name}.py"
     test_file.parent.mkdir(parents=True, exist_ok=True)
 
     test_file.write_text(
-        f"from regenmind.units.{unit_id.lower()} import {unit_id.replace('-', '')}\n\n"
-        f"def test_{unit_id.lower()}():\n"
-        f"    assert {unit_id.replace('-', '')}().execute() == '{unit_id} executed'\n"
+        f"from regenmind.units.{module_name} import {cls_name}\n\n"
+        f"def test_{module_name}():\n"
+        f"    assert {cls_name}().execute() == '{unit_id} executed'\n"
     )
 
     run_cmd(["git", "add", "."])
