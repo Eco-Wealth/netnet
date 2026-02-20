@@ -288,7 +288,7 @@
   },
   {
     "id": "U-042",
-    "status": "PENDING",
+    "status": "IN_PROGRESS",
     "spec": "Placeholder spec for unit U-042",
     "dependencies": [],
     "tests_required": true
