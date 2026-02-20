@@ -680,7 +680,7 @@
   },
   {
     "id": "U-098",
-    "status": "PENDING",
+    "status": "IN_PROGRESS",
     "spec": "Placeholder spec for unit U-098",
     "dependencies": [],
     "tests_required": true
