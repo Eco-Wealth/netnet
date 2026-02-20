@@ -631,7 +631,7 @@
   },
   {
     "id": "U-091",
-    "status": "PENDING",
+    "status": "DONE",
     "spec": "Placeholder spec for unit U-091",
     "dependencies": [],
     "tests_required": true
