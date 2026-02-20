@@ -393,7 +393,7 @@
   },
   {
     "id": "U-057",
-    "status": "PENDING",
+    "status": "IN_PROGRESS",
     "spec": "Placeholder spec for unit U-057",
     "dependencies": [],
     "tests_required": true
