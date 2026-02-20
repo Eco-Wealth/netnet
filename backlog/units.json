@@ -358,7 +358,7 @@
   },
   {
     "id": "U-052",
-    "status": "PENDING",
+    "status": "IN_PROGRESS",
     "spec": "Placeholder spec for unit U-052",
     "dependencies": [],
     "tests_required": true
