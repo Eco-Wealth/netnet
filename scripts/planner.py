@@ -80,7 +80,6 @@ def create_feature_branch(branch):
 def run_tests():
     env = os.environ.copy()
     env["PYTHONPATH"] = str(REPO_ROOT)
-
     run_cmd(
         [str(REPO_ROOT / ".venv" / "bin" / "pytest"), "-q"],
         env=env,
@@ -95,7 +94,7 @@ def process_unit(unit):
 
     print(f"\n=== PROCESSING {unit_id} ===")
 
-    # 1️⃣ Mark IN_PROGRESS on base and commit
+    # Mark IN_PROGRESS
     checkout_base()
     units = load_backlog()
     for u in units:
@@ -105,7 +104,7 @@ def process_unit(unit):
     save_backlog(units)
     commit_backlog(f"planner: {unit_id} -> IN_PROGRESS")
 
-    # 2️⃣ Create feature branch and implement
+    # Create feature branch
     create_feature_branch(branch)
 
     unit_file = REPO_ROOT / "regenmind" / "units" / f"{module_name}.py"
@@ -130,39 +129,54 @@ def process_unit(unit):
     run_cmd(["git", "commit", "-m", f"unit: implement {unit_id}"])
     run_cmd(["git", "push", "-u", "origin", branch])
 
-    # 3️⃣ Tests
+    # Create PR
+    run_cmd([
+        "gh", "pr", "create",
+        "--base", BASE_BRANCH,
+        "--head", branch,
+        "--title", f"{unit_id}",
+        "--body", f"Auto-generated unit {unit_id}"
+    ])
+
+    # Enable auto-merge
+    run_cmd([
+        "gh", "pr", "merge",
+        branch,
+        "--auto",
+        "--merge"
+    ])
+
+    # Run tests locally
     run_tests()
 
-    # 4️⃣ Back to base and mark IN_REVIEW
+    # Mark DONE
     checkout_base()
     units = load_backlog()
     for u in units:
         if u["id"] == unit_id:
-            u["status"] = "IN_REVIEW"
+            u["status"] = "DONE"
             break
     save_backlog(units)
-    commit_backlog(f"planner: {unit_id} -> IN_REVIEW")
+    commit_backlog(f"planner: {unit_id} -> DONE")
 
     print(f"=== {unit_id} COMPLETE ===\n")
 
 
 def main():
-    print("=== VELATH BATCH MODE START ===\n")
+    print("=== VELATH WORKER RUN ===")
 
-    while True:
-        unit = select_next_unit()
+    unit = select_next_unit()
 
-        if not unit:
-            print("No PENDING units remaining. Exiting.")
-            break
+    if not unit:
+        print("No PENDING units remaining. Exiting.")
+        return
 
-        try:
-            process_unit(unit)
-        except Exception as e:
-            print(f"Unit failed: {e}")
-            break
+    try:
+        process_unit(unit)
+    except Exception as e:
+        print(f"Unit failed: {e}")
 
-    print("\n=== BATCH MODE COMPLETE ===")
+    print("=== WORKER EXIT ===")
 
 
 if __name__ == "__main__":
