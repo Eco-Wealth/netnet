@@ -106,7 +106,7 @@
   },
   {
     "id": "U-016",
-    "status": "IN_PROGRESS",
+    "status": "IN_REVIEW",
     "spec": "Placeholder spec for unit U-016",
     "dependencies": [],
     "tests_required": true
