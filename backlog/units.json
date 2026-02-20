@@ -715,7 +715,7 @@
   },
   {
     "id": "U-103",
-    "status": "PENDING",
+    "status": "DONE",
     "spec": "Work templates library: Job templates: deploy, revenue-idea spec, content pack, lead pack, automation sprint. Phase D \u2014 Revenue programs + regen receipts",
     "dependencies": [],
     "tests_required": true
