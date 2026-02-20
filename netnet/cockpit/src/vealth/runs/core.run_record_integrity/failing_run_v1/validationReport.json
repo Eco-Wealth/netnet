@@ -1,0 +1,9 @@
+{
+  "schemaValid": true,
+  "invariantResults": [
+    { "name": "touchedPathsPrefix", "passed": false, "message": "touchedPath violates prefix rule: node_modules/somefile.js" },
+    { "name": "tokenCapEnforcement", "passed": false, "message": "tokenUsed exceeds tokenCap" }
+  ],
+  "hardFailures": ["touchedPath violates prefix rule: node_modules/somefile.js", "tokenUsed exceeds tokenCap: 150 > 100"],
+  "warnings": []
+}

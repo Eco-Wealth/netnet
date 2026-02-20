@@ -1,0 +1,5 @@
+{
+  "type": "promotion_commit",
+  "version": "1.0",
+  "payload": { "previousChampionVersion": "v1", "newChampionVersion": "v2" }
+}
