@@ -596,7 +596,7 @@
   },
   {
     "id": "U-086",
-    "status": "PENDING",
+    "status": "DONE",
     "spec": "Placeholder spec for unit U-086",
     "dependencies": [],
     "tests_required": true
