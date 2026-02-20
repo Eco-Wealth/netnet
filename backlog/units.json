@@ -698,5 +698,110 @@
     "spec": "Placeholder spec for unit U-100",
     "dependencies": [],
     "tests_required": true
+  },
+  {
+    "id": "U-101",
+    "status": "PENDING",
+    "spec": "Code quality gates: Run npm test / npm run lint / npm run build when available; post results in events.",
+    "dependencies": [],
+    "tests_required": true
+  },
+  {
+    "id": "U-102",
+    "status": "PENDING",
+    "spec": "UI/UX design system pass: Make cockpit \u201ccalm, dense, usable\": consistent components, spacing, typography, status badges.",
+    "dependencies": [],
+    "tests_required": true
+  },
+  {
+    "id": "U-103",
+    "status": "PENDING",
+    "spec": "Work templates library: Job templates: deploy, revenue-idea spec, content pack, lead pack, automation sprint. Phase D \u2014 Revenue programs + regen receipts",
+    "dependencies": [],
+    "tests_required": true
+  },
+  {
+    "id": "U-104",
+    "status": "PENDING",
+    "spec": "Revenue program: Content Pack: Run v1 Inputs \u2192 outputs artifact bundle (hooks/captions/scripts) stored and linked.",
+    "dependencies": [],
+    "tests_required": true
+  },
+  {
+    "id": "U-105",
+    "status": "PENDING",
+    "spec": "Revenue program: Lead Pack: Run v1 CSV output + outreach copy + tracking fields.",
+    "dependencies": [],
+    "tests_required": true
+  },
+  {
+    "id": "U-106",
+    "status": "PENDING",
+    "spec": "Net Benefit Receipt enforcement: DONE requires completion bundle: Value Delivered + Receipt (or PENDING) + Next Run Recommendation.",
+    "dependencies": [],
+    "tests_required": true
+  },
+  {
+    "id": "U-107",
+    "status": "PENDING",
+    "spec": "Deploy Netnet stable URL: HTTPS + reverse proxy; Systemd/pm2, nginx, domain, TLS, protected endpoints.",
+    "dependencies": [],
+    "tests_required": true
+  },
+  {
+    "id": "U-108",
+    "status": "PENDING",
+    "spec": "Auth / operator key: Simple header token or basic auth for destructive endpoints (worker trigger, seeding).",
+    "dependencies": [],
+    "tests_required": true
+  },
+  {
+    "id": "U-109",
+    "status": "PENDING",
+    "spec": "Autonomy modes: UI + policy envelope OFF / PROPOSE / EXECUTE, caps, allowlists, kill switch shown in cockpit.",
+    "dependencies": [],
+    "tests_required": true
+  },
+  {
+    "id": "U-110",
+    "status": "PENDING",
+    "spec": "Execution Adapter Layer: Abstract execution target in worker: \"local\" or \"conway\". All job execution routes through this adapter boundary.",
+    "dependencies": [],
+    "tests_required": true
+  },
+  {
+    "id": "U-111",
+    "status": "PENDING",
+    "spec": "Conway Remote Compute Adapter: Implement Conway as controlled remote executor: provision sandbox, run command, capture output, post event.",
+    "dependencies": [],
+    "tests_required": true
+  },
+  {
+    "id": "U-112",
+    "status": "PENDING",
+    "spec": "Resource & Spend Guardrails: Enforce per-job limits: max runtime, max spend, approval flag required, visible policy in cockpit.",
+    "dependencies": [],
+    "tests_required": true
+  },
+  {
+    "id": "U-113",
+    "status": "PENDING",
+    "spec": "Operator layout overflow + sticky composer: Fix hidden buttons / reachability",
+    "dependencies": [],
+    "tests_required": true
+  },
+  {
+    "id": "U-114",
+    "status": "PENDING",
+    "spec": "Kindergarten mode toggle: tooltips + simplified labels + guided next action",
+    "dependencies": [],
+    "tests_required": true
+  },
+  {
+    "id": "U-115",
+    "status": "PENDING",
+    "spec": "VEALTH_SYSTEM.md + System viewer: in-app \"System\" viewer tab (agent + human share the same truth)",
+    "dependencies": [],
+    "tests_required": true
   }
 ]
