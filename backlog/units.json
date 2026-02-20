@@ -603,7 +603,7 @@
   },
   {
     "id": "U-087",
-    "status": "PENDING",
+    "status": "DONE",
     "spec": "Placeholder spec for unit U-087",
     "dependencies": [],
     "tests_required": true
