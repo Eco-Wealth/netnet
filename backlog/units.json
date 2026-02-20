@@ -652,7 +652,7 @@
   },
   {
     "id": "U-094",
-    "status": "IN_PROGRESS",
+    "status": "IN_REVIEW",
     "spec": "Placeholder spec for unit U-094",
     "dependencies": [],
     "tests_required": true
