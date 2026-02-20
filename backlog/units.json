@@ -211,7 +211,7 @@
   },
   {
     "id": "U-031",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-031",
     "dependencies": [],
     "tests_required": true
@@ -316,7 +316,7 @@
   },
   {
     "id": "U-046",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-046",
     "dependencies": [],
     "tests_required": true
@@ -421,7 +421,7 @@
   },
   {
     "id": "U-061",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-061",
     "dependencies": [],
     "tests_required": true
@@ -470,14 +470,14 @@
   },
   {
     "id": "U-068",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-068",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-069",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-069",
     "dependencies": [],
     "tests_required": true
@@ -491,126 +491,126 @@
   },
   {
     "id": "U-071",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-071",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-072",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-072",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-073",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-073",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-074",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-074",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-075",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-075",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-076",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-076",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-077",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-077",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-078",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-078",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-079",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-079",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-080",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-080",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-081",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-081",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-082",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-082",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-083",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-083",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-084",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-084",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-085",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-085",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-086",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-086",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-087",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-087",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-088",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-088",
     "dependencies": [],
     "tests_required": true
@@ -624,35 +624,35 @@
   },
   {
     "id": "U-090",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-090",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-091",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-091",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-092",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-092",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-093",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-093",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-094",
-    "status": "IN_PROGRESS",
+    "status": "PENDING",
     "spec": "Placeholder spec for unit U-094",
     "dependencies": [],
     "tests_required": true
