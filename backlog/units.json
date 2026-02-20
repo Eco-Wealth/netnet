@@ -176,7 +176,7 @@
   },
   {
     "id": "U-026",
-    "status": "PENDING",
+    "status": "IN_PROGRESS",
     "spec": "Placeholder spec for unit U-026",
     "dependencies": [],
     "tests_required": true
