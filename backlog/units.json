@@ -351,7 +351,7 @@
   },
   {
     "id": "U-051",
-    "status": "PENDING",
+    "status": "IN_PROGRESS",
     "spec": "Placeholder spec for unit U-051",
     "dependencies": [],
     "tests_required": true
