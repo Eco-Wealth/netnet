@@ -701,7 +701,7 @@
   },
   {
     "id": "U-101",
-    "status": "PENDING",
+    "status": "DONE",
     "spec": "Code quality gates: Run npm test / npm run lint / npm run build when available; post results in events.",
     "dependencies": [],
     "tests_required": true
