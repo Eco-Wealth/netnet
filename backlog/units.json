@@ -218,7 +218,7 @@
   },
   {
     "id": "U-032",
-    "status": "IN_PROGRESS",
+    "status": "IN_REVIEW",
     "spec": "Placeholder spec for unit U-032",
     "dependencies": [],
     "tests_required": true
