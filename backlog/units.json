@@ -708,7 +708,7 @@
   },
   {
     "id": "U-102",
-    "status": "PENDING",
+    "status": "DONE",
     "spec": "UI/UX design system pass: Make cockpit \u201ccalm, dense, usable\": consistent components, spacing, typography, status badges.",
     "dependencies": [],
     "tests_required": true
