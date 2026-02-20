@@ -2,9 +2,11 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+import os
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BACKLOG_PATH = REPO_ROOT / "backlog" / "units.json"
+BASE_BRANCH = "test-vealth-branch"
 
 
 def run_cmd(cmd, env=None):
@@ -25,6 +27,11 @@ def run_cmd(cmd, env=None):
     return result
 
 
+def checkout_base():
+    run_cmd(["git", "checkout", BASE_BRANCH])
+    run_cmd(["git", "pull", "origin", BASE_BRANCH])
+
+
 def load_backlog():
     with open(BACKLOG_PATH, "r") as f:
         return json.load(f)
@@ -35,6 +42,12 @@ def save_backlog(data):
         json.dump(data, f, indent=2)
 
 
+def commit_backlog(message):
+    run_cmd(["git", "add", "backlog/units.json"])
+    run_cmd(["git", "commit", "-m", message])
+    run_cmd(["git", "push", "origin", BASE_BRANCH])
+
+
 def select_next_unit():
     units = load_backlog()
     for unit in units:
@@ -43,44 +56,29 @@ def select_next_unit():
     return None
 
 
-def update_unit_status(unit_id, new_status):
-    units = load_backlog()
-    for unit in units:
-        if unit["id"] == unit_id:
-            unit["status"] = new_status
-            break
-    save_backlog(units)
-
-
 def normalize_unit(unit_id):
-    # U-002 -> u_002
     return unit_id.lower().replace("-", "_")
 
 
 def class_name(unit_id):
-    # U-002 -> U002
     return unit_id.replace("-", "")
 
 
-def create_branch(branch):
-    run_cmd(["git", "checkout", "test-vealth-branch"])
-    run_cmd(["git", "pull", "origin", "test-vealth-branch"])
-
+def create_feature_branch(branch):
+    checkout_base()
     result = subprocess.run(
         ["git", "rev-parse", "--verify", branch],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
     )
-
     if result.returncode == 0:
         run_cmd(["git", "branch", "-D", branch])
-
     run_cmd(["git", "checkout", "-b", branch])
 
 
 def run_tests():
-    env = dict(**subprocess.os.environ)
+    env = os.environ.copy()
     env["PYTHONPATH"] = str(REPO_ROOT)
 
     run_cmd(
@@ -97,8 +95,18 @@ def process_unit(unit):
 
     print(f"\n=== PROCESSING {unit_id} ===")
 
-    update_unit_status(unit_id, "IN_PROGRESS")
-    create_branch(branch)
+    # 1️⃣ Mark IN_PROGRESS on base and commit
+    checkout_base()
+    units = load_backlog()
+    for u in units:
+        if u["id"] == unit_id:
+            u["status"] = "IN_PROGRESS"
+            break
+    save_backlog(units)
+    commit_backlog(f"planner: {unit_id} -> IN_PROGRESS")
+
+    # 2️⃣ Create feature branch and implement
+    create_feature_branch(branch)
 
     unit_file = REPO_ROOT / "regenmind" / "units" / f"{module_name}.py"
     unit_file.parent.mkdir(parents=True, exist_ok=True)
@@ -122,15 +130,24 @@ def process_unit(unit):
     run_cmd(["git", "commit", "-m", f"unit: implement {unit_id}"])
     run_cmd(["git", "push", "-u", "origin", branch])
 
+    # 3️⃣ Tests
     run_tests()
 
-    update_unit_status(unit_id, "IN_REVIEW")
+    # 4️⃣ Back to base and mark IN_REVIEW
+    checkout_base()
+    units = load_backlog()
+    for u in units:
+        if u["id"] == unit_id:
+            u["status"] = "IN_REVIEW"
+            break
+    save_backlog(units)
+    commit_backlog(f"planner: {unit_id} -> IN_REVIEW")
 
     print(f"=== {unit_id} COMPLETE ===\n")
 
 
 def main():
-    print("=== VELATH BATCH MODE START ===")
+    print("=== VELATH BATCH MODE START ===\n")
 
     while True:
         unit = select_next_unit()
@@ -145,7 +162,7 @@ def main():
             print(f"Unit failed: {e}")
             break
 
-    print("=== BATCH MODE COMPLETE ===")
+    print("\n=== BATCH MODE COMPLETE ===")
 
 
 if __name__ == "__main__":
