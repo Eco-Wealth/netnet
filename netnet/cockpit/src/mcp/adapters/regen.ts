@@ -1,9 +1,10 @@
 import axios from 'axios';
+import { MCPAdapter, MCPChain, MCPRequest, MCPResponse } from '../types';
 
 class RegenAdapter implements MCPAdapter {
   chain: MCPChain = "regen";
 
-  async request(req: MCPRequest): Promise<MCPResponse> {
+  async request(_req: MCPRequest): Promise<MCPResponse> {
     return { ok: true, data: { stub: true, chain: this.chain } };
   }
 
@@ -12,7 +13,7 @@ class RegenAdapter implements MCPAdapter {
       const response = await axios.get('https://api.regen.network/cosmos/base/tendermint/v1beta1/blocks/latest');
       const latestBlockHeight = response.data.block.header.height;
       return { chainId: 'regen-1', latestBlockHeight };
-    } catch (error) {
+    } catch {
       throw new Error('Failed to fetch data from Regen API');
     }
   }

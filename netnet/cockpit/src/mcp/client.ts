@@ -1,6 +1,6 @@
 import RegenAdapter from './adapters/regen';
 import BaseAdapter from './adapters/base';
-import EthAdapter from './adapters/eth';
+import { MCPAdapter, MCPChain, MCPRequest, MCPResponse, MarketSnapshot } from './types';
 
 class MCPClient {
   private adapters: MCPAdapter[];
@@ -29,7 +29,7 @@ class MCPClient {
         regen: { latestBlock: regenResponse.latestBlockHeight },
         base: { latestBlock: baseResponse.latestBlockNumber },
       };
-    } catch (error) {
+    } catch {
       throw new Error('Failed to fetch market snapshot');
     }
   }
