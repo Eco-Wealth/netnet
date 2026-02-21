@@ -736,7 +736,7 @@
   },
   {
     "id": "U-106",
-    "status": "PENDING",
+    "status": "DONE",
     "spec": "Net Benefit Receipt enforcement: DONE requires completion bundle: Value Delivered + Receipt (or PENDING) + Next Run Recommendation.",
     "dependencies": [],
     "tests_required": true
