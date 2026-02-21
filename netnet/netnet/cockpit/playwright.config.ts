@@ -7,7 +7,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: [['list']],
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3101',
     trace: 'retain-on-failure',
   },
   projects: [
@@ -16,15 +16,15 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_NO_WEBSERVER
     ? undefined
     : {
-        command: 'npm run dev',
-        url: 'http://localhost:3000',
+        command: 'npm run dev -- --hostname 127.0.0.1 --port 3101',
+        url: 'http://127.0.0.1:3101',
         env: {
           ...process.env,
           X402_PAY_TO: process.env.X402_PAY_TO || '0x1111111111111111111111111111111111111111',
           X402_DEV_BYPASS: process.env.X402_DEV_BYPASS || 'false',
           X402_DEV_PAID_TOKEN: process.env.X402_DEV_PAID_TOKEN || 'netnet-local-paid-token',
         },
-        reuseExistingServer: !process.env.CI,
+        reuseExistingServer: false,
         timeout: 60_000,
       },
 });

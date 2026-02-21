@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-02-12",
+  "updatedAt": "2026-02-21",
   "scope": "netnet/cockpit/src/app/api/**",
   "routes": [
     {
@@ -191,6 +191,13 @@
       "actions": ["audit"],
       "skill": "skills/netnet-cockpit-security.md",
       "docs": ["netnet/cockpit/docs/unit49-security-audit.md"]
+    },
+    {
+      "route": "/api/telegram/webhook",
+      "methods": ["POST"],
+      "actions": ["ingest_message", "reply"],
+      "skill": "platform",
+      "docs": []
     },
     {
       "route": "/api/work",
