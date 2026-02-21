@@ -764,7 +764,7 @@
   },
   {
     "id": "U-110",
-    "status": "PENDING",
+    "status": "DONE",
     "spec": "Execution Adapter Layer: Abstract execution target in worker: \"local\" or \"conway\". All job execution routes through this adapter boundary.",
     "dependencies": [],
     "tests_required": true
