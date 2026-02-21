@@ -1,8 +1,8 @@
 [
   {
     "id": "U-001",
-    "status": "PENDING",
-    "spec": "Placeholder spec for unit U-001",
+    "status": "BLOCKED",
+    "spec": "Clarify needed: no implementation-ready spec. Propose adding a marketplace UI card at netnet/cockpit/src/pages/marketplace.tsx and a service at netnet/cockpit/src/services/marketplace.ts with acceptance: page renders, API connected to netnet/regenmind units.\nAction: open PR to clarify spec.",
     "dependencies": [],
     "tests_required": true,
     "attemptCount": 0,
