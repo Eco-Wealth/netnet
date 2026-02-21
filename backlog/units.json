@@ -778,7 +778,7 @@
   },
   {
     "id": "U-112",
-    "status": "PENDING",
+    "status": "DONE",
     "spec": "Resource & Spend Guardrails: Enforce per-job limits: max runtime, max spend, approval flag required, visible policy in cockpit.",
     "dependencies": [],
     "tests_required": true
