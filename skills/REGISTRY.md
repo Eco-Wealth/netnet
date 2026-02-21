@@ -31,6 +31,7 @@ Exact API request/response contracts are canonical in:
 | `netnet-cockpit-bankr-launch.md` | ACTIVE | `/api/bankr/launch` |
 | `netnet-cockpit-programs.md` | ACTIVE | `/api/programs` |
 | `netnet-cockpit-security.md` | ACTIVE | `/api/security/audit` |
+| `netnet-cockpit-telegram.md` | ACTIVE | `/api/telegram/webhook` |
 
 ## Operator Skill Context
 | id | route | description | ownership |

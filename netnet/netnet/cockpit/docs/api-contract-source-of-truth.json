@@ -196,7 +196,7 @@
       "route": "/api/telegram/webhook",
       "methods": ["POST"],
       "actions": ["ingest_message", "reply"],
-      "skill": "platform",
+      "skill": "skills/netnet-cockpit-telegram.md",
       "docs": []
     },
     {
