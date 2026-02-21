@@ -750,7 +750,7 @@
   },
   {
     "id": "U-108",
-    "status": "PENDING",
+    "status": "DONE",
     "spec": "Auth / operator key: Simple header token or basic auth for destructive endpoints (worker trigger, seeding).",
     "dependencies": [],
     "tests_required": true
