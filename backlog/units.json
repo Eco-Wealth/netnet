@@ -550,7 +550,7 @@
   },
   {
     "id": "U-062",
-    "status": "PENDING",
+    "status": "DONE",
     "spec": "Placeholder spec for unit U-062",
     "dependencies": [],
     "tests_required": true,
