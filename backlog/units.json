@@ -743,7 +743,7 @@
   },
   {
     "id": "U-107",
-    "status": "PENDING",
+    "status": "DONE",
     "spec": "Deploy Netnet stable URL: HTTPS + reverse proxy; Systemd/pm2, nginx, domain, TLS, protected endpoints.",
     "dependencies": [],
     "tests_required": true
