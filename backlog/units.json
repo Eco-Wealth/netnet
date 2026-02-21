@@ -771,7 +771,7 @@
   },
   {
     "id": "U-111",
-    "status": "PENDING",
+    "status": "DONE",
     "spec": "Conway Remote Compute Adapter: Implement Conway as controlled remote executor: provision sandbox, run command, capture output, post event.",
     "dependencies": [],
     "tests_required": true
