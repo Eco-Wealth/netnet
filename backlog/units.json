@@ -729,7 +729,7 @@
   },
   {
     "id": "U-105",
-    "status": "PENDING",
+    "status": "DONE",
     "spec": "Revenue program: Lead Pack: Run v1 CSV output + outreach copy + tracking fields.",
     "dependencies": [],
     "tests_required": true
