@@ -64,7 +64,7 @@
   },
   {
     "id": "U-008",
-    "status": "PENDING",
+    "status": "DONE",
     "spec": "Placeholder spec for unit U-008",
     "dependencies": [],
     "tests_required": true,
