@@ -792,7 +792,7 @@
   },
   {
     "id": "U-114",
-    "status": "PENDING",
+    "status": "DONE",
     "spec": "Kindergarten mode toggle: tooltips + simplified labels + guided next action",
     "dependencies": [],
     "tests_required": true
