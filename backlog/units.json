@@ -799,7 +799,7 @@
   },
   {
     "id": "U-115",
-    "status": "PENDING",
+    "status": "DONE",
     "spec": "VEALTH_SYSTEM.md + System viewer: in-app \"System\" viewer tab (agent + human share the same truth)",
     "dependencies": [],
     "tests_required": true
