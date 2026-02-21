@@ -785,7 +785,7 @@
   },
   {
     "id": "U-113",
-    "status": "PENDING",
+    "status": "DONE",
     "spec": "Operator layout overflow + sticky composer: Fix hidden buttons / reachability",
     "dependencies": [],
     "tests_required": true
