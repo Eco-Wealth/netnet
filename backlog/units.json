@@ -757,7 +757,7 @@
   },
   {
     "id": "U-109",
-    "status": "PENDING",
+    "status": "DONE",
     "spec": "Autonomy modes: UI + policy envelope OFF / PROPOSE / EXECUTE, caps, allowlists, kill switch shown in cockpit.",
     "dependencies": [],
     "tests_required": true
