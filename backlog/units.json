@@ -217,7 +217,7 @@
   },
   {
     "id": "U-025",
-    "status": "PENDING",
+    "status": "DONE",
     "spec": "Placeholder spec for unit U-025",
     "dependencies": [],
     "tests_required": true,
