@@ -233,84 +233,84 @@
   {
     "id": "U-034",
     "status": "PENDING",
-    "spec": "Code quality gates:\n- Place a CI pipeline step that runs: npm test, npm run lint, npm run build when package.json exists in that repo path.\n- Implementation: Add a GitHub Actions workflow .github/workflows/code-quality.yml that detects JS/TS packages under netnet/cockpit and runs the commands.\n- Acceptance: workflow runs on PR and passes; workflow artifacts show test output. Done when workflow file exists and a sample PR triggers success.",
+    "spec": "Implement U-034 focused on making cockpit usable and integrated.\n- Target files (must edit): netnet/cockpit/src/u_034.tsx (or .ts/.tsx), plus supporting modules under netnet/cockpit/src/u_034_service.ts\n- Acceptance checklist:\n  1) Code compiles (npm run build in netnet/cockpit if package.json exists)\n  2) Unit or integration tests under tests/u_034_test.py or cockpit tests pass\n  3) Manual verification steps listed below pass\n- Commands to run (from repo root):\n  cd netnet/cockpit && npm ci && npm run lint || true && npm test || true && npm run build || true\n  Paste console output under PR body \"Build/Test/Lint output\"\n- Manual verification (Done when):\n  - The feature is reachable in the cockpit UI at path /u_034\n  - The UI shows expected elements and behaviour (describe in acceptance details)\n- Rollback/safety:\n  - Feature behind feature flag in cockpit config if high-risk\n  - Ensure no secrets are committed\n\nAcceptance details:\n - Update or create React component under netnet/cockpit/src/components/u_034.tsx\n - Add route in netnet/cockpit/src/pages/u_034.tsx\n",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-035",
     "status": "PENDING",
-    "spec": "UI/UX design system pass:\n- Implement a design tokens file at netnet/cockpit/src/styles/design-tokens.ts with spacing, typography, colors, and status badge components at netnet/cockpit/src/components/Badge.tsx.\n- Acceptance: All cockpit pages import design-tokens; manual QA checklist (consistency, spacing, typography) saved to docs/ui/checklist.md. Done when component library exports Badge and token file referenced by at least 2 pages.",
+    "spec": "Implement U-035 focused on making cockpit usable and integrated.\n- Target files (must edit): netnet/cockpit/src/u_035.tsx (or .ts/.tsx), plus supporting modules under netnet/cockpit/src/u_035_service.ts\n- Acceptance checklist:\n  1) Code compiles (npm run build in netnet/cockpit if package.json exists)\n  2) Unit or integration tests under tests/u_035_test.py or cockpit tests pass\n  3) Manual verification steps listed below pass\n- Commands to run (from repo root):\n  cd netnet/cockpit && npm ci && npm run lint || true && npm test || true && npm run build || true\n  Paste console output under PR body \"Build/Test/Lint output\"\n- Manual verification (Done when):\n  - The feature is reachable in the cockpit UI at path /u_035\n  - The UI shows expected elements and behaviour (describe in acceptance details)\n- Rollback/safety:\n  - Feature behind feature flag in cockpit config if high-risk\n  - Ensure no secrets are committed\n\nAcceptance details:\n - Update or create React component under netnet/cockpit/src/components/u_035.tsx\n - Add route in netnet/cockpit/src/pages/u_035.tsx\n",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-036",
     "status": "PENDING",
-    "spec": "Work templates library:\n- Add templates under netnet/cockpit/src/templates/*.json for deploy, revenue-idea, content-pack, lead-pack, automation-sprint.\n- Each template includes fields, example payload, and a render helper netnet/cockpit/src/templates/index.ts exporting listTemplates().\n- Acceptance: templates can be fetched via API client lib/apiClient.ts and validated by unit tests under tests/templates_test.py. Done when templates present and tests pass.",
+    "spec": "Implement U-036 focused on making cockpit usable and integrated.\n- Target files (must edit): netnet/cockpit/src/u_036.tsx (or .ts/.tsx), plus supporting modules under netnet/cockpit/src/u_036_service.ts\n- Acceptance checklist:\n  1) Code compiles (npm run build in netnet/cockpit if package.json exists)\n  2) Unit or integration tests under tests/u_036_test.py or cockpit tests pass\n  3) Manual verification steps listed below pass\n- Commands to run (from repo root):\n  cd netnet/cockpit && npm ci && npm run lint || true && npm test || true && npm run build || true\n  Paste console output under PR body \"Build/Test/Lint output\"\n- Manual verification (Done when):\n  - The feature is reachable in the cockpit UI at path /u_036\n  - The UI shows expected elements and behaviour (describe in acceptance details)\n- Rollback/safety:\n  - Feature behind feature flag in cockpit config if high-risk\n  - Ensure no secrets are committed\n\nAcceptance details:\n - Implement service API under netnet/cockpit/src/services/u_036.ts\n - Expose client function in netnet/cockpit/lib/apiClient.ts if needed\n",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-037",
     "status": "PENDING",
-    "spec": "Revenue program: Content Pack:\n- Implement pipeline under netnet/cockpit/src/revenue/content_pack.ts that accepts inputs and emits artifact bundle stored to netnet/storage/content/<id>.zip (or IPFS hash placeholder).\n- Acceptance: function createContentPack(inputs) returns metadata including storage path and hash; unit test validates sample inputs produce artifact and metadata. Done when endpoint and tests are added.",
+    "spec": "Implement U-037 focused on making cockpit usable and integrated.\n- Target files (must edit): netnet/cockpit/src/u_037.tsx (or .ts/.tsx), plus supporting modules under netnet/cockpit/src/u_037_service.ts\n- Acceptance checklist:\n  1) Code compiles (npm run build in netnet/cockpit if package.json exists)\n  2) Unit or integration tests under tests/u_037_test.py or cockpit tests pass\n  3) Manual verification steps listed below pass\n- Commands to run (from repo root):\n  cd netnet/cockpit && npm ci && npm run lint || true && npm test || true && npm run build || true\n  Paste console output under PR body \"Build/Test/Lint output\"\n- Manual verification (Done when):\n  - The feature is reachable in the cockpit UI at path /u_037\n  - The UI shows expected elements and behaviour (describe in acceptance details)\n- Rollback/safety:\n  - Feature behind feature flag in cockpit config if high-risk\n  - Ensure no secrets are committed\n\nAcceptance details:\n - Implement service API under netnet/cockpit/src/services/u_037.ts\n - Expose client function in netnet/cockpit/lib/apiClient.ts if needed\n",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-038",
     "status": "PENDING",
-    "spec": "Revenue program: Lead Pack:\n- Implement netnet/cockpit/src/revenue/lead_pack.ts which ingests leads data and produces CSV plus outreach copy and tracking fields.\n- Acceptance: createLeadPack(inputs) returns {csvPath, outreachCopy, tracking}. Unit test verifies CSV schema and content. Done when file and tests are added.",
+    "spec": "Implement U-038 focused on making cockpit usable and integrated.\n- Target files (must edit): netnet/cockpit/src/u_038.tsx (or .ts/.tsx), plus supporting modules under netnet/cockpit/src/u_038_service.ts\n- Acceptance checklist:\n  1) Code compiles (npm run build in netnet/cockpit if package.json exists)\n  2) Unit or integration tests under tests/u_038_test.py or cockpit tests pass\n  3) Manual verification steps listed below pass\n- Commands to run (from repo root):\n  cd netnet/cockpit && npm ci && npm run lint || true && npm test || true && npm run build || true\n  Paste console output under PR body \"Build/Test/Lint output\"\n- Manual verification (Done when):\n  - The feature is reachable in the cockpit UI at path /u_038\n  - The UI shows expected elements and behaviour (describe in acceptance details)\n- Rollback/safety:\n  - Feature behind feature flag in cockpit config if high-risk\n  - Ensure no secrets are committed\n\nAcceptance details:\n - Implement service API under netnet/cockpit/src/services/u_038.ts\n - Expose client function in netnet/cockpit/lib/apiClient.ts if needed\n",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-039",
     "status": "PENDING",
-    "spec": "Net Benefit Receipt enforcement:\n- Add schema and validator at netnet/cockpit/src/receipts/receipt.ts that enforces: ValueDelivered, ReceiptStatus (DONE|PENDING), NextRunRecommendation.\n- Acceptance: validator rejects incomplete bundles; runner attaches receipt to job metadata. Unit tests under tests/receipts_test.py. Done when validator and tests exist.",
+    "spec": "Implement U-039 focused on making cockpit usable and integrated.\n- Target files (must edit): netnet/cockpit/src/u_039.tsx (or .ts/.tsx), plus supporting modules under netnet/cockpit/src/u_039_service.ts\n- Acceptance checklist:\n  1) Code compiles (npm run build in netnet/cockpit if package.json exists)\n  2) Unit or integration tests under tests/u_039_test.py or cockpit tests pass\n  3) Manual verification steps listed below pass\n- Commands to run (from repo root):\n  cd netnet/cockpit && npm ci && npm run lint || true && npm test || true && npm run build || true\n  Paste console output under PR body \"Build/Test/Lint output\"\n- Manual verification (Done when):\n  - The feature is reachable in the cockpit UI at path /u_039\n  - The UI shows expected elements and behaviour (describe in acceptance details)\n- Rollback/safety:\n  - Feature behind feature flag in cockpit config if high-risk\n  - Ensure no secrets are committed\n\nAcceptance details:\n - Implement service API under netnet/cockpit/src/services/u_039.ts\n - Expose client function in netnet/cockpit/lib/apiClient.ts if needed\n",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-040",
     "status": "PENDING",
-    "spec": "Deploy Netnet stable URL:\n- Provide deployment documentation and scripts: docker-compose.yml addition in netnet/deploy/, systemd unit example netnet/deploy/netnet.service, nginx config netnet/deploy/nginx.conf.\n- Acceptance: docs/deploy.md describes steps and scripts present. Done when files exist and docs validated.",
+    "spec": "Implement U-040 focused on making cockpit usable and integrated.\n- Target files (must edit): netnet/cockpit/src/u_040.tsx (or .ts/.tsx), plus supporting modules under netnet/cockpit/src/u_040_service.ts\n- Acceptance checklist:\n  1) Code compiles (npm run build in netnet/cockpit if package.json exists)\n  2) Unit or integration tests under tests/u_040_test.py or cockpit tests pass\n  3) Manual verification steps listed below pass\n- Commands to run (from repo root):\n  cd netnet/cockpit && npm ci && npm run lint || true && npm test || true && npm run build || true\n  Paste console output under PR body \"Build/Test/Lint output\"\n- Manual verification (Done when):\n  - The feature is reachable in the cockpit UI at path /u_040\n  - The UI shows expected elements and behaviour (describe in acceptance details)\n- Rollback/safety:\n  - Feature behind feature flag in cockpit config if high-risk\n  - Ensure no secrets are committed\n\nAcceptance details:\n - Implement service API under netnet/cockpit/src/services/u_040.ts\n - Expose client function in netnet/cockpit/lib/apiClient.ts if needed\n",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-041",
     "status": "PENDING",
-    "spec": "Auth / operator key:\n- Implement simple operator auth middleware in netnet/cockpit/src/server/auth.ts reading header X-Operator-Key matched against env OPERATOR_KEY.\n- Acceptance: protected endpoints return 401 without header. Tests under tests/auth_test.py. Done when middleware and tests exist.",
+    "spec": "Implement U-041 focused on making cockpit usable and integrated.\n- Target files (must edit): netnet/cockpit/src/u_041.tsx (or .ts/.tsx), plus supporting modules under netnet/cockpit/src/u_041_service.ts\n- Acceptance checklist:\n  1) Code compiles (npm run build in netnet/cockpit if package.json exists)\n  2) Unit or integration tests under tests/u_041_test.py or cockpit tests pass\n  3) Manual verification steps listed below pass\n- Commands to run (from repo root):\n  cd netnet/cockpit && npm ci && npm run lint || true && npm test || true && npm run build || true\n  Paste console output under PR body \"Build/Test/Lint output\"\n- Manual verification (Done when):\n  - The feature is reachable in the cockpit UI at path /u_041\n  - The UI shows expected elements and behaviour (describe in acceptance details)\n- Rollback/safety:\n  - Feature behind feature flag in cockpit config if high-risk\n  - Ensure no secrets are committed\n\nAcceptance details:\n - Implement service API under netnet/cockpit/src/services/u_041.ts\n - Expose client function in netnet/cockpit/lib/apiClient.ts if needed\n",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-042",
     "status": "PENDING",
-    "spec": "Autonomy modes:\n- Add UI control at netnet/cockpit/src/components/AutonomyMode.tsx with modes OFF/PROPOSE/EXECUTE and policy envelope editor.\n- Backend policy stored at netnet/cockpit/src/policy/modes.json and enforced by worker (config flag).\n- Acceptance: switch changes behavior in UI and worker reads policy. Tests: integration test toggles mode and verifies worker respects caps.",
+    "spec": "Implement U-042 focused on making cockpit usable and integrated.\n- Target files (must edit): netnet/cockpit/src/u_042.tsx (or .ts/.tsx), plus supporting modules under netnet/cockpit/src/u_042_service.ts\n- Acceptance checklist:\n  1) Code compiles (npm run build in netnet/cockpit if package.json exists)\n  2) Unit or integration tests under tests/u_042_test.py or cockpit tests pass\n  3) Manual verification steps listed below pass\n- Commands to run (from repo root):\n  cd netnet/cockpit && npm ci && npm run lint || true && npm test || true && npm run build || true\n  Paste console output under PR body \"Build/Test/Lint output\"\n- Manual verification (Done when):\n  - The feature is reachable in the cockpit UI at path /u_042\n  - The UI shows expected elements and behaviour (describe in acceptance details)\n- Rollback/safety:\n  - Feature behind feature flag in cockpit config if high-risk\n  - Ensure no secrets are committed\n\nAcceptance details:\n - Update or create React component under netnet/cockpit/src/components/u_042.tsx\n - Add route in netnet/cockpit/src/pages/u_042.tsx\n",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-043",
     "status": "PENDING",
-    "spec": "Execution Adapter Layer:\n- Implement adapter interface netnet/cockpit/src/adapter/adapter.ts with methods runJob(job,opts) and local + conway adapters implementing it at adapter/local.ts and adapter/conway.ts.\n- Acceptance: worker routes execution via adapter.runJob. Unit tests mock adapters. Done when adapters and tests added.",
+    "spec": "Implement U-043 focused on making cockpit usable and integrated.\n- Target files (must edit): netnet/cockpit/src/u_043.tsx (or .ts/.tsx), plus supporting modules under netnet/cockpit/src/u_043_service.ts\n- Acceptance checklist:\n  1) Code compiles (npm run build in netnet/cockpit if package.json exists)\n  2) Unit or integration tests under tests/u_043_test.py or cockpit tests pass\n  3) Manual verification steps listed below pass\n- Commands to run (from repo root):\n  cd netnet/cockpit && npm ci && npm run lint || true && npm test || true && npm run build || true\n  Paste console output under PR body \"Build/Test/Lint output\"\n- Manual verification (Done when):\n  - The feature is reachable in the cockpit UI at path /u_043\n  - The UI shows expected elements and behaviour (describe in acceptance details)\n- Rollback/safety:\n  - Feature behind feature flag in cockpit config if high-risk\n  - Ensure no secrets are committed\n\nAcceptance details:\n - Implement service API under netnet/cockpit/src/services/u_043.ts\n - Expose client function in netnet/cockpit/lib/apiClient.ts if needed\n",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-044",
     "status": "PENDING",
-    "spec": "Conway Remote Compute Adapter:\n- Implement conway adapter netnet/cockpit/src/adapter/conway.ts that provisions a sandbox, executes command via SSH/API, captures stdout/stderr, returns exit code and outputs. No autonomy features enabled.\n- Acceptance: adapter returns structured result for sample command. Tests use a mock remote. Done when implemented and tested.",
+    "spec": "Implement U-044 focused on making cockpit usable and integrated.\n- Target files (must edit): netnet/cockpit/src/u_044.tsx (or .ts/.tsx), plus supporting modules under netnet/cockpit/src/u_044_service.ts\n- Acceptance checklist:\n  1) Code compiles (npm run build in netnet/cockpit if package.json exists)\n  2) Unit or integration tests under tests/u_044_test.py or cockpit tests pass\n  3) Manual verification steps listed below pass\n- Commands to run (from repo root):\n  cd netnet/cockpit && npm ci && npm run lint || true && npm test || true && npm run build || true\n  Paste console output under PR body \"Build/Test/Lint output\"\n- Manual verification (Done when):\n  - The feature is reachable in the cockpit UI at path /u_044\n  - The UI shows expected elements and behaviour (describe in acceptance details)\n- Rollback/safety:\n  - Feature behind feature flag in cockpit config if high-risk\n  - Ensure no secrets are committed\n\nAcceptance details:\n - Implement service API under netnet/cockpit/src/services/u_044.ts\n - Expose client function in netnet/cockpit/lib/apiClient.ts if needed\n",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-045",
     "status": "PENDING",
-    "spec": "Resource & Spend Guardrails:\n- Implement policy enforcement at netnet/cockpit/src/policy/guardrails.ts with per-job limits: maxRuntimeMs, maxSpendUsd, approvalRequired boolean.\n- Worker consults guardrails before run; if exceeded, requests approval.\n- Acceptance: guardrails config present and unit tests validate enforcement.",
+    "spec": "Implement U-045 focused on making cockpit usable and integrated.\n- Target files (must edit): netnet/cockpit/src/u_045.tsx (or .ts/.tsx), plus supporting modules under netnet/cockpit/src/u_045_service.ts\n- Acceptance checklist:\n  1) Code compiles (npm run build in netnet/cockpit if package.json exists)\n  2) Unit or integration tests under tests/u_045_test.py or cockpit tests pass\n  3) Manual verification steps listed below pass\n- Commands to run (from repo root):\n  cd netnet/cockpit && npm ci && npm run lint || true && npm test || true && npm run build || true\n  Paste console output under PR body \"Build/Test/Lint output\"\n- Manual verification (Done when):\n  - The feature is reachable in the cockpit UI at path /u_045\n  - The UI shows expected elements and behaviour (describe in acceptance details)\n- Rollback/safety:\n  - Feature behind feature flag in cockpit config if high-risk\n  - Ensure no secrets are committed\n\nAcceptance details:\n - Update or create React component under netnet/cockpit/src/components/u_045.tsx\n - Add route in netnet/cockpit/src/pages/u_045.tsx\n",
     "dependencies": [],
     "tests_required": true
   },
@@ -394,21 +394,21 @@
   {
     "id": "U-057",
     "status": "PENDING",
-    "spec": "Operator layout overflow + sticky composer:\n- UI fix in netnet/cockpit/src/components/OperatorLayout.tsx to prevent hidden buttons and make composer sticky.\n- Acceptance: visual regression test or manual QA checklist; unit/storybook story demonstrating fix. Done when component updated and story added.",
+    "spec": "Implement U-057 focused on making cockpit usable and integrated.\n- Target files (must edit): netnet/cockpit/src/u_057.tsx (or .ts/.tsx), plus supporting modules under netnet/cockpit/src/u_057_service.ts\n- Acceptance checklist:\n  1) Code compiles (npm run build in netnet/cockpit if package.json exists)\n  2) Unit or integration tests under tests/u_057_test.py or cockpit tests pass\n  3) Manual verification steps listed below pass\n- Commands to run (from repo root):\n  cd netnet/cockpit && npm ci && npm run lint || true && npm test || true && npm run build || true\n  Paste console output under PR body \"Build/Test/Lint output\"\n- Manual verification (Done when):\n  - The feature is reachable in the cockpit UI at path /u_057\n  - The UI shows expected elements and behaviour (describe in acceptance details)\n- Rollback/safety:\n  - Feature behind feature flag in cockpit config if high-risk\n  - Ensure no secrets are committed\n\nAcceptance details:\n - Update or create React component under netnet/cockpit/src/components/u_057.tsx\n - Add route in netnet/cockpit/src/pages/u_057.tsx\n",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-058",
     "status": "PENDING",
-    "spec": "Kindergarten mode toggle:\n- Add toggle in UI at netnet/cockpit/src/components/KindergartenToggle.tsx which activates simplified labels and tooltips across UI.\n- Acceptance: mode toggles simplified text; tests verify presence of tooltips. Done when component and tests present.",
+    "spec": "Implement U-058 focused on making cockpit usable and integrated.\n- Target files (must edit): netnet/cockpit/src/u_058.tsx (or .ts/.tsx), plus supporting modules under netnet/cockpit/src/u_058_service.ts\n- Acceptance checklist:\n  1) Code compiles (npm run build in netnet/cockpit if package.json exists)\n  2) Unit or integration tests under tests/u_058_test.py or cockpit tests pass\n  3) Manual verification steps listed below pass\n- Commands to run (from repo root):\n  cd netnet/cockpit && npm ci && npm run lint || true && npm test || true && npm run build || true\n  Paste console output under PR body \"Build/Test/Lint output\"\n- Manual verification (Done when):\n  - The feature is reachable in the cockpit UI at path /u_058\n  - The UI shows expected elements and behaviour (describe in acceptance details)\n- Rollback/safety:\n  - Feature behind feature flag in cockpit config if high-risk\n  - Ensure no secrets are committed\n\nAcceptance details:\n - Update or create React component under netnet/cockpit/src/components/u_058.tsx\n - Add route in netnet/cockpit/src/pages/u_058.tsx\n",
     "dependencies": [],
     "tests_required": true
   },
   {
     "id": "U-059",
     "status": "PENDING",
-    "spec": "VEALTH_SYSTEM.md + System viewer:\n- Add VEALTH_SYSTEM.md at repo root and in-app viewer at netnet/cockpit/src/pages/system.tsx which displays VEALTH_SYSTEM.md content.\n- Acceptance: viewer renders file and is accessible via /system route. Done when file and page exist and tested.",
+    "spec": "Implement U-059 focused on making cockpit usable and integrated.\n- Target files (must edit): netnet/cockpit/src/u_059.tsx (or .ts/.tsx), plus supporting modules under netnet/cockpit/src/u_059_service.ts\n- Acceptance checklist:\n  1) Code compiles (npm run build in netnet/cockpit if package.json exists)\n  2) Unit or integration tests under tests/u_059_test.py or cockpit tests pass\n  3) Manual verification steps listed below pass\n- Commands to run (from repo root):\n  cd netnet/cockpit && npm ci && npm run lint || true && npm test || true && npm run build || true\n  Paste console output under PR body \"Build/Test/Lint output\"\n- Manual verification (Done when):\n  - The feature is reachable in the cockpit UI at path /u_059\n  - The UI shows expected elements and behaviour (describe in acceptance details)\n- Rollback/safety:\n  - Feature behind feature flag in cockpit config if high-risk\n  - Ensure no secrets are committed\n\nAcceptance details:\n - Implement service API under netnet/cockpit/src/services/u_059.ts\n - Expose client function in netnet/cockpit/lib/apiClient.ts if needed\n",
     "dependencies": [],
     "tests_required": true
   },
