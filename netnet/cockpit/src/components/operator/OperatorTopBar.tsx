@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Button } from "@/components/ui";
 import Tooltip from "@/components/operator/Tooltip";
 import styles from "@/components/operator/OperatorSeat.module.css";
@@ -172,6 +173,21 @@ export default function OperatorTopBar({
       </div>
 
       <div className={styles["nn-chipRow"]}>
+        <Tooltip text="Open proof builder and verifier.">
+          <Link href="/proof" className={styles["nn-layoutChip"]}>
+            Proof
+          </Link>
+        </Tooltip>
+        <Tooltip text="Open proof distribution feed.">
+          <Link href="/distribute" className={styles["nn-layoutChip"]}>
+            Feed
+          </Link>
+        </Tooltip>
+        <Tooltip text="Open task queue and proof-linked work items.">
+          <Link href="/work" className={styles["nn-layoutChip"]}>
+            Work
+          </Link>
+        </Tooltip>
         <span className={styles["nn-chip"]}>
           <span
             className={[
