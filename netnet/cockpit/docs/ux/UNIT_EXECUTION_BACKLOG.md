@@ -158,3 +158,15 @@ This backlog tracks machine-first Operator execution units.
   - distribute link-state filter presence
   - work card verify action
   - work page URL-sync behavior
+
+## Proposed
+
+### Unit 110 — OpenClaw dashboard agent-readiness integration
+
+- Add a dedicated Operator setup flow for OpenClaw dashboard compatibility:
+  - environment checklist
+  - connector/permission checks
+  - schedule smoke test
+  - run/log verification
+- Reduce terminal-first setup by mapping routine actions to deterministic UI controls.
+- Add health checks and runbook coverage so agents can bootstrap and recover without manual shell loops.
