@@ -20,6 +20,7 @@
     "proof:work:check": "node scripts/check-proof-work-integrity.mjs",
     "openclaw:intents": "node scripts/check-openclaw-intent-map.mjs",
     "connectors:check": "node scripts/check-service-connector-matrix.mjs",
+    "connectors:health": "node scripts/check-service-connector-health.mjs",
     "revenue:check": "node scripts/check-revenue-contract.mjs",
     "drift:check": "npm run contracts:check && npm run policy:integrity && npm run policy:routes && npm run connectors:check && npm run openclaw:intents",
     "health:fast": "node scripts/health-fast.mjs",
