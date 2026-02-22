@@ -200,6 +200,13 @@
       "docs": ["netnet/cockpit/docs/unit46-distribution.md"]
     },
     {
+      "route": "/api/proof/verify/[id]",
+      "methods": ["GET"],
+      "actions": ["verify"],
+      "skill": "platform",
+      "docs": ["netnet/cockpit/docs/unit46-distribution.md"]
+    },
+    {
       "route": "/api/security/audit",
       "methods": ["GET"],
       "actions": ["audit"],

@@ -100,6 +100,13 @@ curl -s -X POST "$NETNET_BASE_URL/api/proof/build" \
 Outputs:
 - `proof` JSON object with schema `netnet.proof.v1`
 - `post` helpers for short/long share text (if enabled in UI)
+- `verifyUrl` for public verification page and API.
+
+Verify a proof:
+
+```bash
+curl -s "$NETNET_BASE_URL/api/proof/verify/<proofId>" | jq
+```
 
 ## Paywall semantics (x402)
 

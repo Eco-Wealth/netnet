@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { listProofArtifacts } from "@/lib/proof/registry";
 
 type ProofFeedItem = {
   id: string;
@@ -9,6 +10,57 @@ type ProofFeedItem = {
   tags?: string[];
   score?: number;
 };
+
+function toRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value as Record<string, unknown>;
+}
+
+function readString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function scoreForKind(kind: string): number {
+  if (kind === "bridge_retirement") return 8;
+  if (kind === "trade_attempt") return 5;
+  if (kind === "agent_action") return 4;
+  return 3;
+}
+
+function kindLabel(kind: string): string {
+  return kind
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part[0]?.toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function fromRegistryItems(): ProofFeedItem[] {
+  return listProofArtifacts(120).map((artifact) => {
+    const claims = toRecord(artifact.payload.claims);
+    const summary =
+      readString(claims.why) ||
+      readString(artifact.metadata?.resultSummary) ||
+      "Proof artifact is available for verification and sharing.";
+    const tags = [
+      "proof",
+      artifact.kind,
+      readString(artifact.metadata?.action),
+    ].filter(Boolean);
+    return {
+      id: artifact.id,
+      createdAt: artifact.createdAtIso,
+      title: `Proof: ${kindLabel(artifact.kind) || "Artifact"}`,
+      summary,
+      tags,
+      score: scoreForKind(artifact.kind),
+      links: [
+        { label: "Proof UI", url: artifact.verifyUrl },
+        { label: "Verify API", url: `/api/proof/verify/${artifact.id}` },
+      ],
+    };
+  });
+}
 
 function seed(): ProofFeedItem[] {
   const now = Date.now();
@@ -90,10 +142,11 @@ export async function GET(req: Request) {
 
   const baseUrl = url.origin;
 
-  const items = seed();
+  const items = fromRegistryItems();
+  const feedItems = items.length > 0 ? items : seed();
 
   if (format === "rss") {
-    const rss = toRss(items, baseUrl);
+    const rss = toRss(feedItems, baseUrl);
     return new NextResponse(rss, {
       headers: {
         "content-type": "application/rss+xml; charset=utf-8",
@@ -102,5 +155,8 @@ export async function GET(req: Request) {
     });
   }
 
-  return NextResponse.json({ ok: true, items }, { headers: { "cache-control": "no-store" } });
+  return NextResponse.json(
+    { ok: true, items: feedItems },
+    { headers: { "cache-control": "no-store" } }
+  );
 }

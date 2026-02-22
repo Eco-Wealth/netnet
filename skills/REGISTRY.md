@@ -13,7 +13,7 @@ Exact API request/response contracts are canonical in:
 ## Registry
 | Skill file | Status | Primary API coverage |
 |---|---|---|
-| `netnet-cockpit.md` | ACTIVE | `/api/health`, `/api/agent/carbon`, `/api/proof/build`, `/api/proof-paid` |
+| `netnet-cockpit.md` | ACTIVE | `/api/health`, `/api/agent/carbon`, `/api/proof/build`, `/api/proof/feed`, `/api/proof/verify/[id]`, `/api/proof-paid` |
 | `netnet-cockpit-carbon.md` | ACTIVE | `/api/agent/carbon` |
 | `netnet-cockpit-trade.md` | ACTIVE | `/api/agent/trade` |
 | `netnet-cockpit-regen.md` | ACTIVE | `/api/agent/regen` |

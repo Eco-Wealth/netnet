@@ -87,6 +87,16 @@ type PnlSummaryRow = {
   usdOut: number | null;
 };
 
+type ProofRecordRow = {
+  id: string;
+  schema: string;
+  kind: string;
+  hash: string;
+  createdAt: number;
+  payload: string;
+  metadata: string | null;
+};
+
 export type PersistedExecution = {
   id: string;
   proposalId: string;
@@ -114,6 +124,26 @@ export type PnlSummary = {
   usdIn: number;
   usdOut: number;
   net: number;
+};
+
+export type ProofRecord = {
+  id: string;
+  schema: string;
+  kind: string;
+  hash: string;
+  createdAt: number;
+  payload: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+};
+
+export type SaveProofRecordInput = {
+  id: string;
+  schema: string;
+  kind: string;
+  hash: string;
+  createdAt: number;
+  payload: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
 };
 
 type DbStatement = {
@@ -158,6 +188,13 @@ function fallbackStrategiesStore(): Strategy[] {
   return globalThis.__NETNET_STRATEGIES_FALLBACK__;
 }
 
+function fallbackProofStore(): ProofRecord[] {
+  if (!globalThis.__NETNET_PROOF_RECORDS_FALLBACK__) {
+    globalThis.__NETNET_PROOF_RECORDS_FALLBACK__ = [];
+  }
+  return globalThis.__NETNET_PROOF_RECORDS_FALLBACK__;
+}
+
 declare global {
   // eslint-disable-next-line no-var
   var __NETNET_OPERATOR_DB__: OperatorDatabase | undefined;
@@ -165,6 +202,8 @@ declare global {
   var __NETNET_PNL_EVENTS_FALLBACK__: PnlEvent[] | undefined;
   // eslint-disable-next-line no-var
   var __NETNET_STRATEGIES_FALLBACK__: Strategy[] | undefined;
+  // eslint-disable-next-line no-var
+  var __NETNET_PROOF_RECORDS_FALLBACK__: ProofRecord[] | undefined;
 }
 
 function safeJsonParse<T>(value: string | null): T | null {
@@ -227,6 +266,16 @@ function ensureOperatorTables(db: OperatorDatabase) {
       kind TEXT NOT NULL,
       amountUsd REAL NOT NULL,
       createdAt INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS proof_records (
+      id TEXT PRIMARY KEY,
+      schema TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      hash TEXT NOT NULL,
+      createdAt INTEGER NOT NULL,
+      payload TEXT NOT NULL,
+      metadata TEXT
     );
   `);
 }
@@ -592,5 +641,121 @@ export function getPnlSummary(input: { sinceMs: number }): PnlSummary {
       usdOut: summary.usdOut,
       net: summary.usdIn - summary.usdOut,
     };
+  }
+}
+
+export function saveProofRecord(input: SaveProofRecordInput) {
+  try {
+    const db = operatorDb();
+    db.prepare(
+      `
+      INSERT INTO proof_records (id, schema, kind, hash, createdAt, payload, metadata)
+      VALUES (@id, @schema, @kind, @hash, @createdAt, @payload, @metadata)
+      ON CONFLICT(id) DO UPDATE SET
+        schema = excluded.schema,
+        kind = excluded.kind,
+        hash = excluded.hash,
+        createdAt = excluded.createdAt,
+        payload = excluded.payload,
+        metadata = excluded.metadata
+    `
+    ).run({
+      id: input.id,
+      schema: input.schema,
+      kind: input.kind,
+      hash: input.hash,
+      createdAt: input.createdAt,
+      payload: safeJsonStringify(input.payload),
+      metadata: input.metadata ? safeJsonStringify(input.metadata) : null,
+    });
+    return;
+  } catch {
+    const rows = fallbackProofStore();
+    const next: ProofRecord = {
+      id: input.id,
+      schema: input.schema,
+      kind: input.kind,
+      hash: input.hash,
+      createdAt: input.createdAt,
+      payload: input.payload,
+      metadata: input.metadata,
+    };
+    const existing = rows.findIndex((row) => row.id === input.id);
+    if (existing >= 0) rows[existing] = next;
+    else rows.push(next);
+  }
+}
+
+export function loadProofRecord(id: string): ProofRecord | null {
+  const proofId = String(id || "").trim();
+  if (!proofId) return null;
+  try {
+    const db = operatorDb();
+    const row = db
+      .prepare(
+        `
+      SELECT id, schema, kind, hash, createdAt, payload, metadata
+      FROM proof_records
+      WHERE id = ?
+    `
+      )
+      .get(proofId) as ProofRecordRow | undefined;
+    if (!row) return null;
+    const payload = safeJsonParse<Record<string, unknown>>(row.payload);
+    if (!payload) return null;
+    const metadata = safeJsonParse<Record<string, unknown>>(row.metadata ?? null);
+    return {
+      id: row.id,
+      schema: row.schema,
+      kind: row.kind,
+      hash: row.hash,
+      createdAt: row.createdAt,
+      payload,
+      metadata: metadata ?? undefined,
+    };
+  } catch {
+    const row = fallbackProofStore().find((record) => record.id === proofId);
+    return row ? { ...row } : null;
+  }
+}
+
+export function listProofRecords(input: { limit?: number } = {}): ProofRecord[] {
+  const limit =
+    typeof input.limit === "number" && Number.isFinite(input.limit) && input.limit > 0
+      ? Math.max(1, Math.floor(input.limit))
+      : 50;
+  try {
+    const db = operatorDb();
+    const rows = db
+      .prepare(
+        `
+      SELECT id, schema, kind, hash, createdAt, payload, metadata
+      FROM proof_records
+      ORDER BY createdAt DESC, id DESC
+      LIMIT ?
+    `
+      )
+      .all(limit) as ProofRecordRow[];
+
+    const out: ProofRecord[] = [];
+    for (const row of rows) {
+      const payload = safeJsonParse<Record<string, unknown>>(row.payload);
+      if (!payload) continue;
+      const metadata = safeJsonParse<Record<string, unknown>>(row.metadata ?? null);
+      out.push({
+        id: row.id,
+        schema: row.schema,
+        kind: row.kind,
+        hash: row.hash,
+        createdAt: row.createdAt,
+        payload,
+        metadata: metadata ?? undefined,
+      });
+    }
+    return out;
+  } catch {
+    return [...fallbackProofStore()]
+      .sort((a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id))
+      .slice(0, limit);
   }
 }

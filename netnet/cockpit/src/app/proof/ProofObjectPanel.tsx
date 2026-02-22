@@ -48,6 +48,7 @@ export default function ProofObjectPanel() {
   const [proof, setProof] = useState<ProofObject | null>(null);
   const [shortPost, setShortPost] = useState<string>("");
   const [longPost, setLongPost] = useState<string>("");
+  const [verifyUrl, setVerifyUrl] = useState<string>("");
 
   // Restore last proof input/output
   useEffect(() => {
@@ -66,6 +67,7 @@ export default function ProofObjectPanel() {
         setOperator(parsed.input.operator ?? "");
       }
       if (parsed?.proof) setProof(parsed.proof);
+      if (typeof parsed?.verifyUrl === "string") setVerifyUrl(parsed.verifyUrl);
       if (parsed?.posts) {
         setShortPost(parsed.posts.short ?? "");
         setLongPost(parsed.posts.long ?? "");
@@ -82,13 +84,27 @@ export default function ProofObjectPanel() {
         JSON.stringify({
           input: { kind, txHash, certificateId, url, why, agentId, wallet, operator },
           proof,
+          verifyUrl,
           posts: { short: shortPost, long: longPost },
         })
       );
     } catch {
       // ignore
     }
-  }, [kind, txHash, certificateId, url, why, agentId, wallet, operator, proof, shortPost, longPost]);
+  }, [
+    kind,
+    txHash,
+    certificateId,
+    url,
+    why,
+    agentId,
+    wallet,
+    operator,
+    proof,
+    verifyUrl,
+    shortPost,
+    longPost,
+  ]);
 
   const canBuild = useMemo(() => {
     if (txHash && !isTxHash(txHash)) return false;
@@ -99,6 +115,7 @@ export default function ProofObjectPanel() {
     setStatus("loading");
     setErrorMsg(null);
     setProof(null);
+    setVerifyUrl("");
 
     try {
       const res = await fetch("/api/proof/build", {
@@ -121,6 +138,7 @@ export default function ProofObjectPanel() {
 
       const p: ProofObject = data.proof;
       setProof(p);
+      setVerifyUrl(typeof data?.verifyUrl === "string" ? data.verifyUrl : `/proof/${p.id}`);
 
       // Ask server for post formats by reusing proof in client (simple deterministic)
       // For now, build in-client using the proof's fields.
@@ -297,6 +315,18 @@ export default function ProofObjectPanel() {
               >
                 Copy long post
               </button>
+              <button
+                onClick={() =>
+                  copy(
+                    verifyUrl.startsWith("http")
+                      ? verifyUrl
+                      : `${location.origin}${verifyUrl}`
+                  )
+                }
+                className="rounded-xl border border-white/15 bg-black/30 px-4 py-2 text-sm"
+              >
+                Copy verify URL
+              </button>
             </>
           ) : null}
         </div>
@@ -320,6 +350,20 @@ export default function ProofObjectPanel() {
               <div className="text-xs text-white/60">Moltbook/X post (short)</div>
               <pre className="mt-2 whitespace-pre-wrap break-words text-xs leading-relaxed">{shortPost}</pre>
             </div>
+
+            {verifyUrl ? (
+              <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+                <div className="text-xs text-white/60">Verify URL</div>
+                <a
+                  href={verifyUrl}
+                  className="mt-2 inline-block break-all text-xs text-sky-300 underline"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {verifyUrl}
+                </a>
+              </div>
+            ) : null}
 
             <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
               <div className="text-xs text-white/60">Moltbook/X post (long)</div>
