@@ -5,6 +5,7 @@ import Tooltip from "@/components/operator/Tooltip";
 import styles from "@/components/operator/OperatorSeat.module.css";
 import { clarityLabel, type ClarityLevel } from "@/lib/operator/clarity";
 import type { OperatorLayoutMode } from "@/lib/operator/layout";
+import type { OperatorWalletProfile } from "@/lib/operator/walletProfiles";
 
 type Mode = "READ" | "PROPOSE" | "EXECUTE";
 
@@ -20,6 +21,9 @@ type OperatorTopBarProps = {
   onClarityChange: (clarity: ClarityLevel) => void;
   helpOpen: boolean;
   onToggleHelp: () => void;
+  walletProfiles: OperatorWalletProfile[];
+  activeWalletProfileId: string | null;
+  onActiveWalletProfileChange: (profileId: string) => void;
 };
 
 function toMode(policyMode: string): Mode {
@@ -46,6 +50,9 @@ export default function OperatorTopBar({
   onClarityChange,
   helpOpen,
   onToggleHelp,
+  walletProfiles,
+  activeWalletProfileId,
+  onActiveWalletProfileChange,
 }: OperatorTopBarProps) {
   const active = toMode(policyMode);
   const modeHelp: Record<Mode, string> = {
@@ -109,6 +116,26 @@ export default function OperatorTopBar({
           >
             4-Pane
           </button>
+        </Tooltip>
+      </div>
+
+      <div className={styles["nn-walletPicker"]}>
+        <Tooltip text="Select which managed wallet lane proposals should target.">
+          <label className={styles["nn-topbarSubtle"]}>
+            Wallet
+            <select
+              className={styles["nn-topbarSelect"]}
+              value={activeWalletProfileId || ""}
+              onChange={(event) => onActiveWalletProfileChange(event.target.value)}
+              aria-label="Active wallet profile"
+            >
+              {walletProfiles.map((profile) => (
+                <option key={profile.id} value={profile.id}>
+                  {profile.label} ({profile.chain})
+                </option>
+              ))}
+            </select>
+          </label>
         </Tooltip>
       </div>
 

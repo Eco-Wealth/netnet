@@ -2,9 +2,11 @@ import OperatorConsoleClient from "./operator-console-client";
 import PageHeader from "@/components/PageHeader";
 import {
   getPnLSummary,
+  getActiveWalletProfile,
   listMessages,
   listProposals,
   listStrategies,
+  listWalletProfiles,
 } from "@/lib/operator/store";
 import { getSkills } from "@/lib/operator/skillContext";
 import { OPERATOR_STRATEGY_TEMPLATES } from "@/lib/operator/strategies";
@@ -36,6 +38,8 @@ export default function OperatorPage() {
             initialProposals={listProposals()}
             initialStrategies={listStrategies()}
             initialPnl={getPnLSummary()}
+            initialWalletProfiles={listWalletProfiles()}
+            initialActiveWalletProfileId={getActiveWalletProfile()?.id || null}
             skills={getSkills()}
             strategies={OPERATOR_STRATEGY_TEMPLATES}
             policyMode={policy.autonomy}

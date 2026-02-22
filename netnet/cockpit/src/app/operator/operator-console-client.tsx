@@ -20,6 +20,7 @@ import type { Strategy } from "@/lib/operator/strategy";
 import type { OperatorStrategyTemplate } from "@/lib/operator/strategies";
 import type { MessageEnvelope, SkillProposalEnvelope } from "@/lib/operator/types";
 import { useClarity } from "@/lib/operator/useClarity";
+import type { OperatorWalletProfile } from "@/lib/operator/walletProfiles";
 import {
   approveProposalAction,
   createBankrDraftAction,
@@ -33,6 +34,7 @@ import {
   rejectProposalAction,
   requestExecutionIntentAction,
   sendOperatorMessageAction,
+  setActiveWalletProfileAction,
   simulateBankrProposalAction,
   unpinStrategyAction,
   updateStrategyRunbookAction,
@@ -44,6 +46,8 @@ type Props = {
   initialProposals: SkillProposalEnvelope[];
   initialStrategies: Strategy[];
   initialPnl: OperatorStateResponse["pnl"];
+  initialWalletProfiles: OperatorWalletProfile[];
+  initialActiveWalletProfileId: string | null;
   skills: SkillInfo[];
   strategies: OperatorStrategyTemplate[];
   policyMode: string;
@@ -136,6 +140,8 @@ export default function OperatorConsoleClient({
   initialProposals,
   initialStrategies,
   initialPnl,
+  initialWalletProfiles,
+  initialActiveWalletProfileId,
   skills,
   strategies,
   policyMode,
@@ -149,6 +155,12 @@ export default function OperatorConsoleClient({
   const [proposals, setProposals] = useState<SkillProposalEnvelope[]>(initialProposals);
   const [strategyMemory, setStrategyMemory] = useState<Strategy[]>(initialStrategies);
   const [pnl, setPnl] = useState(initialPnl);
+  const [walletProfiles, setWalletProfiles] = useState<OperatorWalletProfile[]>(
+    initialWalletProfiles
+  );
+  const [activeWalletProfileId, setActiveWalletProfileId] = useState<string | null>(
+    initialActiveWalletProfileId
+  );
   const [draft, setDraft] = useState("");
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [threadAssignments, setThreadAssignments] = useState<Record<string, string>>({});
@@ -241,6 +253,8 @@ export default function OperatorConsoleClient({
     setProposals(next.proposals);
     setStrategyMemory(next.strategies);
     setPnl(next.pnl);
+    setWalletProfiles(next.walletProfiles);
+    setActiveWalletProfileId(next.activeWalletProfileId);
   }, []);
 
   const runAction = useCallback((
@@ -456,6 +470,16 @@ export default function OperatorConsoleClient({
     [activeThreadId, runActionNow]
   );
 
+  const handleSetActiveWalletProfile = useCallback(
+    (profileId: string) =>
+      runActionNow(
+        `wallet:active:${profileId}`,
+        () => setActiveWalletProfileAction(profileId),
+        activeThreadId
+      ),
+    [activeThreadId, runActionNow]
+  );
+
   const handleSelectMessage = useCallback((messageId: string) => {
     setSelected({ kind: "message", id: messageId });
   }, []);
@@ -508,6 +532,9 @@ export default function OperatorConsoleClient({
             onClarityChange={setClarity}
             helpOpen={helpOpen}
             onToggleHelp={toggleHelp}
+            walletProfiles={walletProfiles}
+            activeWalletProfileId={activeWalletProfileId}
+            onActiveWalletProfileChange={handleSetActiveWalletProfile}
           />
           {helpOpen ? (
             <div className={styles["nn-helpPanel"]}>

@@ -33,7 +33,9 @@ import {
   listMessages,
   listProposals,
   getPnLSummary,
+  getActiveWalletProfile,
   listStrategies,
+  listWalletProfiles,
   pinStrategy,
   lockExecutionIntent,
   requestExecutionIntent,
@@ -42,6 +44,7 @@ import {
   updateStrategyRunbook,
   updateBankrStrategyDraft,
   upsertProposal,
+  setActiveWalletProfile,
 } from "@/lib/operator/store";
 import { createMessageId } from "@/lib/operator/types";
 
@@ -50,6 +53,8 @@ export type OperatorStateResponse = {
   proposals: ReturnType<typeof listProposals>;
   strategies: ReturnType<typeof listStrategies>;
   pnl: ReturnType<typeof getPnLSummary>;
+  walletProfiles: ReturnType<typeof listWalletProfiles>;
+  activeWalletProfileId: string | null;
 };
 
 function policySnapshot(): Record<string, unknown> {
@@ -64,11 +69,14 @@ function policySnapshot(): Record<string, unknown> {
 }
 
 function state(): OperatorStateResponse {
+  const activeWalletProfile = getActiveWalletProfile();
   return {
     messages: listMessages(),
     proposals: listProposals(),
     strategies: listStrategies(),
     pnl: getPnLSummary(),
+    walletProfiles: listWalletProfiles(),
+    activeWalletProfileId: activeWalletProfile?.id || null,
   };
 }
 
@@ -196,6 +204,7 @@ export async function sendOperatorMessageAction(content: string): Promise<Operat
   const trimmed = String(content || "").trim();
   if (!trimmed) return state();
 
+  const activeWalletProfile = getActiveWalletProfile();
   appendMessage({
     role: "operator",
     content: trimmed,
@@ -203,6 +212,10 @@ export async function sendOperatorMessageAction(content: string): Promise<Operat
       action: "chat",
       tags: ["operator-input"],
       policySnapshot: policySnapshot(),
+      walletProfileId: activeWalletProfile?.id,
+      walletAddress: activeWalletProfile?.walletAddress || undefined,
+      chain: activeWalletProfile?.chain || undefined,
+      venue: activeWalletProfile?.venue || undefined,
     },
   });
 
@@ -211,6 +224,15 @@ export async function sendOperatorMessageAction(content: string): Promise<Operat
     const proposal = extractSkillProposalEnvelope(assistant.content);
 
     if (proposal) {
+      if (activeWalletProfile) {
+        proposal.metadata = {
+          ...(proposal.metadata || {}),
+          walletProfileId: activeWalletProfile.id,
+          walletAddress: activeWalletProfile.walletAddress || undefined,
+          chain: activeWalletProfile.chain,
+          venue: activeWalletProfile.venue,
+        };
+      }
       upsertProposal(proposal);
       ensureStrategyForProposal(proposal);
       appendMessage({
@@ -481,6 +503,7 @@ export async function createBankrDraftAction(
 export async function proposeFromBankrDraftAction(
   strategyId: string
 ): Promise<OperatorStateResponse> {
+  const activeWalletProfile = getActiveWalletProfile();
   const strategy = getStrategy(strategyId);
   if (!strategy) {
     appendAuditMessage("Bankr propose failed: strategy not found.", "proposal.from_bankr_draft");
@@ -542,6 +565,14 @@ export async function proposeFromBankrDraftAction(
     createdAt: now,
     executionIntent: "none" as const,
     executionStatus: "idle" as const,
+    metadata: activeWalletProfile
+      ? {
+          walletProfileId: activeWalletProfile.id,
+          walletAddress: activeWalletProfile.walletAddress || undefined,
+          chain: activeWalletProfile.chain,
+          venue: activeWalletProfile.venue,
+        }
+      : undefined,
   };
 
   upsertProposal(proposal);
@@ -723,6 +754,7 @@ export async function createDraftProposalFromTemplate(
   templateId: string,
   input: Record<string, string>
 ): Promise<OperatorStateResponse> {
+  const activeWalletProfile = getActiveWalletProfile();
   const validTemplateIds = new Set(listBankrTemplates().map((template) => template.id));
   if (!validTemplateIds.has(templateId as BankrTemplateId)) {
     appendAuditMessage("Draft proposal failed: unknown template.", "proposal.template.error");
@@ -734,6 +766,15 @@ export async function createDraftProposalFromTemplate(
       templateId as BankrTemplateId,
       input || {}
     );
+    if (activeWalletProfile) {
+      proposal.metadata = {
+        ...(proposal.metadata || {}),
+        walletProfileId: activeWalletProfile.id,
+        walletAddress: activeWalletProfile.walletAddress || undefined,
+        chain: activeWalletProfile.chain,
+        venue: activeWalletProfile.venue,
+      };
+    }
 
     const action =
       typeof proposal.proposedBody.action === "string"
@@ -779,5 +820,22 @@ export async function createDraftProposalFromTemplate(
     );
   }
 
+  return state();
+}
+
+export async function setActiveWalletProfileAction(
+  profileId: string
+): Promise<OperatorStateResponse> {
+  try {
+    const profile = setActiveWalletProfile(profileId);
+    if (profile) {
+      appendAuditMessage(
+        `Active wallet set: ${profile.label} (${profile.chain}/${profile.venue}).`,
+        "wallet.profile.set"
+      );
+    }
+  } catch (error) {
+    appendAuditMessage(`Set wallet profile failed: ${normalizeError(error)}`, "error");
+  }
   return state();
 }

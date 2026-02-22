@@ -36,11 +36,19 @@ import type {
   SkillProposalEnvelope,
 } from "@/lib/operator/types";
 import { createMessageId } from "@/lib/operator/types";
+import {
+  isActionAllowedForProfile,
+  listDefaultWalletProfiles,
+  normalizeWalletProfileId,
+  type OperatorWalletProfile,
+} from "@/lib/operator/walletProfiles";
 
 type OperatorState = {
   messages: MessageEnvelope[];
   proposals: Record<string, SkillProposalEnvelope>;
   strategies: Record<string, Strategy>;
+  walletProfiles: Record<string, OperatorWalletProfile>;
+  activeWalletProfileId: string;
 };
 
 declare global {
@@ -89,6 +97,10 @@ function hydrateStrategies(): Record<string, Strategy> {
 
 function getState(): OperatorState {
   if (!globalThis.__NETNET_OPERATOR_STATE__) {
+    const walletProfiles = Object.fromEntries(
+      listDefaultWalletProfiles().map((profile) => [profile.id, profile])
+    );
+    const firstWalletProfileId = Object.keys(walletProfiles)[0] || "";
     globalThis.__NETNET_OPERATOR_STATE__ = {
       messages: [
         {
@@ -106,6 +118,8 @@ function getState(): OperatorState {
       ],
       proposals: {},
       strategies: hydrateStrategies(),
+      walletProfiles,
+      activeWalletProfileId: firstWalletProfileId,
     };
   }
   return globalThis.__NETNET_OPERATOR_STATE__;
@@ -143,6 +157,25 @@ export function getPnLSummary(now = Date.now()): OperatorPnLSummary {
 
 export function getStrategy(id: string): Strategy | null {
   return getState().strategies[id] || null;
+}
+
+export function listWalletProfiles(): OperatorWalletProfile[] {
+  return Object.values(getState().walletProfiles);
+}
+
+export function getActiveWalletProfile(): OperatorWalletProfile | null {
+  const state = getState();
+  if (!state.activeWalletProfileId) return null;
+  return state.walletProfiles[state.activeWalletProfileId] || null;
+}
+
+export function setActiveWalletProfile(profileId: string): OperatorWalletProfile | null {
+  const normalized = normalizeWalletProfileId(profileId);
+  const state = getState();
+  const profile = state.walletProfiles[normalized];
+  if (!profile) throw new Error(`Unknown wallet profile: ${profileId}`);
+  state.activeWalletProfileId = profile.id;
+  return profile;
 }
 
 function requireStrategy(id: string): Strategy {
@@ -532,7 +565,43 @@ function policyContextForExecution(
     fromToken,
     toToken,
     amountUsd,
+    walletProfileId:
+      typeof metadata.walletProfileId === "string" ? metadata.walletProfileId : undefined,
+    walletAddress:
+      typeof metadata.walletAddress === "string" ? metadata.walletAddress : undefined,
   };
+}
+
+function assertProposalWalletScope(
+  proposal: SkillProposalEnvelope,
+  action: string
+): void {
+  const metadata = toRecord(proposal.metadata);
+  const walletProfileId =
+    typeof metadata.walletProfileId === "string"
+      ? metadata.walletProfileId
+      : getState().activeWalletProfileId;
+  const walletProfile = getState().walletProfiles[walletProfileId];
+  if (!walletProfile) {
+    throw new Error("Execution blocked: wallet profile is missing.");
+  }
+  if (!isActionAllowedForProfile(walletProfile, action)) {
+    throw new Error(
+      `Execution blocked: action ${action} is not allowed for wallet profile ${walletProfile.label}.`
+    );
+  }
+
+  const proposalBody = toRecord(proposal.proposedBody);
+  const chainHint = String(
+    proposalBody.chain ||
+      metadata.chain ||
+      ""
+  ).toLowerCase();
+  if (chainHint && walletProfile.chain.toLowerCase() !== chainHint) {
+    throw new Error(
+      `Execution blocked: proposal chain ${chainHint} does not match wallet profile chain ${walletProfile.chain}.`
+    );
+  }
 }
 
 async function parseRouteResponse(res: Response): Promise<Record<string, unknown>> {
@@ -799,6 +868,7 @@ export async function executeProposal(id: string): Promise<SkillProposalEnvelope
   }
 
   const policyAction = policyActionForExecution(proposal);
+  assertProposalWalletScope(proposal, policyAction);
   assertWriteConfirmation(proposal, policyAction);
   const gate = enforcePolicy(
     policyAction,

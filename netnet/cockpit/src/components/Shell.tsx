@@ -13,6 +13,16 @@ type ShellProps = {
 
 const NAV = [
   {
+    href: "/agents",
+    label: "Agents",
+    insight: {
+      what: "Public-facing launchpad for agent loops: retire, revenue, and proof.",
+      when: "Use as the entry point for new agents looking for productive work.",
+      requires: "No direct execution; links route into policy-gated flows.",
+      output: "Fast path into retirement, revenue, and proof credibility surfaces.",
+    } satisfies InsightSpec,
+  },
+  {
     href: "/proof",
     label: "Proof",
     insight: {

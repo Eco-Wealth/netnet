@@ -217,6 +217,21 @@
   gap: 4px;
 }
 
+.nn-walletPicker {
+  min-width: 0;
+}
+
+.nn-topbarSelect {
+  margin-left: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.78);
+  color: rgba(226, 232, 240, 0.96);
+  font-size: 11px;
+  padding: 3px 6px;
+  max-width: 220px;
+}
+
 .nn-clarityDial {
   display: inline-flex;
   align-items: center;
@@ -1231,6 +1246,17 @@
 
   .nn-layoutModes {
     width: 100%;
+  }
+
+  .nn-walletPicker {
+    width: 100%;
+  }
+
+  .nn-topbarSelect {
+    max-width: 100%;
+    width: 100%;
+    margin-left: 0;
+    margin-top: 4px;
   }
 
   .nn-clarityDial {

@@ -61,6 +61,10 @@ export type MessageMetadata = {
   action?: string;
   proposalId?: string;
   proposal?: SkillProposalEnvelope;
+  walletProfileId?: string;
+  walletAddress?: string;
+  chain?: string;
+  venue?: string;
   source?: string;
   chatId?: string;
   mode?: string;

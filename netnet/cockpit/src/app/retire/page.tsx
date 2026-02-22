@@ -1,5 +1,6 @@
 'use client';
 
+import Link from "next/link";
 import { useState } from 'react';
 import PageHeader from "@/components/PageHeader";
 import { Button, Input } from "@/components/ui";
@@ -13,18 +14,24 @@ export default function RetirePage() {
   return (
     <div className="nn-page-stack">
       <PageHeader
-        title="Retire"
-        subtitle="Step through a retirement intent flow."
-        guidance="Enter project, amount, and transaction hash, then track status and generate proof."
-        outputs="Produces: retirement intent state and proof handoff context."
+        title="Retire Credits"
+        subtitle="Simple retirement flow for agents and operators."
+        guidance="Enter project and amount, submit settlement, then track and finalize proof receipt."
+        outputs="Produces: retirement progress state and certificate-proof handoff context."
+        rightSlot={
+          <div className="flex flex-wrap gap-2">
+            <Link href="/operator" className="nn-shell-navLink">Operator</Link>
+            <Link href="/proof" className="nn-shell-navLink">Proof</Link>
+          </div>
+        }
       />
 
       {step === 1 && (
         <div className="nn-surface grid gap-2">
           <label className="block text-sm text-white/80">Project ID</label>
-          <Input value={project} onChange={e=>setProject(e.target.value)} />
+          <Input value={project} onChange={e=>setProject(e.target.value)} placeholder="project-..." />
           <div>
-            <Button onClick={()=>setStep(2)}>Next</Button>
+            <Button onClick={()=>setStep(2)} disabled={!project.trim()}>Next</Button>
           </div>
         </div>
       )}
@@ -32,27 +39,31 @@ export default function RetirePage() {
       {step === 2 && (
         <div className="nn-surface grid gap-2">
           <label className="block text-sm text-white/80">Amount</label>
-          <Input value={amount} onChange={e=>setAmount(e.target.value)} />
+          <Input value={amount} onChange={e=>setAmount(e.target.value)} placeholder="100" />
           <div>
-            <Button onClick={()=>setStep(3)}>Get Quote</Button>
+            <Button onClick={()=>setStep(3)} disabled={!amount.trim()}>Get Quote</Button>
           </div>
         </div>
       )}
 
       {step === 3 && (
         <div className="nn-surface grid gap-2">
-          <p className="text-sm text-white/75">Send payment via Bridge.eco, then paste tx hash.</p>
+          <p className="text-sm text-white/75">Settle via Bridge.eco, then paste transaction hash.</p>
           <Input placeholder="0x..." value={txHash} onChange={e=>setTxHash(e.target.value)} />
           <div>
-            <Button onClick={()=>setStep(4)}>Track</Button>
+            <Button onClick={()=>setStep(4)} disabled={!txHash.trim()}>Track Retirement</Button>
           </div>
         </div>
       )}
 
       {step === 4 && (
         <div className="nn-surface grid gap-2">
-          <p className="text-sm text-emerald-300">Retirement tracked.</p>
-          <a className="text-sm underline text-white/80 hover:text-white" href="/proof">Generate Proof</a>
+          <p className="text-sm text-emerald-300">Retirement tracked and ready for proof.</p>
+          <div>
+            <Link className="nn-shell-navLink nn-shell-navLinkActive" href="/proof">
+              Generate Retirement Certificate-Proof
+            </Link>
+          </div>
         </div>
       )}
     </div>
