@@ -264,6 +264,26 @@ export default function OpsBoard({
         .sort((a, b) => b.createdAt - a.createdAt)[0] || null,
     [messages]
   );
+  const recentErrors = useMemo(
+    () =>
+      [...messages]
+        .filter((message) => {
+          if (message.metadata?.action === "error") return true;
+          if (message.role !== "assistant" && message.role !== "skill") return false;
+          return /\b(failed|error|blocked)\b/i.test(message.content);
+        })
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .slice(0, 6),
+    [messages]
+  );
+  const failedExecutions = useMemo(
+    () =>
+      proposals
+        .filter((proposal) => proposal.executionStatus === "failed")
+        .sort((a, b) => (b.executionCompletedAt || b.createdAt) - (a.executionCompletedAt || a.createdAt))
+        .slice(0, 6),
+    [proposals]
+  );
 
   const toggle = useCallback((section: SectionKey) => {
     setOpen((prev) => ({ ...prev, [section]: !prev[section] }));
@@ -300,6 +320,15 @@ export default function OpsBoard({
         2
       ) ?? "null"
     );
+  }
+
+  function buildRetryPrompt(proposal: SkillProposalEnvelope): string {
+    return [
+      `Retry proposal draft for ${proposal.skillId}.`,
+      `Original route: ${proposal.route}.`,
+      "Keep status as draft and do not execute.",
+      "Add brief reasoning about what changed from the failed attempt.",
+    ].join(" ");
   }
 
   async function draftTemplateProposal() {
@@ -947,6 +976,80 @@ export default function OpsBoard({
             <div className={styles["nn-muted"]}>Token updated: {formatTime(tokenUpdatedAt)}</div>
             {(walletError || tokenError) ? (
               <div className={styles["nn-muted"]}>Couldn&apos;t load (policy or missing config).</div>
+            ) : null}
+          </div>
+
+          <div className={styles["nn-listItem"]}>
+            <div className={styles["nn-listHead"]}>
+              <div>Reliability</div>
+              <span className={styles["nn-chip"]}>errors: {recentErrors.length}</span>
+            </div>
+            <div className={styles["nn-chipRow"]}>
+              <span className={styles["nn-chip"]}>failed exec: {failedExecutions.length}</span>
+              <span className={styles["nn-chip"]}>error msgs: {recentErrors.length}</span>
+            </div>
+            {failedExecutions.length ? (
+              <div className={styles["nn-listBlock"]}>
+                <div className={styles["nn-muted"]}>Failed executions</div>
+                {failedExecutions.map((proposal) => (
+                  <div key={`failed-${proposal.id}`} className={styles["nn-listItem"]}>
+                    <div className={styles["nn-listHead"]}>
+                      <div>
+                        {proposal.skillId}
+                        <div className={styles["nn-muted"]}>{proposal.route}</div>
+                      </div>
+                      <span className={[styles["nn-statusBadge"], styles["nn-failure"]].join(" ")}>
+                        failed
+                      </span>
+                    </div>
+                    <div className={styles["nn-chipRow"]}>
+                      <Button
+                        size="sm"
+                        variant="subtle"
+                        onClick={() => {
+                          onSelectExecution(proposal.id);
+                          onFocusProposal(proposal.id);
+                        }}
+                      >
+                        Open
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="subtle"
+                        onClick={() => insertPrompt("Retry", buildRetryPrompt(proposal))}
+                      >
+                        Retry Prompt
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className={styles["nn-muted"]}>No failed executions in recent history.</div>
+            )}
+            {recentErrors.length ? (
+              <div className={styles["nn-listBlock"]}>
+                <div className={styles["nn-muted"]}>Recent action errors</div>
+                {recentErrors.map((message) => (
+                  <button
+                    key={`error-${message.id}`}
+                    type="button"
+                    className={[styles["nn-listItem"], styles["nn-listItemButton"]].join(" ")}
+                    onClick={() => {
+                      onSelectMessage(message.id);
+                      onFocusMessage(message.id);
+                    }}
+                  >
+                    <div className={styles["nn-muted"]}>
+                      {new Date(message.createdAt).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </div>
+                    <div>{message.content.slice(0, 140)}</div>
+                  </button>
+                ))}
+              </div>
             ) : null}
           </div>
 
