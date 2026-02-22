@@ -9,6 +9,8 @@ export type OperatorWalletProfile = {
   privyWalletId?: string;
   chainCaip2?: string;
   allowedActions: string[];
+  maxUsdPerAction?: number;
+  maxUsdPerDay?: number;
   notes?: string;
 };
 
@@ -34,6 +36,8 @@ const DEFAULT_WALLET_PROFILES: OperatorWalletProfile[] = [
       "token.manage",
       "token.launch",
     ],
+    maxUsdPerAction: 1000,
+    maxUsdPerDay: 5000,
     notes: "Primary wallet for VELATH token operations on MegaETH/Kumbaya.",
   },
   {
@@ -55,6 +59,8 @@ const DEFAULT_WALLET_PROFILES: OperatorWalletProfile[] = [
       "bankr.token.actions.plan",
       "token.manage",
     ],
+    maxUsdPerAction: 750,
+    maxUsdPerDay: 2500,
     notes: "EcoWealth operations lane. Launch/write actions remain restricted by default.",
   },
 ];

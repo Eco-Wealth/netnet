@@ -627,6 +627,33 @@ function policyContextForExecution(
   };
 }
 
+function readDeclaredAmountUsd(proposal: SkillProposalEnvelope): number | null {
+  const body = toRecord(proposal.proposedBody);
+  const candidates = [body.amountUsd, body.spendUsd, body.maxSpendUsd, body.amount];
+  for (const value of candidates) {
+    if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+      return value;
+    }
+  }
+  return null;
+}
+
+function getWalletDailySpendUsd(walletProfileId: string, now = Date.now()): number {
+  const since = now - 24 * 60 * 60 * 1000;
+  let total = 0;
+  for (const proposal of Object.values(getState().proposals)) {
+    if (proposal.executionStatus !== "completed") continue;
+    const completedAt = proposal.executionCompletedAt ?? proposal.executionStartedAt ?? proposal.createdAt;
+    if (completedAt < since) continue;
+    const metadata = toRecord(proposal.metadata);
+    const proposalWalletProfileId = String(metadata.walletProfileId || "").trim();
+    if (proposalWalletProfileId !== walletProfileId) continue;
+    const amountUsd = readDeclaredAmountUsd(proposal);
+    if (typeof amountUsd === "number") total += amountUsd;
+  }
+  return total;
+}
+
 function assertProposalWalletScope(
   proposal: SkillProposalEnvelope,
   action: string
@@ -656,6 +683,29 @@ function assertProposalWalletScope(
     throw new Error(
       `Execution blocked: proposal chain ${chainHint} does not match wallet profile chain ${walletProfile.chain}.`
     );
+  }
+
+  const proposalAmountUsd = readDeclaredAmountUsd(proposal);
+  if (
+    typeof proposalAmountUsd === "number" &&
+    typeof walletProfile.maxUsdPerAction === "number" &&
+    proposalAmountUsd > walletProfile.maxUsdPerAction
+  ) {
+    throw new Error(
+      `Execution blocked: amountUsd ${proposalAmountUsd} exceeds per-action cap ${walletProfile.maxUsdPerAction} for ${walletProfile.label}.`
+    );
+  }
+
+  if (
+    typeof proposalAmountUsd === "number" &&
+    typeof walletProfile.maxUsdPerDay === "number"
+  ) {
+    const currentDailySpend = getWalletDailySpendUsd(walletProfile.id);
+    if (currentDailySpend + proposalAmountUsd > walletProfile.maxUsdPerDay) {
+      throw new Error(
+        `Execution blocked: daily cap ${walletProfile.maxUsdPerDay} exceeded for ${walletProfile.label} (used ${currentDailySpend}, requested ${proposalAmountUsd}).`
+      );
+    }
   }
 }
 
