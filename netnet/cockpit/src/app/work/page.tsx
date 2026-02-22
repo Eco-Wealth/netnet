@@ -6,6 +6,12 @@ import { WorkItemCard } from "@/components/WorkItemCard";
 
 type WorkItem = any;
 
+type WorkFilters = {
+  q?: string;
+  hasProof?: boolean;
+  proofId?: string;
+};
+
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     ...init,
@@ -30,18 +36,32 @@ export default function WorkPage() {
   const [proofOnly, setProofOnly] = useState(false);
   const [proofIdFilter, setProofIdFilter] = useState("");
 
-  async function refresh(filters?: {
-    q?: string;
-    hasProof?: boolean;
-    proofId?: string;
-  }) {
+  function normalizeFilters(filters?: WorkFilters): Required<WorkFilters> {
+    return {
+      q: (filters?.q ?? listQuery).trim(),
+      hasProof: filters?.hasProof ?? proofOnly,
+      proofId: (filters?.proofId ?? proofIdFilter).trim(),
+    };
+  }
+
+  function writeFiltersToUrl(filters: Required<WorkFilters>) {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams();
+    if (filters.q) params.set("q", filters.q);
+    if (filters.hasProof) params.set("hasProof", "1");
+    if (filters.proofId) params.set("proofId", filters.proofId);
+    const suffix = params.toString();
+    const next = suffix ? `/work?${suffix}` : "/work";
+    window.history.replaceState({}, "", next);
+  }
+
+  async function refresh(filters?: WorkFilters) {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
-      const q = (filters?.q ?? listQuery).trim();
-      const hasProof = filters?.hasProof ?? proofOnly;
-      const proofId = (filters?.proofId ?? proofIdFilter).trim();
+      const normalized = normalizeFilters(filters);
+      const { q, hasProof, proofId } = normalized;
 
       if (q) params.set("q", q);
       if (hasProof) params.set("hasProof", "1");
@@ -51,6 +71,7 @@ export default function WorkPage() {
       const path = suffix ? `/api/work?${suffix}` : "/api/work";
       const data = await api<{ ok: true; items: WorkItem[] }>(path);
       setItems(data.items || []);
+      writeFiltersToUrl(normalized);
     } catch (e: any) {
       setError(e?.message || "Failed to load");
     } finally {
@@ -74,11 +95,12 @@ export default function WorkPage() {
     if (initialProofId) setProofIdFilter(initialProofId);
     if (initialProofOnly) setProofOnly(true);
 
-    refresh({
+    const initialFilters: WorkFilters = {
       q: initialQ,
       proofId: initialProofId,
       hasProof: initialProofOnly,
-    });
+    };
+    refresh(initialFilters);
   }, []);
 
   async function create() {
@@ -116,6 +138,24 @@ export default function WorkPage() {
     return c;
   }, [items]);
 
+  function applyFilters() {
+    refresh();
+  }
+
+  function clearFilters() {
+    setListQuery("");
+    setProofIdFilter("");
+    setProofOnly(false);
+    refresh({ q: "", proofId: "", hasProof: false });
+  }
+
+  function onFilterKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      applyFilters();
+    }
+  }
+
   return (
     <div className="nn-page-stack">
       <PageHeader
@@ -132,6 +172,7 @@ export default function WorkPage() {
             <input
               value={listQuery}
               onChange={(e) => setListQuery(e.target.value)}
+              onKeyDown={onFilterKeyDown}
               className="h-10 rounded-[11px] border border-white/15 bg-white/[0.04] px-3 text-sm text-white outline-none focus:ring-2 focus:ring-white/15"
               placeholder="title, tag, proof id, verify url"
             />
@@ -142,6 +183,7 @@ export default function WorkPage() {
             <input
               value={proofIdFilter}
               onChange={(e) => setProofIdFilter(e.target.value)}
+              onKeyDown={onFilterKeyDown}
               className="h-10 rounded-[11px] border border-white/15 bg-white/[0.04] px-3 text-sm text-white outline-none focus:ring-2 focus:ring-white/15"
               placeholder="proof hash or prefix"
             />
@@ -158,18 +200,13 @@ export default function WorkPage() {
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => refresh()}
+              onClick={applyFilters}
               className="rounded-[11px] border border-white/15 bg-white/[0.06] px-4 py-2 text-sm font-medium text-white hover:bg-white/[0.11]"
             >
               Apply
             </button>
             <button
-              onClick={() => {
-                setListQuery("");
-                setProofIdFilter("");
-                setProofOnly(false);
-                refresh({ q: "", proofId: "", hasProof: false });
-              }}
+              onClick={clearFilters}
               className="rounded-[11px] border border-white/15 bg-white/[0.03] px-4 py-2 text-sm font-medium text-white/85 hover:bg-white/[0.09]"
             >
               Clear
