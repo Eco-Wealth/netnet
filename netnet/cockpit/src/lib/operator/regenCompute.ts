@@ -14,6 +14,7 @@ export type RegenComputeOffsetInput = {
   source: "operator" | "telegram";
   messageId: string;
   operatorRef?: string;
+  allowRetire?: boolean;
 };
 
 export type RegenComputeOffsetResult = {
@@ -174,7 +175,10 @@ export async function processRegenComputeOffset(
     estimatedCostUSD: carbon.estimatedCostUSD,
   };
 
-  const shouldRetire = shouldAutoRetire();
+  const shouldRetire =
+    shouldAutoRetire() &&
+    input.allowRetire !== false &&
+    input.source !== "telegram";
   let retirement:
     | {
         success: boolean;
@@ -243,7 +247,7 @@ export async function processRegenComputeOffset(
 
   const proofPayload = buildProofPayload({ input, estimate, retirement });
   const proof = registerProofArtifact(proofPayload, {
-    sourceRoute: "/operator",
+    sourceRoute: input.source === "telegram" ? "/api/telegram/webhook" : "/operator",
     action: "regen.compute.offset",
     resultSummary:
       retirement?.success
@@ -262,4 +266,3 @@ export async function processRegenComputeOffset(
     proof: proof || undefined,
   };
 }
-

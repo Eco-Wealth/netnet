@@ -128,6 +128,7 @@ export async function POST(req: NextRequest) {
       source: "telegram",
       messageId: assistant.id,
       operatorRef: incoming.sender,
+      allowRetire: false,
     });
     const proposal = extractSkillProposalEnvelope(assistant.content);
     const blockExecution = shouldBlockExecutionInstructions(assistant.content);

@@ -170,3 +170,13 @@ This backlog tracks machine-first Operator execution units.
   - run/log verification
 - Reduce terminal-first setup by mapping routine actions to deterministic UI controls.
 - Add health checks and runbook coverage so agents can bootstrap and recover without manual shell loops.
+
+### Unit 121 — Social autopublish sequence (YouTube -> X -> Instagram -> Facebook)
+
+- Add seamless post scheduling and execution-ready proposal templates for social distribution.
+- Enforce deterministic sequence order:
+  1. YouTube
+  2. X
+  3. Instagram
+  4. Facebook
+- Keep posting proposal-first with approval + execution gates, while making scheduling effortless in Operator UI.

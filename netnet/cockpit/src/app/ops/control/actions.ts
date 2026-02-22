@@ -11,6 +11,7 @@ const REPO_ROOT = path.resolve(COCKPIT_ROOT, "..", "..");
 const AI_EYES_DIR = path.join(COCKPIT_ROOT, "test-results", "ai-eyes");
 const OUTPUT_LIMIT = 8000;
 const STEP_TIMEOUT_MS = 12 * 60 * 1000;
+const DEFAULT_SERVER_ROLE: OpsRole = "viewer";
 
 export type OpsStepResult = {
   command: string;
@@ -99,8 +100,47 @@ export type OpenClawBootstrapResult = {
 
 type RunInput = {
   commandId: string;
-  role: OpsRole;
+  role?: OpsRole;
 };
+
+export type OpsAccessContext = {
+  effectiveRole: OpsRole;
+  source: "server_env";
+  configuredRole: string;
+  notes: string[];
+};
+
+function normalizeRole(value: string): OpsRole {
+  if (value === "admin" || value === "operator" || value === "viewer") {
+    return value;
+  }
+  return DEFAULT_SERVER_ROLE;
+}
+
+function resolveServerRole(): OpsRole {
+  const configured = String(
+    process.env.NETNET_OPS_CONTROL_ROLE || process.env.OPS_CONTROL_SERVER_ROLE || ""
+  )
+    .trim()
+    .toLowerCase();
+  return normalizeRole(configured);
+}
+
+export async function getOpsAccessContextAction(): Promise<OpsAccessContext> {
+  const configuredRole = String(
+    process.env.NETNET_OPS_CONTROL_ROLE || process.env.OPS_CONTROL_SERVER_ROLE || ""
+  ).trim();
+  const effectiveRole = resolveServerRole();
+  return {
+    effectiveRole,
+    source: "server_env",
+    configuredRole,
+    notes: [
+      "Role is resolved on server from NETNET_OPS_CONTROL_ROLE or OPS_CONTROL_SERVER_ROLE.",
+      "Client role selector cannot elevate command permissions.",
+    ],
+  };
+}
 
 function trimOutput(value: string): string {
   if (value.length <= OUTPUT_LIMIT) {
@@ -115,10 +155,6 @@ function hasAccess(role: OpsRole, command: OpsCommandSpec): boolean {
 
 function toCwd(stepCwd: "repo" | "cockpit"): string {
   return stepCwd === "repo" ? REPO_ROOT : COCKPIT_ROOT;
-}
-
-function hasRole(role: OpsRole, allowed: OpsRole[]): boolean {
-  return allowed.includes(role);
 }
 
 function toEnvCheck(): OpenClawEnvCheckItem[] {
@@ -278,13 +314,14 @@ async function runStep(args: [string, ...string[]], cwd: string): Promise<{
 
 async function executeCommand(input: RunInput): Promise<OpsRunResult> {
   const startedAt = Date.now();
+  const effectiveRole = resolveServerRole();
   const command = getOpsCommandById(input.commandId);
 
   if (!command) {
     return {
       ok: false,
       commandId: input.commandId,
-      role: input.role,
+      role: effectiveRole,
       startedAt,
       endedAt: Date.now(),
       steps: [],
@@ -292,11 +329,11 @@ async function executeCommand(input: RunInput): Promise<OpsRunResult> {
     };
   }
 
-  if (!hasAccess(input.role, command)) {
+  if (!hasAccess(effectiveRole, command)) {
     return {
       ok: false,
       commandId: input.commandId,
-      role: input.role,
+      role: effectiveRole,
       startedAt,
       endedAt: Date.now(),
       steps: [],
@@ -324,7 +361,7 @@ async function executeCommand(input: RunInput): Promise<OpsRunResult> {
       return {
         ok: false,
         commandId: command.id,
-        role: input.role,
+        role: effectiveRole,
         startedAt,
         endedAt: Date.now(),
         steps: stepResults,
@@ -336,7 +373,7 @@ async function executeCommand(input: RunInput): Promise<OpsRunResult> {
   return {
     ok: true,
     commandId: command.id,
-    role: input.role,
+    role: effectiveRole,
     startedAt,
     endedAt: Date.now(),
     steps: stepResults,
@@ -350,20 +387,21 @@ export async function runOpsCommandAction(input: RunInput): Promise<OpsRunResult
 }
 
 export async function runOpsSequenceAction(input: {
-  role: OpsRole;
+  role?: OpsRole;
   commandIds: string[];
 }): Promise<OpsSequenceResult> {
   const startedAt = Date.now();
+  const effectiveRole = resolveServerRole();
   const runs: OpsRunResult[] = [];
 
   for (const commandId of input.commandIds) {
-    const run = await executeCommand({ role: input.role, commandId });
+    const run = await executeCommand({ role: effectiveRole, commandId });
     runs.push(run);
     if (!run.ok) {
       revalidatePath("/ops/control");
       return {
         ok: false,
-        role: input.role,
+        role: effectiveRole,
         commandIds: input.commandIds,
         startedAt,
         endedAt: Date.now(),
@@ -376,7 +414,7 @@ export async function runOpsSequenceAction(input: {
   revalidatePath("/ops/control");
   return {
     ok: true,
-    role: input.role,
+    role: effectiveRole,
     commandIds: input.commandIds,
     startedAt,
     endedAt: Date.now(),
@@ -414,24 +452,10 @@ export async function readAIEyesArtifactsAction(): Promise<AIEyesArtifacts> {
 }
 
 export async function runOpenClawConnectionCheckAction(input: {
-  role: OpsRole;
+  role?: OpsRole;
 }): Promise<OpenClawConnectionResult> {
   const checkedAt = Date.now();
-  if (!hasRole(input.role, ["viewer", "operator", "admin"])) {
-    return {
-      ok: false,
-      role: input.role,
-      checkedAt,
-      dashboard: {
-        configured: false,
-        reachable: false,
-        error: "role_denied",
-      },
-      env: [],
-      routes: [],
-      error: "role_denied",
-    };
-  }
+  const effectiveRole = resolveServerRole();
 
   const env = toEnvCheck();
   const dashboard = await checkDashboardReachability(
@@ -452,7 +476,7 @@ export async function runOpenClawConnectionCheckAction(input: {
   revalidatePath("/ops/control");
   return {
     ok,
-    role: input.role,
+    role: effectiveRole,
     checkedAt,
     dashboard,
     env,
@@ -462,24 +486,26 @@ export async function runOpenClawConnectionCheckAction(input: {
 }
 
 export async function runOpenClawSchedulerCheckAction(input: {
-  role: OpsRole;
+  role?: OpsRole;
 }): Promise<OpenClawSchedulerResult> {
+  const effectiveRole = resolveServerRole();
   const run = await executeCommand({
-    role: input.role,
+    role: effectiveRole,
     commandId: "health_fast",
   });
   revalidatePath("/ops/control");
   return {
     ok: run.ok,
-    role: input.role,
+    role: effectiveRole,
     checkedAt: Date.now(),
     run,
   };
 }
 
 export async function runOpenClawPolicyCheckAction(input: {
-  role: OpsRole;
+  role?: OpsRole;
 }): Promise<OpenClawPolicyResult> {
+  const effectiveRole = resolveServerRole();
   const startedAt = Date.now();
   const command: OpsCommandSpec = {
     id: "openclaw_policy_guard",
@@ -490,11 +516,11 @@ export async function runOpenClawPolicyCheckAction(input: {
     steps: [{ cwd: "repo", args: ["npm", "run", "drift:check"] }],
   };
 
-  if (!hasAccess(input.role, command)) {
+  if (!hasAccess(effectiveRole, command)) {
     const denied: OpsRunResult = {
       ok: false,
       commandId: command.id,
-      role: input.role,
+      role: effectiveRole,
       startedAt,
       endedAt: Date.now(),
       steps: [],
@@ -502,7 +528,7 @@ export async function runOpenClawPolicyCheckAction(input: {
     };
     return {
       ok: false,
-      role: input.role,
+      role: effectiveRole,
       checkedAt: Date.now(),
       run: denied,
     };
@@ -523,7 +549,7 @@ export async function runOpenClawPolicyCheckAction(input: {
       const failed: OpsRunResult = {
         ok: false,
         commandId: command.id,
-        role: input.role,
+        role: effectiveRole,
         startedAt,
         endedAt: Date.now(),
         steps: stepResults,
@@ -531,7 +557,7 @@ export async function runOpenClawPolicyCheckAction(input: {
       };
       return {
         ok: false,
-        role: input.role,
+        role: effectiveRole,
         checkedAt: Date.now(),
         run: failed,
       };
@@ -541,7 +567,7 @@ export async function runOpenClawPolicyCheckAction(input: {
   const passed: OpsRunResult = {
     ok: true,
     commandId: command.id,
-    role: input.role,
+    role: effectiveRole,
     startedAt,
     endedAt: Date.now(),
     steps: stepResults,
@@ -549,15 +575,16 @@ export async function runOpenClawPolicyCheckAction(input: {
   revalidatePath("/ops/control");
   return {
     ok: true,
-    role: input.role,
+    role: effectiveRole,
     checkedAt: Date.now(),
     run: passed,
   };
 }
 
 export async function runOpenClawBootstrapAction(input: {
-  role: OpsRole;
+  role?: OpsRole;
 }): Promise<OpenClawBootstrapResult> {
+  const effectiveRole = resolveServerRole();
   const connection = await runOpenClawConnectionCheckAction(input);
   const scheduler = await runOpenClawSchedulerCheckAction(input);
   const policy = await runOpenClawPolicyCheckAction(input);
@@ -565,7 +592,7 @@ export async function runOpenClawBootstrapAction(input: {
   revalidatePath("/ops/control");
   return {
     ok,
-    role: input.role,
+    role: effectiveRole,
     checkedAt: Date.now(),
     steps: { connection, scheduler, policy },
   };

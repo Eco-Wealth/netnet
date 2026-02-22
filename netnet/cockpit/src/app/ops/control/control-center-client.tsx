@@ -1,19 +1,21 @@
 "use client";
 
-import { useMemo, useState, useTransition, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, useTransition, type CSSProperties } from "react";
 import {
+  getOpsAccessContextAction,
   readAIEyesArtifactsAction,
   runOpenClawBootstrapAction,
   runOpenClawConnectionCheckAction,
-  runOpsCommandAction,
   runOpenClawPolicyCheckAction,
   runOpenClawSchedulerCheckAction,
+  runOpsCommandAction,
   runOpsSequenceAction,
   type AIEyesArtifacts,
   type OpenClawBootstrapResult,
   type OpenClawConnectionResult,
   type OpenClawPolicyResult,
   type OpenClawSchedulerResult,
+  type OpsAccessContext,
   type OpsRunResult,
   type OpsSequenceResult,
 } from "./actions";
@@ -173,7 +175,8 @@ function AIEyesPanel({ artifacts }: { artifacts: AIEyesArtifacts | null }) {
 }
 
 function OpenClawSetupPanel({
-  role,
+  requestedRole,
+  effectiveRole,
   pending,
   connection,
   scheduler,
@@ -184,7 +187,8 @@ function OpenClawSetupPanel({
   onPolicy,
   onBootstrap,
 }: {
-  role: OpsRole;
+  requestedRole: OpsRole;
+  effectiveRole: OpsRole | null;
   pending: boolean;
   connection: OpenClawConnectionResult | null;
   scheduler: OpenClawSchedulerResult | null;
@@ -206,7 +210,11 @@ function OpenClawSetupPanel({
             Verify env, connector reachability, scheduler smoke, and policy guardrails.
           </div>
         </div>
-        <div style={{ fontSize: 12, opacity: 0.9 }}>Role: {role}</div>
+        <div style={{ fontSize: 12, opacity: 0.9 }}>
+          Requested: {requestedRole}
+          {" • "}
+          Effective: {effectiveRole || "loading"}
+        </div>
       </div>
 
       <div style={{ marginTop: 10, display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
@@ -315,6 +323,7 @@ function OpenClawSetupPanel({
 
 export default function ControlCenterClient() {
   const [role, setRole] = useState<OpsRole>("operator");
+  const [accessContext, setAccessContext] = useState<OpsAccessContext | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [lastResult, setLastResult] = useState<OpsRunResult | null>(null);
   const [lastSequence, setLastSequence] = useState<OpsSequenceResult | null>(null);
@@ -328,6 +337,9 @@ export default function ControlCenterClient() {
   const [openClawBootstrap, setOpenClawBootstrap] =
     useState<OpenClawBootstrapResult | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const effectiveRole = accessContext?.effectiveRole || null;
+  const runtimeRole = effectiveRole || role;
 
   const grouped = useMemo(() => {
     const bucket: Record<Category, typeof OPS_COMMANDS> = {
@@ -343,6 +355,16 @@ export default function ControlCenterClient() {
   }, []);
 
   const selectedCount = selectedIds.length;
+
+  useEffect(() => {
+    let cancelled = false;
+    void getOpsAccessContextAction().then((context) => {
+      if (!cancelled) setAccessContext(context);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function toggleSelection(commandId: string) {
     setSelectedIds((current) =>
@@ -360,9 +382,7 @@ export default function ControlCenterClient() {
   }
 
   function runSequence() {
-    if (selectedIds.length === 0) {
-      return;
-    }
+    if (selectedIds.length === 0) return;
     startTransition(async () => {
       const sequence = await runOpsSequenceAction({
         role,
@@ -417,11 +437,11 @@ export default function ControlCenterClient() {
           <div>
             <h1 style={{ margin: 0, fontSize: 18 }}>Ops Control Center</h1>
             <p style={{ marginTop: 6, marginBottom: 0, opacity: 0.82 }}>
-              Role-scoped command buttons and custom sequence execution.
+              Server-authoritative command execution with custom sequence runner.
             </p>
           </div>
           <label style={{ display: "grid", gap: 6 }}>
-            <span style={{ fontSize: 12, opacity: 0.85 }}>Role</span>
+            <span style={{ fontSize: 12, opacity: 0.85 }}>Requested role</span>
             <select
               value={role}
               onChange={(event) => setRole(event.target.value as OpsRole)}
@@ -436,10 +456,22 @@ export default function ControlCenterClient() {
             </select>
           </label>
         </div>
+        <div style={{ marginTop: 8, fontSize: 12, opacity: 0.85 }}>
+          Effective role: <strong>{runtimeRole}</strong>
+          {accessContext?.configuredRole
+            ? ` (from ${accessContext.configuredRole})`
+            : " (default server policy)"}
+        </div>
+        {accessContext?.notes?.length ? (
+          <div style={{ marginTop: 4, fontSize: 12, opacity: 0.75 }}>
+            {accessContext.notes[0]}
+          </div>
+        ) : null}
       </header>
 
       <OpenClawSetupPanel
-        role={role}
+        requestedRole={role}
+        effectiveRole={effectiveRole}
         pending={pending}
         connection={openClawConnection}
         scheduler={openClawScheduler}
@@ -464,7 +496,7 @@ export default function ControlCenterClient() {
               }}
             >
               {grouped[category].map((command) => {
-                const allowed = command.roles.includes(role);
+                const allowed = command.roles.includes(runtimeRole);
                 const selected = selectedIds.includes(command.id);
                 return (
                   <article
@@ -480,7 +512,9 @@ export default function ControlCenterClient() {
                       <strong>{command.title}</strong>
                       <span style={{ fontSize: 12 }}>{command.id}</span>
                     </div>
-                    <div style={{ marginTop: 6, fontSize: 13, opacity: 0.85 }}>{command.description}</div>
+                    <div style={{ marginTop: 6, fontSize: 13, opacity: 0.85 }}>
+                      {command.description}
+                    </div>
                     <div style={{ marginTop: 8, fontSize: 12, opacity: 0.8 }}>
                       Roles: {command.roles.join(", ")}
                     </div>
@@ -559,3 +593,4 @@ export default function ControlCenterClient() {
     </main>
   );
 }
+
