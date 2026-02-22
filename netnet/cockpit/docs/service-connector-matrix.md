@@ -10,6 +10,7 @@ Canonical map of external/internal connectors used by Operator workflows.
 | Bankr Launch | Internal route | `/api/bankr/launch` | Launch planning/execution envelope | platform | Propose/Execute gated |
 | Zora Connector | Internal route | `/api/agent/zora` | Proposal-first content posting connector | platform | Propose/Execute gated |
 | Kumbaya Connector | Internal route | `/api/agent/kumbaya` | Proposal-first content posting connector | platform | Propose/Execute gated |
+| Regen MCP | External MCP | `REGEN_MCP_URL` | Regen chain MCP context and latest block reads | platform | Read/Propose |
 | Registry Review MCP | External MCP | `REGISTRY_REVIEW_MCP_URL` | Registry + contract review context | platform | Read/Propose |
 | Regen KOI MCP | External MCP | `REGEN_KOI_MCP_URL` | Regen ops/market context for plans | platform | Read/Propose |
 | Regen Python MCP | External MCP | `REGEN_PYTHON_MCP_URL` | Regen analytics + scoring context | platform | Read/Propose |

@@ -30,4 +30,5 @@ run("node", ["scripts/check-policy-integrity.mjs"]);
 run("node", ["scripts/check-route-policy-enforcement.mjs"]);
 run("node", ["scripts/check-proof-lane.mjs"]);
 run("node", ["scripts/check-service-connector-health.mjs"]);
+run("node", ["scripts/check-mcp-connectors.mjs"]);
 console.log("HEALTH FAST: PASS");

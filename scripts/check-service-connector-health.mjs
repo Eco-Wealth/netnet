@@ -11,6 +11,10 @@ const cockpitRoot = findCockpitRoot(repoRoot);
 const matrixPath = path.join(cockpitRoot, "docs", "service-connector-matrix.md");
 
 const CONNECTORS = [
+  { id: "regen.mcp", route: "REGEN_MCP_URL", kind: "external" },
+  { id: "registry-review.mcp", route: "REGISTRY_REVIEW_MCP_URL", kind: "external" },
+  { id: "regen-koi.mcp", route: "REGEN_KOI_MCP_URL", kind: "external" },
+  { id: "regen-python.mcp", route: "REGEN_PYTHON_MCP_URL", kind: "external" },
   { id: "bankr.wallet", route: "/api/bankr/wallet", kind: "internal" },
   { id: "bankr.token.info", route: "/api/bankr/token/info", kind: "internal" },
   { id: "bankr.token.actions", route: "/api/bankr/token/actions", kind: "internal" },
