@@ -5,6 +5,8 @@ import { existsSync, promises as fs } from "node:fs";
 import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { getOpsCommandById, type OpsCommandSpec, type OpsRole } from "./commands";
+import { createStubMCPClient } from "@/mcp";
+import type { MCPChain, MCPResponse } from "@/mcp/types";
 
 const COCKPIT_ROOT = process.cwd();
 const REPO_ROOT = path.resolve(COCKPIT_ROOT, "..", "..");
@@ -87,6 +89,28 @@ export type OpenClawPolicyResult = {
   run: OpsRunResult;
 };
 
+export type MCPConnectorStatus = {
+  id: "regen" | "registry-review" | "regen-koi" | "regen-python";
+  endpointKey:
+    | "REGEN_MCP_URL"
+    | "REGISTRY_REVIEW_MCP_URL"
+    | "REGEN_KOI_MCP_URL"
+    | "REGEN_PYTHON_MCP_URL";
+  configured: boolean;
+  ok: boolean;
+  latestBlock?: number;
+  stub?: boolean;
+  error?: string;
+};
+
+export type MCPConnectorCheckResult = {
+  ok: boolean;
+  role: OpsRole;
+  checkedAt: number;
+  connectors: MCPConnectorStatus[];
+  error?: string;
+};
+
 export type OpenClawBootstrapResult = {
   ok: boolean;
   role: OpsRole;
@@ -95,6 +119,7 @@ export type OpenClawBootstrapResult = {
     connection: OpenClawConnectionResult;
     scheduler: OpenClawSchedulerResult;
     policy: OpenClawPolicyResult;
+    mcp: MCPConnectorCheckResult;
   };
 };
 
@@ -200,6 +225,24 @@ function requiredEnvPass(list: OpenClawEnvCheckItem[]): boolean {
     if (row.required && !row.present) return false;
   }
   return true;
+}
+
+function parseLatestBlock(response: MCPResponse): number | undefined {
+  if (!response || !response.data || typeof response.data !== "object") {
+    return undefined;
+  }
+  const value = (response.data as Record<string, unknown>).latestBlock;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  return undefined;
+}
+
+function parseStub(response: MCPResponse): boolean {
+  if (!response || !response.data || typeof response.data !== "object") {
+    return false;
+  }
+  return (response.data as Record<string, unknown>).stub === true;
 }
 
 function routeExists(route: string): boolean {
@@ -581,6 +624,73 @@ export async function runOpenClawPolicyCheckAction(input: {
   };
 }
 
+export async function runMCPConnectorCheckAction(input: {
+  role?: OpsRole;
+}): Promise<MCPConnectorCheckResult> {
+  const effectiveRole = resolveServerRole();
+  const checkedAt = Date.now();
+  const client = createStubMCPClient();
+  const checks: Array<{
+    id: MCPConnectorStatus["id"];
+    chain: MCPChain;
+    endpointKey: MCPConnectorStatus["endpointKey"];
+  }> = [
+    { id: "regen", chain: "regen", endpointKey: "REGEN_MCP_URL" },
+    {
+      id: "registry-review",
+      chain: "registry-review",
+      endpointKey: "REGISTRY_REVIEW_MCP_URL",
+    },
+    { id: "regen-koi", chain: "regen-koi", endpointKey: "REGEN_KOI_MCP_URL" },
+    {
+      id: "regen-python",
+      chain: "regen-python",
+      endpointKey: "REGEN_PYTHON_MCP_URL",
+    },
+  ];
+
+  const connectors = await Promise.all(
+    checks.map(async (check): Promise<MCPConnectorStatus> => {
+      const configured = Boolean(String(process.env[check.endpointKey] || "").trim());
+      try {
+        const response = await client.request(check.chain, {
+          method: "latest_block",
+        });
+        const latestBlock = parseLatestBlock(response);
+        const stub = parseStub(response);
+        const ok = response.ok && (typeof latestBlock === "number" || stub);
+        return {
+          id: check.id,
+          endpointKey: check.endpointKey,
+          configured,
+          ok,
+          latestBlock,
+          stub: stub || undefined,
+          error: ok ? undefined : response.error || "invalid_latest_block",
+        };
+      } catch (error) {
+        return {
+          id: check.id,
+          endpointKey: check.endpointKey,
+          configured,
+          ok: false,
+          error: error instanceof Error ? error.message : "mcp_request_failed",
+        };
+      }
+    })
+  );
+
+  const ok = connectors.every((connector) => connector.ok);
+  revalidatePath("/ops/control");
+  return {
+    ok,
+    role: effectiveRole,
+    checkedAt,
+    connectors,
+    error: ok ? undefined : "mcp_connectors_check_failed",
+  };
+}
+
 export async function runOpenClawBootstrapAction(input: {
   role?: OpsRole;
 }): Promise<OpenClawBootstrapResult> {
@@ -588,12 +698,13 @@ export async function runOpenClawBootstrapAction(input: {
   const connection = await runOpenClawConnectionCheckAction(input);
   const scheduler = await runOpenClawSchedulerCheckAction(input);
   const policy = await runOpenClawPolicyCheckAction(input);
-  const ok = connection.ok && scheduler.ok && policy.ok;
+  const mcp = await runMCPConnectorCheckAction(input);
+  const ok = connection.ok && scheduler.ok && policy.ok && mcp.ok;
   revalidatePath("/ops/control");
   return {
     ok,
     role: effectiveRole,
     checkedAt: Date.now(),
-    steps: { connection, scheduler, policy },
+    steps: { connection, scheduler, policy, mcp },
   };
 }

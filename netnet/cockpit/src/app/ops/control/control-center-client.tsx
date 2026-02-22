@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition, type CSSProperties } from 
 import {
   getOpsAccessContextAction,
   readAIEyesArtifactsAction,
+  runMCPConnectorCheckAction,
   runOpenClawBootstrapAction,
   runOpenClawConnectionCheckAction,
   runOpenClawPolicyCheckAction,
@@ -15,6 +16,7 @@ import {
   type OpenClawConnectionResult,
   type OpenClawPolicyResult,
   type OpenClawSchedulerResult,
+  type MCPConnectorCheckResult,
   type OpsAccessContext,
   type OpsRunResult,
   type OpsSequenceResult,
@@ -181,10 +183,12 @@ function OpenClawSetupPanel({
   connection,
   scheduler,
   policy,
+  mcp,
   bootstrap,
   onConnection,
   onScheduler,
   onPolicy,
+  onMcp,
   onBootstrap,
 }: {
   requestedRole: OpsRole;
@@ -193,14 +197,19 @@ function OpenClawSetupPanel({
   connection: OpenClawConnectionResult | null;
   scheduler: OpenClawSchedulerResult | null;
   policy: OpenClawPolicyResult | null;
+  mcp: MCPConnectorCheckResult | null;
   bootstrap: OpenClawBootstrapResult | null;
   onConnection: () => void;
   onScheduler: () => void;
   onPolicy: () => void;
+  onMcp: () => void;
   onBootstrap: () => void;
 }) {
   const hasFail =
-    connection?.ok === false || scheduler?.ok === false || policy?.ok === false;
+    connection?.ok === false ||
+    scheduler?.ok === false ||
+    policy?.ok === false ||
+    mcp?.ok === false;
   return (
     <section style={panelStyle}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
@@ -281,6 +290,26 @@ function OpenClawSetupPanel({
             </div>
           ) : null}
         </article>
+
+        <article style={{ border: "1px solid var(--nn-border-subtle, #1f2b45)", borderRadius: 10, padding: 10 }}>
+          <strong>4) MCP connector readiness</strong>
+          <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>
+            {checkStatus(mcp?.ok)}
+          </div>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={onMcp}
+            style={{ marginTop: 8, padding: "6px 10px", borderRadius: 8 }}
+          >
+            Run MCP checks
+          </button>
+          {mcp ? (
+            <div style={{ marginTop: 8, fontSize: 12, opacity: 0.9 }}>
+              {mcp.connectors.filter((connector) => connector.ok).length}/{mcp.connectors.length} connectors healthy
+            </div>
+          ) : null}
+        </article>
       </div>
 
       <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -317,6 +346,24 @@ function OpenClawSetupPanel({
           </div>
         </details>
       ) : null}
+
+      {mcp ? (
+        <details style={{ marginTop: 10 }}>
+          <summary>MCP connector status</summary>
+          <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+            {mcp.connectors.map((connector) => (
+              <div key={connector.id} style={{ fontSize: 12, opacity: 0.9 }}>
+                [{connector.ok ? "ok" : "fail"}] {connector.id} ({connector.endpointKey})
+                {connector.configured ? "" : " stub"}
+                {typeof connector.latestBlock === "number"
+                  ? ` latestBlock=${connector.latestBlock}`
+                  : ""}
+                {connector.error ? ` — ${connector.error}` : ""}
+              </div>
+            ))}
+          </div>
+        </details>
+      ) : null}
     </section>
   );
 }
@@ -334,6 +381,8 @@ export default function ControlCenterClient() {
     useState<OpenClawSchedulerResult | null>(null);
   const [openClawPolicy, setOpenClawPolicy] =
     useState<OpenClawPolicyResult | null>(null);
+  const [openClawMcp, setOpenClawMcp] =
+    useState<MCPConnectorCheckResult | null>(null);
   const [openClawBootstrap, setOpenClawBootstrap] =
     useState<OpenClawBootstrapResult | null>(null);
   const [pending, startTransition] = useTransition();
@@ -427,6 +476,14 @@ export default function ControlCenterClient() {
       setOpenClawConnection(result.steps.connection);
       setOpenClawScheduler(result.steps.scheduler);
       setOpenClawPolicy(result.steps.policy);
+      setOpenClawMcp(result.steps.mcp);
+    });
+  }
+
+  function runOpenClawMcp() {
+    startTransition(async () => {
+      const result = await runMCPConnectorCheckAction({ role });
+      setOpenClawMcp(result);
     });
   }
 
@@ -476,10 +533,12 @@ export default function ControlCenterClient() {
         connection={openClawConnection}
         scheduler={openClawScheduler}
         policy={openClawPolicy}
+        mcp={openClawMcp}
         bootstrap={openClawBootstrap}
         onConnection={runOpenClawConnection}
         onScheduler={runOpenClawScheduler}
         onPolicy={runOpenClawPolicy}
+        onMcp={runOpenClawMcp}
         onBootstrap={runOpenClawBootstrap}
       />
 
@@ -593,4 +652,3 @@ export default function ControlCenterClient() {
     </main>
   );
 }
-

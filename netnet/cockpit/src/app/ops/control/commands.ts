@@ -34,6 +34,14 @@ export const OPS_COMMANDS: OpsCommandSpec[] = [
     steps: [{ cwd: "repo", args: ["npm", "run", "health:fast"] }],
   },
   {
+    id: "mcp_connectors",
+    title: "MCP Connector Check",
+    description: "Validate Regen MCP connector coverage and wiring.",
+    category: "health",
+    roles: ["operator", "admin"],
+    steps: [{ cwd: "repo", args: ["npm", "run", "mcp:check"] }],
+  },
+  {
     id: "cockpit_build",
     title: "Cockpit Build",
     description: "Deterministic Next.js production build.",
@@ -64,4 +72,3 @@ export const OPS_ROLES: OpsRole[] = ["viewer", "operator", "admin"];
 export function getOpsCommandById(id: string): OpsCommandSpec | undefined {
   return OPS_COMMANDS.find((command) => command.id === id);
 }
-
