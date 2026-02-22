@@ -50,6 +50,7 @@ export default function DistributePage() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [tag, setTag] = useState<string>("all");
+  const [linkState, setLinkState] = useState<"all" | "linked" | "unlinked">("all");
   const [busyProofId, setBusyProofId] = useState<string | null>(null);
   const [workByProofId, setWorkByProofId] = useState<Record<string, string>>({});
   const [workErrorByProofId, setWorkErrorByProofId] = useState<
@@ -119,14 +120,18 @@ export default function DistributePage() {
     const query = q.trim().toLowerCase();
     return items.filter((it) => {
       const tagOk = tag === "all" ? true : (it.tags || []).includes(tag);
+      const linked = Boolean(workByProofId[it.id]);
+      const linkOk =
+        linkState === "all" ? true : linkState === "linked" ? linked : !linked;
       const qOk =
         !query ||
         it.title.toLowerCase().includes(query) ||
         it.summary.toLowerCase().includes(query) ||
-        (it.tags || []).some((t) => t.toLowerCase().includes(query));
-      return tagOk && qOk;
+        (it.tags || []).some((t) => t.toLowerCase().includes(query)) ||
+        readString(workByProofId[it.id]).toLowerCase().includes(query);
+      return tagOk && linkOk && qOk;
     });
-  }, [items, q, tag]);
+  }, [items, linkState, q, tag, workByProofId]);
 
   const totalScore = useMemo(() => filtered.reduce((a, b) => a + (b.score || 0), 0), [filtered]);
   const copyLink = useCallback((id: string) => {
@@ -221,6 +226,18 @@ export default function DistributePage() {
                 {t}
               </option>
             ))}
+          </select>
+
+          <select
+            value={linkState}
+            onChange={(e) =>
+              setLinkState((e.target.value as "all" | "linked" | "unlinked") || "all")
+            }
+            className="h-10 rounded-xl border border-white/15 bg-white/[0.03] px-3 text-sm text-white outline-none focus:ring-2 focus:ring-white/15"
+          >
+            <option value="all">all handoff states</option>
+            <option value="linked">linked to work</option>
+            <option value="unlinked">not linked</option>
           </select>
 
           <a
