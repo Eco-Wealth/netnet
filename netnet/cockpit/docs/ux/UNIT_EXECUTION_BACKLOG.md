@@ -78,3 +78,18 @@ This backlog tracks machine-first Operator execution units.
 - Completed proof panel linkage to create a Work item directly from a built proof.
 - Added attach-to-existing Work ID action from `/proof`.
 - Added explicit `PROOF_ATTACHED` event compatibility in Work API.
+
+### Unit 089 — Distribute to Work action lane
+
+- Added `Create Work` action on each proof feed item in `/distribute`.
+- Uses `/api/proof/verify/[id]` before creating a Work item to keep handoff deterministic.
+
+### Unit 090 — Work card proof visibility
+
+- Work item cards now surface attached proof context (proof id, kind, verify path, timestamp).
+- Proof-linked work can be scanned without opening full item JSON.
+
+### Unit 091 — Proof lane machine guard
+
+- Added `scripts/check-proof-lane.mjs` for deterministic proof-flow integrity checks.
+- Added `npm run proof:check` and included the check in `health:fast`.

@@ -28,4 +28,5 @@ run("npx", ["tsc", "--noEmit"], { cwd: cockpitRoot });
 run("node", ["scripts/check-api-contract-sot.mjs"]);
 run("node", ["scripts/check-policy-integrity.mjs"]);
 run("node", ["scripts/check-route-policy-enforcement.mjs"]);
+run("node", ["scripts/check-proof-lane.mjs"]);
 console.log("HEALTH FAST: PASS");
