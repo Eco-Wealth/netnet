@@ -14,6 +14,8 @@ type ProofFeedItem = {
   score?: number;
 };
 
+const DISTRIBUTE_WORK_LINKS_KEY = "netnet.distribute.workLinks";
+
 type ProofVerificationPayload = {
   ok: boolean;
   verification?: {
@@ -53,6 +55,37 @@ export default function DistributePage() {
   const [workErrorByProofId, setWorkErrorByProofId] = useState<
     Record<string, string>
   >({});
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(DISTRIBUTE_WORK_LINKS_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;
+      const next: Record<string, string> = {};
+      for (const [key, value] of Object.entries(parsed)) {
+        if (typeof key === "string" && typeof value === "string" && value.trim()) {
+          next[key] = value.trim();
+        }
+      }
+      setWorkByProofId(next);
+    } catch {
+      // ignore cache parsing errors
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        DISTRIBUTE_WORK_LINKS_KEY,
+        JSON.stringify(workByProofId)
+      );
+    } catch {
+      // ignore cache write errors
+    }
+  }, [workByProofId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -280,9 +313,17 @@ export default function DistributePage() {
                   {busyProofId === it.id ? "Creating..." : "Create Work"}
                 </button>
                 {workByProofId[it.id] ? (
-                  <span className="text-xs text-emerald-300">
-                    Work created: <span className="font-mono">{workByProofId[it.id]}</span>
-                  </span>
+                  <>
+                    <span className="text-xs text-emerald-300">
+                      Work: <span className="font-mono">{workByProofId[it.id]}</span>
+                    </span>
+                    <a
+                      href={`/work?q=${encodeURIComponent(workByProofId[it.id])}`}
+                      className="rounded-xl border border-white/15 px-2 py-1 text-xs text-white/85 hover:bg-white/[0.08]"
+                    >
+                      Open Work
+                    </a>
+                  </>
                 ) : null}
                 {workErrorByProofId[it.id] ? (
                   <span className="text-xs text-amber-300">
