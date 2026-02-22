@@ -6,6 +6,8 @@ export type OperatorWalletProfile = {
   walletAddress: string;
   chain: string;
   venue: WalletVenue;
+  privyWalletId?: string;
+  chainCaip2?: string;
   allowedActions: string[];
   notes?: string;
 };
@@ -17,6 +19,8 @@ const DEFAULT_WALLET_PROFILES: OperatorWalletProfile[] = [
     walletAddress: process.env.PRIVY_WALLET_VEALTH || "",
     chain: "megaeth",
     venue: "kumbaya",
+    privyWalletId: process.env.PRIVY_WALLET_ID_VEALTH || "",
+    chainCaip2: process.env.PRIVY_CHAIN_CAIP2_VEALTH || "",
     allowedActions: [
       "bankr.wallet.read",
       "bankr.token.info",
@@ -37,6 +41,8 @@ const DEFAULT_WALLET_PROFILES: OperatorWalletProfile[] = [
     walletAddress: process.env.PRIVY_WALLET_ECOWEALTH || "",
     chain: "zora",
     venue: "zora",
+    privyWalletId: process.env.PRIVY_WALLET_ID_ECOWEALTH || "",
+    chainCaip2: process.env.PRIVY_CHAIN_CAIP2_ECOWEALTH || "",
     allowedActions: [
       "bankr.wallet.read",
       "bankr.token.info",
@@ -53,6 +59,15 @@ const DEFAULT_WALLET_PROFILES: OperatorWalletProfile[] = [
 
 export function listDefaultWalletProfiles(): OperatorWalletProfile[] {
   return DEFAULT_WALLET_PROFILES.map((profile) => ({ ...profile }));
+}
+
+export function getWalletProfileById(
+  profileId: string
+): OperatorWalletProfile | null {
+  const normalizedId = normalizeWalletProfileId(profileId);
+  if (!normalizedId) return null;
+  const found = DEFAULT_WALLET_PROFILES.find((profile) => profile.id === normalizedId);
+  return found ? { ...found } : null;
 }
 
 export function normalizeWalletProfileId(value: unknown): string {

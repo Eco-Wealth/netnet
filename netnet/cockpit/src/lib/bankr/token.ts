@@ -24,6 +24,21 @@ export async function getBankrTokenInfo(): Promise<Record<string, unknown>> {
 export function tokenActionCatalog(): TokenActionDef[] {
   return [
     {
+      action: "execute_privy",
+      label: "Execute transaction (Privy wallet lane)",
+      safety: {
+        autonomy: "EXECUTE_WITH_LIMITS",
+        notes:
+          "Requires approved proposal + locked intent + execution boundary checks.",
+      },
+      whatWillHappen: (p) =>
+        `Execute a prepared transaction through configured Privy wallet lane with params: ${JSON.stringify(
+          p
+        )}.`,
+      estimatedCosts: () =>
+        "Network gas + venue fees. Requires tx payload + wallet profile mapping.",
+    },
+    {
       action: "launch",
       label: "Launch token (proposal)",
       safety: { autonomy: "PROPOSE_ONLY", maxUsdHint: 25, notes: "Operator must approve before any on-chain action." },

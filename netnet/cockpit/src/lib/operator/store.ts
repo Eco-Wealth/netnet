@@ -434,6 +434,25 @@ export function lockExecutionIntent(id: string): SkillProposalEnvelope {
     throw new Error("Execution intent must be requested before it can be locked.");
   }
   proposal.executionIntent = "locked";
+  if (proposal.route.startsWith("/api/bankr")) {
+    const body = toRecord(proposal.proposedBody);
+    const txBody =
+      body.transaction && typeof body.transaction === "object"
+        ? toRecord(body.transaction)
+        : {};
+    const hasWritePayload =
+      proposal.route === "/api/bankr/launch" ||
+      typeof txBody.to === "string" ||
+      typeof body.to === "string" ||
+      typeof body.data === "string";
+    if (hasWritePayload) {
+      proposal.metadata = {
+        ...(proposal.metadata || {}),
+        confirmedWrite: true,
+        writeConfirmedAt: Date.now(),
+      };
+    }
+  }
   return proposal;
 }
 
@@ -495,7 +514,17 @@ function assertWriteConfirmation(
   action: string
 ): void {
   if (!proposal.route.startsWith("/api/bankr")) return;
-  if (!isWriteAction(action)) return;
+  const body = toRecord(proposal.proposedBody);
+  const txBody =
+    body.transaction && typeof body.transaction === "object"
+      ? toRecord(body.transaction)
+      : {};
+  const hasTransactionPayload =
+    typeof txBody.to === "string" ||
+    typeof body.to === "string" ||
+    typeof body.data === "string";
+  const treatAsWrite = isWriteAction(action) || hasTransactionPayload;
+  if (!treatAsWrite) return;
   if (proposal.metadata?.confirmedWrite === true) return;
   throw new Error(
     `Execution blocked: ${action} requires metadata.confirmedWrite=true.`
@@ -621,13 +650,55 @@ async function runBankrRouteExecution(
   const target = getBankrExecutionTarget({ proposal });
 
   if (target.route === "/api/bankr/token/actions") {
-    const params = { ...toRecord(proposal.proposedBody) };
+    const proposalBody = toRecord(proposal.proposedBody);
+    const nestedInput = toRecord(proposalBody.input);
+    const params = {
+      ...nestedInput,
+      ...proposalBody,
+    };
+    delete params.input;
     delete params.action;
+
+    const metadata = toRecord(proposal.metadata);
+    if (
+      typeof metadata.walletProfileId === "string" &&
+      typeof params.walletProfileId !== "string"
+    ) {
+      params.walletProfileId = metadata.walletProfileId;
+    }
+    if (
+      typeof metadata.chain === "string" &&
+      typeof params.chain !== "string"
+    ) {
+      params.chain = metadata.chain;
+    }
+
+    const transaction =
+      params.transaction && typeof params.transaction === "object"
+        ? toRecord(params.transaction)
+        : {};
+    const hasTransactionPayload =
+      typeof transaction.to === "string" || typeof params.to === "string";
+
+    const requestedAction =
+      typeof proposalBody.tokenAction === "string"
+        ? proposalBody.tokenAction
+        : typeof proposalBody.routeAction === "string"
+        ? proposalBody.routeAction
+        : typeof proposalBody.action === "string" &&
+          ["status", "launch", "fee_route", "execute_privy"].includes(
+            proposalBody.action
+          )
+        ? proposalBody.action
+        : hasTransactionPayload
+        ? "execute_privy"
+        : "status";
+
     const req = new Request(`http://internal${target.route}`, {
       method: target.method,
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        action: "status",
+        action: requestedAction,
         params: { ...params, bankrActionId: target.actionId },
       }),
     });
