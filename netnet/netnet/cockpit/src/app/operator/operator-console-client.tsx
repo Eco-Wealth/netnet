@@ -300,6 +300,10 @@ export default function OperatorConsoleClient({
     runAction("send", () => sendOperatorMessageAction(value), activeThreadId);
   }, [activeThreadId, draft, runAction]);
 
+  const handleInsertPrompt = useCallback((text: string) => {
+    setDraft(text);
+  }, []);
+
   const onCreateThread = useCallback(() => {
     const id = `draft:${Date.now()}`;
     setDraftThreads((prev) => [{ id, createdAt: Date.now() }, ...prev]);
@@ -562,15 +566,16 @@ export default function OperatorConsoleClient({
               proposals={proposals}
               messages={messages}
               strategies={strategyMemory}
-            pnl={pnl}
-            policyMode={policyMode}
-            clarity={clarity}
-            onCreateDraftProposal={handleCreateTemplateProposal}
+              pnl={pnl}
+              policyMode={policyMode}
+              clarity={clarity}
+              onCreateDraftProposal={handleCreateTemplateProposal}
               onCreateBankrDraft={handleCreateBankrDraft}
               onProposeBankrDraft={handleProposeBankrDraft}
               onPinStrategy={handlePinStrategy}
               onUnpinStrategy={handleUnpinStrategy}
               onUpdateRunbook={handleUpdateRunbook}
+              onInsertPrompt={handleInsertPrompt}
               onFocusProposal={focusProposal}
               onFocusMessage={focusMessage}
               onSelectProposal={handleSelectProposal}
@@ -625,6 +630,7 @@ export default function OperatorConsoleClient({
                 onPinStrategy={handlePinStrategy}
                 onUnpinStrategy={handleUnpinStrategy}
                 onUpdateRunbook={handleUpdateRunbook}
+                onInsertPrompt={handleInsertPrompt}
                 onFocusProposal={focusProposal}
                 onFocusMessage={focusMessage}
                 onSelectProposal={handleSelectProposal}

@@ -34,6 +34,7 @@ type OpsBoardProps = {
   onPinStrategy: (strategyId: string) => Promise<void>;
   onUnpinStrategy: (strategyId: string) => Promise<void>;
   onUpdateRunbook: (strategyId: string, markdown: string) => Promise<void>;
+  onInsertPrompt: (text: string) => void;
   onFocusProposal: (proposalId: string) => void;
   onFocusMessage: (messageId: string) => void;
   onSelectProposal: (proposalId: string) => void;
@@ -178,6 +179,7 @@ export default function OpsBoard({
   onPinStrategy,
   onUnpinStrategy,
   onUpdateRunbook,
+  onInsertPrompt,
   onFocusProposal,
   onFocusMessage,
   onSelectProposal,
@@ -208,6 +210,7 @@ export default function OpsBoard({
   const [runbookNotice, setRunbookNotice] = useState<string | null>(null);
   const [runbookError, setRunbookError] = useState<string | null>(null);
   const [advancedToolsOpen, setAdvancedToolsOpen] = useState(false);
+  const [quickPromptNotice, setQuickPromptNotice] = useState<string>("");
   const [walletBusy, setWalletBusy] = useState(false);
   const [tokenBusy, setTokenBusy] = useState(false);
   const [walletSnapshot, setWalletSnapshot] = useState<any | null>(null);
@@ -326,6 +329,11 @@ export default function OpsBoard({
     } finally {
       setBankrDraftBusy(false);
     }
+  }
+
+  function insertPrompt(label: string, prompt: string) {
+    onInsertPrompt(prompt);
+    setQuickPromptNotice(`${label} prompt inserted into chat.`);
   }
 
   function toggleRunbook(strategy: Strategy) {
@@ -588,6 +596,57 @@ export default function OpsBoard({
             <div className={styles["nn-muted"]}>
               Use one typing lane in chat: ask, approve, lock intent, then execute.
             </div>
+            <div className={styles["nn-chipRow"]}>
+              <Tooltip text="Insert a seat status read prompt.">
+                <span>
+                  <Button
+                    size="sm"
+                    variant="subtle"
+                    onClick={() =>
+                      insertPrompt(
+                        "Read",
+                        "Read mode: summarize current policy, pending approvals, and top execution risks."
+                      )
+                    }
+                  >
+                    Read Status
+                  </Button>
+                </span>
+              </Tooltip>
+              <Tooltip text="Insert a revenue proposal prompt.">
+                <span>
+                  <Button
+                    size="sm"
+                    variant="subtle"
+                    onClick={() =>
+                      insertPrompt(
+                        "Revenue",
+                        "Propose mode: draft a conservative revenue proposal with approval and lock requirements."
+                      )
+                    }
+                  >
+                    Revenue Proposal
+                  </Button>
+                </span>
+              </Tooltip>
+              <Tooltip text="Insert a Bankr planning prompt.">
+                <span>
+                  <Button
+                    size="sm"
+                    variant="subtle"
+                    onClick={() =>
+                      insertPrompt(
+                        "Bankr",
+                        "Propose mode: draft a bankr.token.actions proposal for a low-risk DCA plan with policy notes."
+                      )
+                    }
+                  >
+                    Bankr Plan
+                  </Button>
+                </span>
+              </Tooltip>
+            </div>
+            {quickPromptNotice ? <div className={styles["nn-muted"]}>{quickPromptNotice}</div> : null}
             {!advancedToolsOpen ? (
               <div className={styles["nn-muted"]}>
                 Advanced forms are hidden to reduce typing surfaces.

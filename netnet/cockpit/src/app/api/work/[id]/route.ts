@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getWorkItem } from "../../../../../vealth/work/workStore";
+import { getWorkItem } from "../../../../vealth/work/workStore";
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   const id = params.id;

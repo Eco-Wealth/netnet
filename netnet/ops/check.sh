@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "== netnet: repo root =="
-cd "$(dirname "$0")/.."
-pwd
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-echo "== netnet: cockpit install =="
-cd netnet/cockpit
-node -v
-npm -v
-npm ci || npm install
+if [[ -d "$REPO_ROOT/netnet/netnet/cockpit" && -f "$REPO_ROOT/netnet/netnet/cockpit/src/app/operator/page.tsx" ]]; then
+  COCKPIT_DIR="$REPO_ROOT/netnet/netnet/cockpit"
+elif [[ -d "$REPO_ROOT/netnet/cockpit" ]]; then
+  COCKPIT_DIR="$REPO_ROOT/netnet/cockpit"
+else
+  echo "missing cockpit app directory" >&2
+  exit 1
+fi
 
-echo "== netnet: cockpit build =="
+cd "$COCKPIT_DIR"
+npm ci
 npm run build
 
-echo "OK: ops/check.sh complete"
+echo "NETNET HEALTHY"

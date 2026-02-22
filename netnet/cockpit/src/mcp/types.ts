@@ -1,17 +1,17 @@
-type MCPChain = "regen" | "base" | "eth";
+export type MCPChain = "regen" | "base" | "eth";
 
-interface MCPRequest {
+export interface MCPRequest {
   method: string;
   params?: unknown;
 }
 
-interface MCPResponse<T = unknown> {
+export interface MCPResponse<T = unknown> {
   ok: boolean;
   data?: T;
   error?: string;
 }
 
-interface MCPAdapter {
+export interface MCPAdapter {
   chain: MCPChain;
   request(req: MCPRequest): Promise<MCPResponse>;
 }

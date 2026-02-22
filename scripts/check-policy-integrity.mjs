@@ -2,23 +2,15 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { findCockpitRoot, toRepoRelative } from "./lib/find-cockpit-root.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..");
-
-const decidePath = path.join(
-  repoRoot,
-  "netnet/cockpit/src/lib/policy/decide.ts"
-);
-const enforcePath = path.join(
-  repoRoot,
-  "netnet/cockpit/src/lib/policy/enforce.ts"
-);
-const typesPath = path.join(
-  repoRoot,
-  "netnet/cockpit/src/lib/policy/types.ts"
-);
+const cockpitRoot = findCockpitRoot(repoRoot);
+const decidePath = path.join(cockpitRoot, "src/lib/policy/decide.ts");
+const enforcePath = path.join(cockpitRoot, "src/lib/policy/enforce.ts");
+const typesPath = path.join(cockpitRoot, "src/lib/policy/types.ts");
 
 function mustContain(src, pattern, why) {
   if (!pattern.test(src)) {
@@ -74,6 +66,7 @@ check(function bankr_namespace_is_mapped() {
 const failed = checks.filter((c) => !c.ok);
 
 console.log("Policy integrity check");
+console.log(`- cockpit root: ${toRepoRelative(repoRoot, cockpitRoot)}`);
 for (const c of checks) {
   if (c.ok) console.log(`- ok: ${c.label}`);
   else console.log(`- fail: ${c.label} (${c.error})`);

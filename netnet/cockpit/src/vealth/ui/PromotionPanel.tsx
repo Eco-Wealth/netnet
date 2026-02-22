@@ -1,5 +1,4 @@
 import React from "react";
-import React from "react";
 import championPointer from "../brain/champion.json";
 import brainV1 from "../brain/brains/prompt_brain_v1.json";
 import brainV2 from "../brain/brains/prompt_brain_v2.json";

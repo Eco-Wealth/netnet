@@ -2,20 +2,22 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { findCockpitRoot, toRepoRelative } from "./lib/find-cockpit-root.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..");
+const cockpitRoot = findCockpitRoot(repoRoot);
 
 const requiredRoutes = [
-  "netnet/cockpit/src/app/api/agent/trade/route.ts",
-  "netnet/cockpit/src/app/api/agent/carbon/route.ts",
-  "netnet/cockpit/src/app/api/bridge/quote/route.ts",
-  "netnet/cockpit/src/app/api/bridge/retire/route.ts",
-  "netnet/cockpit/src/app/api/bankr/launch/route.ts",
-  "netnet/cockpit/src/app/api/bankr/token/actions/route.ts",
-  "netnet/cockpit/src/app/api/bankr/token/info/route.ts",
-  "netnet/cockpit/src/app/api/bankr/wallet/route.ts",
+  "src/app/api/agent/trade/route.ts",
+  "src/app/api/agent/carbon/route.ts",
+  "src/app/api/bridge/quote/route.ts",
+  "src/app/api/bridge/retire/route.ts",
+  "src/app/api/bankr/launch/route.ts",
+  "src/app/api/bankr/token/actions/route.ts",
+  "src/app/api/bankr/token/info/route.ts",
+  "src/app/api/bankr/wallet/route.ts",
 ];
 
 const routes = [...requiredRoutes].sort();
@@ -44,7 +46,7 @@ function hasRouteGuard(src) {
 
 const missing = [];
 for (const rel of routes) {
-  const abs = path.join(repoRoot, rel);
+  const abs = path.join(cockpitRoot, rel);
   if (!fs.existsSync(abs)) {
     missing.push(`${rel} (file missing)`);
     continue;
@@ -56,6 +58,7 @@ for (const rel of routes) {
 }
 
 console.log("Route policy enforcement check");
+console.log(`- cockpit root: ${toRepoRelative(repoRoot, cockpitRoot)}`);
 console.log(`- checked routes: ${routes.length}`);
 
 if (missing.length) {

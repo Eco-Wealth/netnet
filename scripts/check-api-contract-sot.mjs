@@ -2,18 +2,32 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { findCockpitRoot, toRepoRelative } from "./lib/find-cockpit-root.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..");
-const apiRoot = path.join(repoRoot, "netnet", "cockpit", "src", "app", "api");
-const sotPath = path.join(
-  repoRoot,
-  "netnet",
-  "cockpit",
-  "docs",
-  "api-contract-source-of-truth.json"
-);
+const cockpitRoot = findCockpitRoot(repoRoot);
+const apiRoot = path.join(cockpitRoot, "src", "app", "api");
+const sotPath = path.join(cockpitRoot, "docs", "api-contract-source-of-truth.json");
+const cockpitRel = toRepoRelative(repoRoot, cockpitRoot);
+
+function resolveReference(ref) {
+  const candidates = [
+    path.join(repoRoot, ref),
+    path.join(cockpitRoot, ref),
+  ];
+  if (ref.startsWith("netnet/cockpit/")) {
+    const stripped = ref.replace(/^netnet\/cockpit\//, "");
+    candidates.push(path.join(cockpitRoot, stripped));
+    candidates.push(path.join(repoRoot, "netnet", "netnet", "cockpit", stripped));
+  }
+  if (ref.startsWith("netnet/netnet/cockpit/")) {
+    const stripped = ref.replace(/^netnet\/netnet\/cockpit\//, "");
+    candidates.push(path.join(cockpitRoot, stripped));
+  }
+  return candidates.find((candidate) => fs.existsSync(candidate)) ?? candidates[0];
+}
 
 function walk(dir) {
   const out = [];
@@ -95,7 +109,7 @@ for (const entry of entries) {
     if (!owner) {
       missingSkillOwner.push(entry.route);
     } else if (owner !== "platform") {
-      const skillPath = path.join(repoRoot, owner);
+      const skillPath = resolveReference(owner);
       if (!fs.existsSync(skillPath)) badRefs.push(`${entry.route}: missing skill file ${owner}`);
     }
   } else {
@@ -110,13 +124,14 @@ for (const entry of entries) {
         schemaErrors.push(`${entry.route}: non-string doc reference`);
         continue;
       }
-      const docPath = path.join(repoRoot, doc);
+      const docPath = resolveReference(doc);
       if (!fs.existsSync(docPath)) badRefs.push(`${entry.route}: missing doc file ${doc}`);
     }
   }
 }
 
 console.log("API contract SOT check");
+console.log(`- cockpit root: ${cockpitRel}`);
 console.log(`- route files: ${actualRoutes.length}`);
 console.log(`- mapped routes: ${entries.length}`);
 console.log(`- missing skill owners: ${missingSkillOwner.length}`);

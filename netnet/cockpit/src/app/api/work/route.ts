@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listWorkItems, createWorkItem } from "../../vealth/work/workStore";
+import { listWorkItems, createWorkItem } from "../../../vealth/work/workStore";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
