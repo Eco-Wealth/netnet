@@ -65,11 +65,20 @@ export function WorkItemCard({ item, onOpen }: Props) {
   const proofLabel = proofAttachment?.proofId
     ? proofAttachment.proofId.slice(0, 16)
     : "attached";
+  const canOpen = typeof onOpen === "function";
 
   return (
-    <button
-      type="button"
+    <div
+      role={canOpen ? "button" : undefined}
+      tabIndex={canOpen ? 0 : -1}
       onClick={() => onOpen?.(item.id)}
+      onKeyDown={(event) => {
+        if (!canOpen) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpen?.(item.id);
+        }
+      }}
       className="w-full text-left rounded-[14px] border border-white/15 bg-white/[0.03] p-4 transition hover:bg-white/[0.06]"
     >
       <div className="flex items-start justify-between gap-3">
@@ -100,8 +109,17 @@ export function WorkItemCard({ item, onOpen }: Props) {
             {proofAttachment.proofKind ? ` (${proofAttachment.proofKind})` : ""}
           </div>
           {proofAttachment.verifyUrl ? (
-            <div className="mt-1 break-all font-mono text-[10px] text-emerald-200/90">
-              verify: {proofAttachment.verifyUrl}
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <span className="break-all font-mono text-[10px] text-emerald-200/90">
+                verify: {proofAttachment.verifyUrl}
+              </span>
+              <a
+                href={proofAttachment.verifyUrl}
+                onClick={(event) => event.stopPropagation()}
+                className="rounded border border-emerald-300/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-100 hover:bg-emerald-500/20"
+              >
+                Open
+              </a>
             </div>
           ) : null}
           {proofAttachment.attachedAt ? (
@@ -115,6 +133,6 @@ export function WorkItemCard({ item, onOpen }: Props) {
       <div className="mt-3 text-[11px] text-white/60">
         Updated {new Date(item.updatedAt).toLocaleString()}
       </div>
-    </button>
+    </div>
   );
 }
