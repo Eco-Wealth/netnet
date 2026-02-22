@@ -22,6 +22,7 @@
     "revenue:check": "node scripts/check-revenue-contract.mjs",
     "drift:check": "npm run contracts:check && npm run policy:integrity && npm run policy:routes && npm run connectors:check && npm run openclaw:intents",
     "health:fast": "node scripts/health-fast.mjs",
+    "health:proof": "node scripts/health-proof.mjs",
     "health:revenue": "node scripts/health-revenue.mjs",
     "health:visual": "node scripts/health-visual.mjs",
     "agent:create-work-order": "python3 skills/netnet-agent-core/scripts/create_work_order.py",

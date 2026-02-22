@@ -93,3 +93,37 @@ This backlog tracks machine-first Operator execution units.
 
 - Added `scripts/check-proof-lane.mjs` for deterministic proof-flow integrity checks.
 - Added `npm run proof:check` and included the check in `health:fast`.
+
+### Unit 092 — Work proof-aware filters
+
+- Added `/api/work` filters for `hasProof` and `proofId`.
+- Work list search now includes proof IDs and verify URLs from attached proof events.
+- `/work` page now has proof-linked filtering controls.
+
+### Unit 093 — Verify page work handoff
+
+- Added `/proof/[id]` work handoff panel:
+  - create work item from verified proof
+  - attach verified proof to existing work ID
+- Added quick open link into `/work` query flow.
+
+### Unit 094 — Distribute persisted work links
+
+- `/distribute` now persists proof→work links in localStorage.
+- Proof cards show direct `Open Work` action once a linked work item exists.
+
+### Unit 095 — Operator proof lane shortcuts
+
+- Added top-bar shortcuts in Operator seat for:
+  - `/proof`
+  - `/distribute`
+  - `/work`
+
+### Unit 096 — Health proof lane
+
+- Added `scripts/health-proof.mjs` to run:
+  - cockpit build
+  - cockpit typecheck
+  - proof lane guard
+  - operator surface guard
+- Added `npm run health:proof`.
