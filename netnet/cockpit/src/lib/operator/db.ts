@@ -97,6 +97,13 @@ type ProofRecordRow = {
   metadata: string | null;
 };
 
+type WorkItemRow = {
+  id: string;
+  data: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
 export type PersistedExecution = {
   id: string;
   proposalId: string;
@@ -144,6 +151,13 @@ export type SaveProofRecordInput = {
   createdAt: number;
   payload: Record<string, unknown>;
   metadata?: Record<string, unknown>;
+};
+
+export type WorkItemRecord = {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  data: Record<string, unknown>;
 };
 
 type DbStatement = {
@@ -195,6 +209,13 @@ function fallbackProofStore(): ProofRecord[] {
   return globalThis.__NETNET_PROOF_RECORDS_FALLBACK__;
 }
 
+function fallbackWorkItemsStore(): WorkItemRecord[] {
+  if (!globalThis.__NETNET_WORK_ITEMS_FALLBACK__) {
+    globalThis.__NETNET_WORK_ITEMS_FALLBACK__ = [];
+  }
+  return globalThis.__NETNET_WORK_ITEMS_FALLBACK__;
+}
+
 declare global {
   // eslint-disable-next-line no-var
   var __NETNET_OPERATOR_DB__: OperatorDatabase | undefined;
@@ -204,6 +225,8 @@ declare global {
   var __NETNET_STRATEGIES_FALLBACK__: Strategy[] | undefined;
   // eslint-disable-next-line no-var
   var __NETNET_PROOF_RECORDS_FALLBACK__: ProofRecord[] | undefined;
+  // eslint-disable-next-line no-var
+  var __NETNET_WORK_ITEMS_FALLBACK__: WorkItemRecord[] | undefined;
 }
 
 function safeJsonParse<T>(value: string | null): T | null {
@@ -221,6 +244,12 @@ function safeJsonStringify(value: unknown): string {
   } catch {
     return "null";
   }
+}
+
+function toEpochMs(value: string, fallback: number): number {
+  const parsed = Date.parse(value);
+  if (Number.isFinite(parsed)) return parsed;
+  return fallback;
 }
 
 function ensureOperatorTables(db: OperatorDatabase) {
@@ -276,6 +305,13 @@ function ensureOperatorTables(db: OperatorDatabase) {
       createdAt INTEGER NOT NULL,
       payload TEXT NOT NULL,
       metadata TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS work_items (
+      id TEXT PRIMARY KEY,
+      data TEXT NOT NULL,
+      createdAt INTEGER NOT NULL,
+      updatedAt INTEGER NOT NULL
     );
   `);
 }
@@ -433,6 +469,121 @@ export function loadStrategies(): Strategy[] {
     return [...fallbackStrategiesStore()].sort(
       (a, b) => b.updatedAt - a.updatedAt || b.id.localeCompare(a.id)
     );
+  }
+}
+
+export function saveWorkItemRecord(record: WorkItemRecord) {
+  const now = Date.now();
+  const normalized: WorkItemRecord = {
+    id: String(record.id || "").trim(),
+    createdAt: String(record.createdAt || "").trim() || new Date(now).toISOString(),
+    updatedAt: String(record.updatedAt || "").trim() || new Date(now).toISOString(),
+    data:
+      record.data && typeof record.data === "object" && !Array.isArray(record.data)
+        ? record.data
+        : {},
+  };
+  if (!normalized.id) return;
+
+  const createdAt = toEpochMs(normalized.createdAt, now);
+  const updatedAt = toEpochMs(normalized.updatedAt, createdAt);
+
+  try {
+    const db = operatorDb();
+    db.prepare(
+      `
+      INSERT INTO work_items (id, data, createdAt, updatedAt)
+      VALUES (@id, @data, @createdAt, @updatedAt)
+      ON CONFLICT(id) DO UPDATE SET
+        data = excluded.data,
+        createdAt = excluded.createdAt,
+        updatedAt = excluded.updatedAt
+    `
+    ).run({
+      id: normalized.id,
+      data: safeJsonStringify(normalized.data),
+      createdAt,
+      updatedAt,
+    });
+    return;
+  } catch {
+    const rows = fallbackWorkItemsStore();
+    const next: WorkItemRecord = {
+      ...normalized,
+      createdAt: new Date(createdAt).toISOString(),
+      updatedAt: new Date(updatedAt).toISOString(),
+    };
+    const existing = rows.findIndex((row) => row.id === normalized.id);
+    if (existing >= 0) rows[existing] = next;
+    else rows.push(next);
+  }
+}
+
+export function loadWorkItemRecord(id: string): WorkItemRecord | null {
+  const workId = String(id || "").trim();
+  if (!workId) return null;
+  try {
+    const db = operatorDb();
+    const row = db
+      .prepare(
+        `
+      SELECT id, data, createdAt, updatedAt
+      FROM work_items
+      WHERE id = ?
+    `
+      )
+      .get(workId) as WorkItemRow | undefined;
+    if (!row) return null;
+    const parsed = safeJsonParse<Record<string, unknown>>(row.data);
+    if (!parsed) return null;
+    return {
+      id: row.id,
+      createdAt: new Date(row.createdAt).toISOString(),
+      updatedAt: new Date(row.updatedAt).toISOString(),
+      data: parsed,
+    };
+  } catch {
+    const row = fallbackWorkItemsStore().find((item) => item.id === workId);
+    return row ? { ...row, data: { ...row.data } } : null;
+  }
+}
+
+export function loadWorkItemRecords(): WorkItemRecord[] {
+  try {
+    const db = operatorDb();
+    const rows = db
+      .prepare(
+        `
+      SELECT id, data, createdAt, updatedAt
+      FROM work_items
+      ORDER BY updatedAt DESC, id DESC
+    `
+      )
+      .all() as WorkItemRow[];
+
+    const out: WorkItemRecord[] = [];
+    for (const row of rows) {
+      const parsed = safeJsonParse<Record<string, unknown>>(row.data);
+      if (!parsed) continue;
+      out.push({
+        id: row.id,
+        createdAt: new Date(row.createdAt).toISOString(),
+        updatedAt: new Date(row.updatedAt).toISOString(),
+        data: parsed,
+      });
+    }
+    return out;
+  } catch {
+    return [...fallbackWorkItemsStore()]
+      .sort((a, b) => {
+        const aTs = Date.parse(a.updatedAt);
+        const bTs = Date.parse(b.updatedAt);
+        if (Number.isFinite(aTs) && Number.isFinite(bTs) && aTs !== bTs) {
+          return bTs - aTs;
+        }
+        return b.id.localeCompare(a.id);
+      })
+      .map((row) => ({ ...row, data: { ...row.data } }));
   }
 }
 
