@@ -17,6 +17,7 @@
     "policy:integrity": "node scripts/check-policy-integrity.mjs",
     "policy:routes": "node scripts/check-route-policy-enforcement.mjs",
     "proof:check": "node scripts/check-proof-lane.mjs",
+    "proof:work:check": "node scripts/check-proof-work-integrity.mjs",
     "openclaw:intents": "node scripts/check-openclaw-intent-map.mjs",
     "connectors:check": "node scripts/check-service-connector-matrix.mjs",
     "revenue:check": "node scripts/check-revenue-contract.mjs",

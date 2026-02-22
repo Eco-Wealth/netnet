@@ -26,5 +26,6 @@ console.log(`HEALTH PROOF: cockpit=${cockpitRel}`);
 run("npm", ["-C", cockpitRel, "run", "build"]);
 run("npx", ["tsc", "--noEmit"], { cwd: cockpitRoot });
 run("node", ["scripts/check-proof-lane.mjs"]);
+run("node", ["scripts/check-proof-work-integrity.mjs"]);
 run("node", ["scripts/check-operator-surface.mjs"]);
 console.log("HEALTH PROOF: PASS");
