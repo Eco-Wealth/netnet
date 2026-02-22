@@ -1,6 +1,7 @@
 import Link from "next/link";
 import PageHeader from "@/components/PageHeader";
 import { verifyProofArtifact } from "@/lib/proof/registry";
+import ProofVerifyActions from "./ProofVerifyActions";
 
 export const dynamic = "force-dynamic";
 
@@ -95,6 +96,17 @@ export default function ProofVerifyPage({ params }: { params: Params }) {
           </div>
         </div>
       </section>
+
+      <ProofVerifyActions
+        verification={{
+          id: verification.id,
+          kind: verification.kind,
+          schema: verification.schema,
+          hash: verification.hash,
+          verifyUrl: verification.verifyUrl,
+          payload: verification.payload,
+        }}
+      />
 
       <section className="nn-surface">
         <h2 className="mb-2 text-base font-semibold">Verification JSON</h2>
