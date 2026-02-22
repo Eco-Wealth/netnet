@@ -25,6 +25,8 @@ Exact API request/response contracts are canonical in:
 | `netnet-economics.md` | ACTIVE | `/api/econ/capitals`, `/api/econ/delta` |
 | `netnet-cockpit-ecotoken-scan.md` | ACTIVE | `/api/ecotoken/scan` |
 | `netnet-cockpit-megaeth.md` | ACTIVE | `/api/agent/megaeth` |
+| `netnet-cockpit-zora.md` | ACTIVE | `/api/agent/zora` |
+| `netnet-cockpit-kumbaya.md` | ACTIVE | `/api/agent/kumbaya` |
 | `netnet-cockpit-bankr.md` | ACTIVE | `/api/bankr/launch`, `/api/bankr/token/actions`, `/api/bankr/token/info`, `/api/bankr/wallet` |
 | `netnet-cockpit-bankr-wallet.md` | ACTIVE | `/api/bankr/wallet` |
 | `netnet-cockpit-bankr-token.md` | ACTIVE | `/api/bankr/token/info`, `/api/bankr/token/actions` |
@@ -38,6 +40,8 @@ Exact API request/response contracts are canonical in:
 | id | route | description | ownership |
 |---|---|---|---|
 | bankr.agent | /api/bankr/* | Bankr agent planning + proposal generation for DCA/LP/rebalance/market-making workflows. | platform |
+| zora.agent | /api/agent/zora | Zora connector proposals for operator-gated content posting workflows. | platform |
+| kumbaya.agent | /api/agent/kumbaya | Kumbaya connector proposals for operator-gated content posting workflows. | platform |
 | bankr.wallet.read | /api/bankr/wallet | Read wallet summary + balances (read-only). | platform |
 | bankr.token.info | /api/bankr/token/info | Read token metadata/info (read-only). | platform |
 | bankr.token.actions | /api/bankr/token/actions | Propose token actions via Bankr (propose/execute gated). | platform |

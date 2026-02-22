@@ -171,6 +171,8 @@ const BANKR_READ_ACTIONS = new Set<string>([
   "bankr.token.read",
   "bankr.plan",
   "bankr.token.actions.plan",
+  "zora.post.content",
+  "kumbaya.post.content",
   "token.manage",
 ]);
 

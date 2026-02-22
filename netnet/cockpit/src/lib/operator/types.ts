@@ -64,6 +64,7 @@ export type MessageMetadata = {
   walletProfileId?: string;
   walletAddress?: string;
   chain?: string;
+  chainCaip2?: string;
   venue?: string;
   source?: string;
   chatId?: string;

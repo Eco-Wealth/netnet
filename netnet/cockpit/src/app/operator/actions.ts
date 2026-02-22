@@ -215,6 +215,7 @@ export async function sendOperatorMessageAction(content: string): Promise<Operat
       walletProfileId: activeWalletProfile?.id,
       walletAddress: activeWalletProfile?.walletAddress || undefined,
       chain: activeWalletProfile?.chain || undefined,
+      chainCaip2: activeWalletProfile?.chainCaip2 || undefined,
       venue: activeWalletProfile?.venue || undefined,
     },
   });
@@ -230,6 +231,7 @@ export async function sendOperatorMessageAction(content: string): Promise<Operat
           walletProfileId: activeWalletProfile.id,
           walletAddress: activeWalletProfile.walletAddress || undefined,
           chain: activeWalletProfile.chain,
+          chainCaip2: activeWalletProfile.chainCaip2 || undefined,
           venue: activeWalletProfile.venue,
         };
       }
@@ -570,6 +572,7 @@ export async function proposeFromBankrDraftAction(
           walletProfileId: activeWalletProfile.id,
           walletAddress: activeWalletProfile.walletAddress || undefined,
           chain: activeWalletProfile.chain,
+          chainCaip2: activeWalletProfile.chainCaip2 || undefined,
           venue: activeWalletProfile.venue,
         }
       : undefined,
@@ -772,6 +775,7 @@ export async function createDraftProposalFromTemplate(
         walletProfileId: activeWalletProfile.id,
         walletAddress: activeWalletProfile.walletAddress || undefined,
         chain: activeWalletProfile.chain,
+        chainCaip2: activeWalletProfile.chainCaip2 || undefined,
         venue: activeWalletProfile.venue,
       };
     }

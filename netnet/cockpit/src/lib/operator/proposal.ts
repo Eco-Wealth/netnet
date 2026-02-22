@@ -20,20 +20,32 @@ const BaseProposal = z.object({
   riskLevel: z.enum(["low", "medium", "high"]).default("medium"),
 });
 
-const BANKR_ACTION_ROUTE_MAP = {
-  "bankr.wallet.read": "/api/bankr/wallet",
-  "bankr.token.info": "/api/bankr/token/info",
-  "bankr.token.actions": "/api/bankr/token/actions",
-  "bankr.launch": "/api/bankr/launch",
+const STRICT_SKILL_ACTION_ROUTE_MAP = {
+  "bankr.agent": {
+    "bankr.wallet.read": "/api/bankr/wallet",
+    "bankr.token.info": "/api/bankr/token/info",
+    "bankr.token.actions": "/api/bankr/token/actions",
+    "bankr.launch": "/api/bankr/launch",
+  },
+  "zora.agent": {
+    "zora.post.content": "/api/agent/zora",
+  },
+  "kumbaya.agent": {
+    "kumbaya.post.content": "/api/agent/kumbaya",
+  },
 } as const;
 
-const BANKR_ACTION_ALIASES: Record<string, keyof typeof BANKR_ACTION_ROUTE_MAP> = {
+const ACTION_ALIASES: Record<string, string> = {
   "bankr.wallet": "bankr.wallet.read",
   "bankr.quote": "bankr.token.info",
   "bankr.token.read": "bankr.token.info",
   "bankr.plan": "bankr.token.actions",
   "bankr.token.actions.plan": "bankr.token.actions",
   "token.launch": "bankr.launch",
+  "zora.post": "zora.post.content",
+  "zora.content.post": "zora.post.content",
+  "kumbaya.post": "kumbaya.post.content",
+  "kumbaya.content.post": "kumbaya.post.content",
 };
 
 function tryParseJson(content: string): unknown {
@@ -69,28 +81,35 @@ export function extractSkillProposalEnvelope(content: string): SkillProposalEnve
         ? parsed.data.proposedBody.action
         : undefined;
     const rawAction = parsed.data.action || actionFromBody;
-    const isBankrSkill = parsed.data.skillId === "bankr.agent";
     const normalizedAction =
       typeof rawAction === "string"
-        ? BANKR_ACTION_ALIASES[rawAction] || rawAction
+        ? ACTION_ALIASES[rawAction] || rawAction
         : undefined;
-    const isBankrAction =
-      typeof normalizedAction === "string" &&
-      Object.prototype.hasOwnProperty.call(BANKR_ACTION_ROUTE_MAP, normalizedAction);
+    const strictRoutes =
+      STRICT_SKILL_ACTION_ROUTE_MAP[
+        parsed.data.skillId as keyof typeof STRICT_SKILL_ACTION_ROUTE_MAP
+      ];
+    const strictActionSet = new Set<string>(
+      Object.values(STRICT_SKILL_ACTION_ROUTE_MAP)
+        .flatMap((actionMap) => Object.keys(actionMap))
+    );
+    const isStrictAction =
+      typeof normalizedAction === "string" && strictActionSet.has(normalizedAction);
 
-    if (isBankrSkill) {
-      if (!isBankrAction) return null;
+    if (strictRoutes) {
+      if (!normalizedAction) return null;
       const expectedRoute =
-        BANKR_ACTION_ROUTE_MAP[
-          normalizedAction as keyof typeof BANKR_ACTION_ROUTE_MAP
+        strictRoutes[
+          normalizedAction as keyof typeof strictRoutes
         ];
+      if (!expectedRoute) return null;
       if (route !== expectedRoute) return null;
     }
 
-    if (!isBankrSkill && isBankrAction) return null;
+    if (!strictRoutes && isStrictAction) return null;
 
     const normalizedBody = { ...parsed.data.proposedBody };
-    if (isBankrSkill && normalizedAction) {
+    if (strictRoutes && normalizedAction) {
       normalizedBody.action = normalizedAction;
     } else if (parsed.data.action && typeof normalizedBody.action !== "string") {
       normalizedBody.action = parsed.data.action;

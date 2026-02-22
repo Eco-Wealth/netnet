@@ -1,8 +1,10 @@
 import { BankrLaunchRequest, createLaunchProposal } from "@/lib/bankr/launcher";
 import { tokenActionCatalog } from "@/lib/bankr/token";
+import { POST as kumbayaPost } from "@/app/api/agent/kumbaya/route";
 import { GET as bankrTokenInfoGet } from "@/app/api/bankr/token/info/route";
 import { POST as bankrTokenActionsPost } from "@/app/api/bankr/token/actions/route";
 import { GET as bankrWalletGet } from "@/app/api/bankr/wallet/route";
+import { POST as zoraPost } from "@/app/api/agent/zora/route";
 import {
   getPnlSummary as loadPnlSummary,
   insertPnlEvent,
@@ -434,7 +436,11 @@ export function lockExecutionIntent(id: string): SkillProposalEnvelope {
     throw new Error("Execution intent must be requested before it can be locked.");
   }
   proposal.executionIntent = "locked";
-  if (proposal.route.startsWith("/api/bankr")) {
+  if (
+    proposal.route.startsWith("/api/bankr") ||
+    proposal.route.startsWith("/api/agent/zora") ||
+    proposal.route.startsWith("/api/agent/kumbaya")
+  ) {
     const body = toRecord(proposal.proposedBody);
     const txBody =
       body.transaction && typeof body.transaction === "object"
@@ -468,6 +474,8 @@ export function generateExecutionPlan(id: string): SkillProposalEnvelope {
 function canExecuteRoute(route: string): boolean {
   return [
     "/api/agent/trade",
+    "/api/agent/zora",
+    "/api/agent/kumbaya",
     "/api/bankr/token/actions",
     "/api/bankr/token/info",
     "/api/bankr/wallet",
@@ -480,6 +488,8 @@ function routeKillSwitchBlocked(route: string): boolean {
   const policy = getPolicy();
   if (policy.kill.all) return true;
   if (route.startsWith("/api/agent/trade")) return policy.kill.trading;
+  if (route.startsWith("/api/agent/zora")) return policy.kill.tokenOps;
+  if (route.startsWith("/api/agent/kumbaya")) return policy.kill.tokenOps;
   if (route.startsWith("/api/bankr")) return policy.kill.tokenOps;
   if (route.startsWith("/api/bridge/retire")) return policy.kill.retirements;
   return false;
@@ -498,6 +508,8 @@ const BANKR_READ_ACTIONS = new Set<string>([
   "bankr.token.read",
   "bankr.plan",
   "bankr.token.actions.plan",
+  "zora.post.content",
+  "kumbaya.post.content",
   "token.manage",
 ]);
 
@@ -513,7 +525,13 @@ function assertWriteConfirmation(
   proposal: SkillProposalEnvelope,
   action: string
 ): void {
-  if (!proposal.route.startsWith("/api/bankr")) return;
+  if (
+    !proposal.route.startsWith("/api/bankr") &&
+    !proposal.route.startsWith("/api/agent/zora") &&
+    !proposal.route.startsWith("/api/agent/kumbaya")
+  ) {
+    return;
+  }
   const body = toRecord(proposal.proposedBody);
   const txBody =
     body.transaction && typeof body.transaction === "object"
@@ -536,6 +554,8 @@ function policyActionForExecution(proposal: SkillProposalEnvelope): PolicyAction
     const target = getBankrExecutionTarget({ proposal });
     return target.actionId;
   }
+  if (proposal.route === "/api/agent/zora") return "zora.post.content";
+  if (proposal.route === "/api/agent/kumbaya") return "kumbaya.post.content";
   if (proposal.route === "/api/agent/trade") return "trade.plan";
   if (proposal.route === "/api/bankr/launch") return "bankr.launch";
   if (proposal.route === "/api/bankr/token/actions") return "bankr.token.actions";
@@ -590,7 +610,13 @@ function policyContextForExecution(
         ? metadata.operatorRole
         : undefined,
     chain: typeof body.chain === "string" ? body.chain : undefined,
-    venue: proposal.route.startsWith("/api/bankr") ? "bankr" : undefined,
+    venue: proposal.route.startsWith("/api/bankr")
+      ? "bankr"
+      : proposal.route.startsWith("/api/agent/zora")
+      ? "zora"
+      : proposal.route.startsWith("/api/agent/kumbaya")
+      ? "kumbaya"
+      : undefined,
     fromToken,
     toToken,
     amountUsd,
@@ -804,6 +830,70 @@ async function runRouteExecution(
       mode: "SIMULATED",
       note: "Trade connector in this snapshot is a safe stub; returning dry-run execution details.",
       payload: proposal.proposedBody,
+    };
+  }
+
+  if (proposal.route === "/api/agent/zora" || proposal.route === "/api/agent/kumbaya") {
+    const metadata = toRecord(proposal.metadata);
+    const proposalBody = toRecord(proposal.proposedBody);
+    const nestedInput = toRecord(proposalBody.input);
+    const params = {
+      ...nestedInput,
+      ...proposalBody,
+    };
+    delete params.input;
+
+    const transaction =
+      params.transaction && typeof params.transaction === "object"
+        ? toRecord(params.transaction)
+        : {};
+    const hasWritePayload =
+      typeof transaction.to === "string" ||
+      typeof params.to === "string" ||
+      typeof params.data === "string";
+
+    if (
+      typeof metadata.walletProfileId === "string" &&
+      typeof params.walletProfileId !== "string"
+    ) {
+      params.walletProfileId = metadata.walletProfileId;
+    }
+    if (
+      typeof metadata.chainCaip2 === "string" &&
+      typeof params.chainCaip2 !== "string"
+    ) {
+      params.chainCaip2 = metadata.chainCaip2;
+    }
+
+    const action =
+      proposal.route === "/api/agent/zora"
+        ? "zora.post.content"
+        : "kumbaya.post.content";
+    const execute = hasWritePayload;
+
+    const req = new Request(`http://internal${proposal.route}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action,
+        execute,
+        ...params,
+      }),
+    });
+
+    const handler =
+      proposal.route === "/api/agent/zora"
+        ? (zoraPost as unknown as (request: Request) => Promise<Response>)
+        : (kumbayaPost as unknown as (request: Request) => Promise<Response>);
+
+    const res = await handler(req);
+    const routeResult = await parseRouteResponse(res);
+    if (!res.ok) {
+      throw new Error(`social_connector_execution_failed_${res.status}`);
+    }
+    return {
+      mode: execute ? "EXECUTE_WITH_LIMITS" : "PROPOSE_ONLY",
+      ...routeResult,
     };
   }
 

@@ -25,6 +25,20 @@
       "docs": ["netnet/cockpit/docs/megaeth.md"]
     },
     {
+      "route": "/api/agent/zora",
+      "methods": ["GET", "POST"],
+      "actions": ["info", "post_content"],
+      "skill": "skills/netnet-cockpit-zora.md",
+      "docs": ["netnet/cockpit/docs/zora.md"]
+    },
+    {
+      "route": "/api/agent/kumbaya",
+      "methods": ["GET", "POST"],
+      "actions": ["info", "post_content"],
+      "skill": "skills/netnet-cockpit-kumbaya.md",
+      "docs": ["netnet/cockpit/docs/kumbaya.md"]
+    },
+    {
       "route": "/api/agent/regen/projects",
       "methods": ["GET", "POST"],
       "actions": ["info", "generate"],

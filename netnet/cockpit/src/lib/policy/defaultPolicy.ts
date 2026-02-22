@@ -19,9 +19,9 @@ const defaultAnomalies = {
 };
 
 const baseAllow = {
-  chains: ["base"],
+  chains: ["base", "zora", "megaeth"],
   tokens: ["USDC", "ETH", "REGEN", "K2", "KVCM", "ECO", "ECO2", "KLIMA"],
-  venues: ["uniswap", "aerodrome", "bankr", "bridge-eco", "klima"],
+  venues: ["uniswap", "aerodrome", "bankr", "bridge-eco", "klima", "zora", "kumbaya"],
 };
 
 export function getDefaultPolicy(): PolicyConfig {
@@ -57,6 +57,8 @@ export function getDefaultPolicy(): PolicyConfig {
         "bankr.quote",
         "bankr.token.read",
         "bankr.token.actions.plan",
+        "zora.post.content",
+        "kumbaya.post.content",
         "token.launch",
         "token.manage",
         "fees.route",

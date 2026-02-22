@@ -14,8 +14,12 @@ function normalizeBankrAction(action: PolicyAction): PolicyAction {
 
 export function programForAction(action: PolicyAction): ProgramId {
   if (action.startsWith("bankr.")) return "TOKEN_OPS";
+  if (action.startsWith("zora.")) return "TOKEN_OPS";
+  if (action.startsWith("kumbaya.")) return "TOKEN_OPS";
   const normalized = normalizeBankrAction(action);
   if (normalized.startsWith("bankr.")) return "TOKEN_OPS";
+  if (normalized.startsWith("zora.")) return "TOKEN_OPS";
+  if (normalized.startsWith("kumbaya.")) return "TOKEN_OPS";
   const cfg = loadPolicyConfig();
   const programs = Object.values(cfg.programs);
   const match = programs.find((program) =>

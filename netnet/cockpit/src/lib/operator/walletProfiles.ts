@@ -22,6 +22,7 @@ const DEFAULT_WALLET_PROFILES: OperatorWalletProfile[] = [
     privyWalletId: process.env.PRIVY_WALLET_ID_VEALTH || "",
     chainCaip2: process.env.PRIVY_CHAIN_CAIP2_VEALTH || "",
     allowedActions: [
+      "kumbaya.post.content",
       "bankr.wallet.read",
       "bankr.token.info",
       "bankr.token.actions",
@@ -44,6 +45,7 @@ const DEFAULT_WALLET_PROFILES: OperatorWalletProfile[] = [
     privyWalletId: process.env.PRIVY_WALLET_ID_ECOWEALTH || "",
     chainCaip2: process.env.PRIVY_CHAIN_CAIP2_ECOWEALTH || "",
     allowedActions: [
+      "zora.post.content",
       "bankr.wallet.read",
       "bankr.token.info",
       "bankr.token.actions",

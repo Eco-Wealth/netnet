@@ -28,6 +28,8 @@ export type PolicyAction =
   | "bankr.quote"
   | "bankr.token.read"
   | "bankr.token.actions.plan"
+  | "zora.post.content"
+  | "kumbaya.post.content"
   | "token.launch"
   | "token.manage"
   | "fees.route"
