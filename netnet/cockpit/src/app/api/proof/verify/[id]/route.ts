@@ -9,6 +9,12 @@ type RouteContext = {
 
 export async function GET(_req: Request, context: RouteContext) {
   const id = String(context.params.id || "").trim();
+  const links = {
+    proofPage: id ? `/proof/${id}` : "/proof",
+    verifyApi: id ? `/api/proof/verify/${id}` : "/api/proof/verify",
+    workQuery: id ? `/work?hasProof=1&proofId=${encodeURIComponent(id)}` : "/work?hasProof=1",
+    distributeAnchor: id ? `/distribute#${id}` : "/distribute",
+  };
   if (!id) {
     return NextResponse.json(
       {
@@ -17,6 +23,7 @@ export async function GET(_req: Request, context: RouteContext) {
           code: "INVALID_ID",
           message: "Proof id is required.",
         },
+        links,
       },
       { status: 400, headers: { "cache-control": "no-store" } }
     );
@@ -32,6 +39,7 @@ export async function GET(_req: Request, context: RouteContext) {
           message: "Proof not found.",
         },
         id,
+        links,
       },
       { status: 404, headers: { "cache-control": "no-store" } }
     );
@@ -42,6 +50,7 @@ export async function GET(_req: Request, context: RouteContext) {
       ok: true,
       id,
       verification,
+      links,
     },
     { headers: { "cache-control": "no-store" } }
   );
