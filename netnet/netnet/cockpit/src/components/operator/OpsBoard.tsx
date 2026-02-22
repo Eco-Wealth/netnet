@@ -207,6 +207,7 @@ export default function OpsBoard({
   const [runbookDrafts, setRunbookDrafts] = useState<Record<string, string>>({});
   const [runbookNotice, setRunbookNotice] = useState<string | null>(null);
   const [runbookError, setRunbookError] = useState<string | null>(null);
+  const [advancedToolsOpen, setAdvancedToolsOpen] = useState(false);
   const [walletBusy, setWalletBusy] = useState(false);
   const [tokenBusy, setTokenBusy] = useState(false);
   const [walletSnapshot, setWalletSnapshot] = useState<any | null>(null);
@@ -571,134 +572,163 @@ export default function OpsBoard({
 
           <div className={styles["nn-listItem"]}>
             <div className={styles["nn-listHead"]}>
-              <div>Bankr Draft Composer</div>
-              <Tooltip text="Create a bankr strategy draft from text.">
+              <div>OpenClaw via netnet</div>
+              <Tooltip text="Show or hide extra drafting forms.">
                 <span>
                   <Button
                     size="sm"
-                    onClick={createBankrDraft}
-                    disabled={!bankrDraftText.trim() || bankrDraftBusy}
+                    variant="subtle"
+                    onClick={() => setAdvancedToolsOpen((prev) => !prev)}
                   >
-                    {bankrDraftBusy ? "Creating..." : "Create Draft"}
+                    {advancedToolsOpen ? "Hide advanced" : "Show advanced"}
                   </Button>
                 </span>
               </Tooltip>
             </div>
-            <Textarea
-              rows={2}
-              value={bankrDraftText}
-              onChange={(event) => setBankrDraftText(event.target.value)}
-              placeholder="Draft a Bankr intent from natural language."
-            />
-            {bankrDraftNotice ? <div className={styles["nn-muted"]}>{bankrDraftNotice}</div> : null}
-          </div>
-
-          <div className={styles["nn-listItem"]}>
-            <div className={styles["nn-listHead"]}>
-              <div>Bankr Template Proposal</div>
-              <Tooltip text="Create a proposal draft from a template.">
-                <span>
-                  <Button size="sm" onClick={draftTemplateProposal} disabled={templateBusy}>
-                    {templateBusy ? "Drafting..." : "Draft Proposal"}
-                  </Button>
-                </span>
-              </Tooltip>
+            <div className={styles["nn-muted"]}>
+              Use one typing lane in chat: ask, approve, lock intent, then execute.
             </div>
-            <label className={styles["nn-muted"]}>
-              Template
-              <select
-                className={styles["nn-templateSelect"]}
-                value={selectedTemplate}
-                onChange={(event) => setSelectedTemplate(event.target.value as BankrTemplateId)}
-              >
-                {templates.map((template) => (
-                  <option key={template.id} value={template.id}>
-                    {template.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className={styles["nn-templateFields"]}>
-              {(BANKR_TEMPLATE_FIELDS[selectedTemplate] || []).map((field) => (
-                <label key={field.key} className={styles["nn-muted"]}>
-                  {field.label}
-                  <Input
-                    value={templateInput[field.key] || ""}
-                    onChange={(event) =>
-                      setTemplateInput((prev) => ({ ...prev, [field.key]: event.target.value }))
-                    }
-                    placeholder={field.placeholder}
-                  />
-                </label>
-              ))}
-            </div>
-            {templateNotice ? <div className={styles["nn-muted"]}>{templateNotice}</div> : null}
-          </div>
-
-          <div className={styles["nn-listItem"]}>
-            <div className={styles["nn-listHead"]}>
-              <div>Bankr Read-only Snapshots</div>
-              <div className={styles["nn-chipRow"]}>
-                <Tooltip text="Refresh wallet read-only snapshot.">
-                  <span>
-                    <Button size="sm" variant="subtle" onClick={refreshWallet} disabled={walletBusy}>
-                      {walletBusy ? "Refreshing..." : "Refresh Wallet"}
-                    </Button>
-                  </span>
-                </Tooltip>
-                <Tooltip text="Refresh token info read-only snapshot.">
-                  <span>
-                    <Button
-                      size="sm"
-                      variant="subtle"
-                      onClick={refreshTokenInfo}
-                      disabled={tokenBusy}
-                    >
-                      {tokenBusy ? "Refreshing..." : "Refresh Token Info"}
-                    </Button>
-                  </span>
-                </Tooltip>
+            {!advancedToolsOpen ? (
+              <div className={styles["nn-muted"]}>
+                Advanced forms are hidden to reduce typing surfaces.
               </div>
-            </div>
-            <div className={styles["nn-bankrParams"]}>
-              <label className={styles["nn-muted"]}>
-                chain
-                <Input
-                  className={styles["nn-bankrInput"]}
-                  value={tokenQuery.chain || ""}
-                  onChange={(event) =>
-                    setTokenQuery((prev) => ({ ...prev, chain: event.target.value }))
-                  }
-                />
-              </label>
-              <label className={styles["nn-muted"]}>
-                token
-                <Input
-                  className={styles["nn-bankrInput"]}
-                  value={tokenQuery.token || ""}
-                  onChange={(event) =>
-                    setTokenQuery((prev) => ({ ...prev, token: event.target.value }))
-                  }
-                />
-              </label>
-            </div>
-            <div className={styles["nn-muted"]}>Wallet updated: {formatTime(walletUpdatedAt)}</div>
-            {walletError ? (
-              <div className={styles["nn-muted"]}>Couldn't load (policy or missing config).</div>
-            ) : walletSnapshot ? (
-              <pre className={styles["nn-jsonBlock"]}>{formatSnapshot(walletSnapshot)}</pre>
-            ) : (
-              <div className={styles["nn-muted"]}>No snapshot yet - click refresh.</div>
-            )}
-            <div className={styles["nn-muted"]}>Token updated: {formatTime(tokenUpdatedAt)}</div>
-            {tokenError ? (
-              <div className={styles["nn-muted"]}>Couldn't load (policy or missing config).</div>
-            ) : tokenSnapshot ? (
-              <pre className={styles["nn-jsonBlock"]}>{formatSnapshot(tokenSnapshot)}</pre>
-            ) : (
-              <div className={styles["nn-muted"]}>No snapshot yet - click refresh.</div>
-            )}
+            ) : null}
           </div>
+
+          {advancedToolsOpen ? (
+            <>
+              <div className={styles["nn-listItem"]}>
+                <div className={styles["nn-listHead"]}>
+                  <div>Bankr Draft Composer</div>
+                  <Tooltip text="Create a bankr strategy draft from text.">
+                    <span>
+                      <Button
+                        size="sm"
+                        onClick={createBankrDraft}
+                        disabled={!bankrDraftText.trim() || bankrDraftBusy}
+                      >
+                        {bankrDraftBusy ? "Creating..." : "Create Draft"}
+                      </Button>
+                    </span>
+                  </Tooltip>
+                </div>
+                <Textarea
+                  rows={2}
+                  value={bankrDraftText}
+                  onChange={(event) => setBankrDraftText(event.target.value)}
+                  placeholder="Draft a Bankr intent from natural language."
+                />
+                {bankrDraftNotice ? <div className={styles["nn-muted"]}>{bankrDraftNotice}</div> : null}
+              </div>
+
+              <div className={styles["nn-listItem"]}>
+                <div className={styles["nn-listHead"]}>
+                  <div>Bankr Template Proposal</div>
+                  <Tooltip text="Create a proposal draft from a template.">
+                    <span>
+                      <Button size="sm" onClick={draftTemplateProposal} disabled={templateBusy}>
+                        {templateBusy ? "Drafting..." : "Draft Proposal"}
+                      </Button>
+                    </span>
+                  </Tooltip>
+                </div>
+                <label className={styles["nn-muted"]}>
+                  Template
+                  <select
+                    className={styles["nn-templateSelect"]}
+                    value={selectedTemplate}
+                    onChange={(event) => setSelectedTemplate(event.target.value as BankrTemplateId)}
+                  >
+                    {templates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className={styles["nn-templateFields"]}>
+                  {(BANKR_TEMPLATE_FIELDS[selectedTemplate] || []).map((field) => (
+                    <label key={field.key} className={styles["nn-muted"]}>
+                      {field.label}
+                      <Input
+                        value={templateInput[field.key] || ""}
+                        onChange={(event) =>
+                          setTemplateInput((prev) => ({ ...prev, [field.key]: event.target.value }))
+                        }
+                        placeholder={field.placeholder}
+                      />
+                    </label>
+                  ))}
+                </div>
+                {templateNotice ? <div className={styles["nn-muted"]}>{templateNotice}</div> : null}
+              </div>
+
+              <div className={styles["nn-listItem"]}>
+                <div className={styles["nn-listHead"]}>
+                  <div>Bankr Read-only Snapshots</div>
+                  <div className={styles["nn-chipRow"]}>
+                    <Tooltip text="Refresh wallet read-only snapshot.">
+                      <span>
+                        <Button size="sm" variant="subtle" onClick={refreshWallet} disabled={walletBusy}>
+                          {walletBusy ? "Refreshing..." : "Refresh Wallet"}
+                        </Button>
+                      </span>
+                    </Tooltip>
+                    <Tooltip text="Refresh token info read-only snapshot.">
+                      <span>
+                        <Button
+                          size="sm"
+                          variant="subtle"
+                          onClick={refreshTokenInfo}
+                          disabled={tokenBusy}
+                        >
+                          {tokenBusy ? "Refreshing..." : "Refresh Token Info"}
+                        </Button>
+                      </span>
+                    </Tooltip>
+                  </div>
+                </div>
+                <div className={styles["nn-bankrParams"]}>
+                  <label className={styles["nn-muted"]}>
+                    chain
+                    <Input
+                      className={styles["nn-bankrInput"]}
+                      value={tokenQuery.chain || ""}
+                      onChange={(event) =>
+                        setTokenQuery((prev) => ({ ...prev, chain: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className={styles["nn-muted"]}>
+                    token
+                    <Input
+                      className={styles["nn-bankrInput"]}
+                      value={tokenQuery.token || ""}
+                      onChange={(event) =>
+                        setTokenQuery((prev) => ({ ...prev, token: event.target.value }))
+                      }
+                    />
+                  </label>
+                </div>
+                <div className={styles["nn-muted"]}>Wallet updated: {formatTime(walletUpdatedAt)}</div>
+                {walletError ? (
+                  <div className={styles["nn-muted"]}>Couldn't load (policy or missing config).</div>
+                ) : walletSnapshot ? (
+                  <pre className={styles["nn-jsonBlock"]}>{formatSnapshot(walletSnapshot)}</pre>
+                ) : (
+                  <div className={styles["nn-muted"]}>No snapshot yet - click refresh.</div>
+                )}
+                <div className={styles["nn-muted"]}>Token updated: {formatTime(tokenUpdatedAt)}</div>
+                {tokenError ? (
+                  <div className={styles["nn-muted"]}>Couldn't load (policy or missing config).</div>
+                ) : tokenSnapshot ? (
+                  <pre className={styles["nn-jsonBlock"]}>{formatSnapshot(tokenSnapshot)}</pre>
+                ) : (
+                  <div className={styles["nn-muted"]}>No snapshot yet - click refresh.</div>
+                )}
+              </div>
+            </>
+          ) : null}
 
           {sortedStrategies.length ? (
             sortedStrategies.map((strategy) => {
