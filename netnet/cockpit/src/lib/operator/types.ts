@@ -73,6 +73,13 @@ export type MessageMetadata = {
   tags?: string[];
   plan?: ExecutionPlan;
   executionResult?: ExecutionResultEnvelope;
+  llmUsage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+    model?: string;
+    provider?: string;
+  };
 };
 
 export type MessageEnvelope = {

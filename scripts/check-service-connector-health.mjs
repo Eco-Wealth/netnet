@@ -19,7 +19,7 @@ const CONNECTORS = [
   { id: "bridge.quote", route: "/api/bridge/quote", kind: "internal" },
   { id: "bridge.retire", route: "/api/bridge/retire", kind: "internal" },
   { id: "proof.feed", route: "/api/proof/feed", kind: "internal" },
-] as const;
+];
 
 function routeToFile(route) {
   const trimmed = String(route || "").trim();

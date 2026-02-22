@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "test": "playwright test",
+    "ai:eyes": "node scripts/ai-eyes.mjs",
     "audit:check": "node ./scripts/audit-check.mjs"
   },
   "dependencies": {

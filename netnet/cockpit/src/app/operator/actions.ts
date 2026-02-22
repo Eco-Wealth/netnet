@@ -47,6 +47,7 @@ import {
   setActiveWalletProfile,
 } from "@/lib/operator/store";
 import { createMessageId } from "@/lib/operator/types";
+import { processRegenComputeOffset } from "@/lib/operator/regenCompute";
 
 export type OperatorStateResponse = {
   messages: ReturnType<typeof listMessages>;
@@ -222,6 +223,13 @@ export async function sendOperatorMessageAction(content: string): Promise<Operat
 
   try {
     const assistant = await generateAssistantReply(listMessages());
+    const usage = assistant.metadata?.llmUsage;
+    const offset = await processRegenComputeOffset({
+      usage,
+      source: "operator",
+      messageId: assistant.id,
+      operatorRef: activeWalletProfile?.id,
+    });
     const proposal = extractSkillProposalEnvelope(assistant.content);
 
     if (proposal) {
@@ -245,6 +253,8 @@ export async function sendOperatorMessageAction(content: string): Promise<Operat
           proposalId: proposal.id,
           tags: ["proposal", proposal.riskLevel],
           policySnapshot: policySnapshot(),
+          llmUsage: usage,
+          proofId: offset.proof?.id,
         },
       });
     } else {
@@ -255,8 +265,29 @@ export async function sendOperatorMessageAction(content: string): Promise<Operat
           action: "analysis",
           tags: ["assistant"],
           policySnapshot: policySnapshot(),
+          llmUsage: usage,
+          proofId: offset.proof?.id,
         },
       });
+    }
+
+    if (offset.enabled) {
+      if (offset.attemptedRetire && offset.retirement?.success) {
+        appendAuditMessage(
+          `Regen compute offset retired in real time: ${offset.retirement.retirementId || "ok"}${offset.proof?.id ? ` (proof ${offset.proof.id})` : ""}`,
+          "regen.compute.offset.retired"
+        );
+      } else if (offset.attemptedRetire && !offset.retirement?.success) {
+        appendAuditMessage(
+          `Regen compute offset retire failed: ${offset.retirement?.error || "unknown_error"}`,
+          "regen.compute.offset.error"
+        );
+      } else if (offset.estimate) {
+        appendAuditMessage(
+          `Regen compute offset estimate logged: ${offset.estimate.totalTokens} tokens, ${offset.estimate.estimatedKgCO2}kg CO2${offset.proof?.id ? ` (proof ${offset.proof.id})` : ""}`,
+          "regen.compute.offset.estimate"
+        );
+      }
     }
   } catch (error) {
     appendAuditMessage(`Assistant generation failed: ${normalizeError(error)}`, "error");

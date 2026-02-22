@@ -10,6 +10,7 @@ import {
   upsertProposal,
 } from "@/lib/operator/store";
 import { sendTelegramMessage } from "@/lib/operator/telegram";
+import { processRegenComputeOffset } from "@/lib/operator/regenCompute";
 
 export const dynamic = "force-dynamic";
 
@@ -121,6 +122,13 @@ export async function POST(req: NextRequest) {
   let telegramReply = "";
   try {
     const assistant = await generateAssistantReply(listMessages());
+    const usage = assistant.metadata?.llmUsage;
+    const offset = await processRegenComputeOffset({
+      usage,
+      source: "telegram",
+      messageId: assistant.id,
+      operatorRef: incoming.sender,
+    });
     const proposal = extractSkillProposalEnvelope(assistant.content);
     const blockExecution = shouldBlockExecutionInstructions(assistant.content);
 
@@ -144,6 +152,8 @@ export async function POST(req: NextRequest) {
           rawAssistantContent: assistant.content,
           tags: ["telegram", "proposal", proposal.riskLevel],
           policySnapshot: policySnapshot(),
+          llmUsage: usage,
+          proofId: offset.proof?.id,
         },
       });
 
@@ -165,9 +175,30 @@ export async function POST(req: NextRequest) {
           rawAssistantContent: assistant.content,
           tags: ["telegram", "assistant"],
           policySnapshot: policySnapshot(),
+          llmUsage: usage,
+          proofId: offset.proof?.id,
         },
       });
       telegramReply = assistantContent;
+    }
+
+    if (offset.enabled) {
+      if (offset.attemptedRetire && offset.retirement?.success) {
+        appendAuditMessage(
+          `Telegram regen compute offset retired: ${offset.retirement.retirementId || "ok"}${offset.proof?.id ? ` (proof ${offset.proof.id})` : ""}`,
+          "regen.compute.offset.retired"
+        );
+      } else if (offset.attemptedRetire && !offset.retirement?.success) {
+        appendAuditMessage(
+          `Telegram regen compute offset failed: ${offset.retirement?.error || "unknown_error"}`,
+          "regen.compute.offset.error"
+        );
+      } else if (offset.estimate) {
+        appendAuditMessage(
+          `Telegram regen compute estimate logged: ${offset.estimate.totalTokens} tokens${offset.proof?.id ? ` (proof ${offset.proof.id})` : ""}`,
+          "regen.compute.offset.estimate"
+        );
+      }
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

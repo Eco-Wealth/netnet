@@ -23,6 +23,11 @@ export default function OpsPage() {
       />
 
       <section className="grid gap-3 md:grid-cols-2">
+        <Card
+          title="Control Center"
+          desc="One-click command lanes with approvals, logs, and AI-eyes artifacts"
+          href="/ops/control"
+        />
         <Card title="Proof UI" desc="Proof builder + proof object panel" href="/proof" />
         <Card title="Execute UI" desc="Paper execution + plans" href="/execute" />
         <Card title="Retire UI" desc="Bridge-based retirement flow" href="/retire" />

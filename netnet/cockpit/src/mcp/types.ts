@@ -1,4 +1,10 @@
-export type MCPChain = "regen" | "base" | "eth";
+export type MCPChain =
+  | "regen"
+  | "base"
+  | "eth"
+  | "registry-review"
+  | "regen-koi"
+  | "regen-python";
 
 export interface MCPRequest {
   method: string;

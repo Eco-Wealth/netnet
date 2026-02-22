@@ -1,4 +1,4 @@
-import type { MessageEnvelope } from "@/lib/operator/types";
+import type { MessageEnvelope, MessageMetadata } from "@/lib/operator/types";
 import { createMessageId } from "@/lib/operator/types";
 
 export type OperatorEngine = {
@@ -26,6 +26,60 @@ function fallbackAssistant(content: string): MessageEnvelope {
     role: "assistant",
     content,
     createdAt: Date.now(),
+  };
+}
+
+function toNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function usageMetadataFromOpenRouter(data: any, model: string): MessageMetadata["llmUsage"] | undefined {
+  const usage = data?.usage;
+  if (!usage || typeof usage !== "object") return undefined;
+  const promptTokens = toNumber(usage.prompt_tokens);
+  const completionTokens = toNumber(usage.completion_tokens);
+  const totalTokens = toNumber(usage.total_tokens);
+  if (
+    promptTokens === undefined &&
+    completionTokens === undefined &&
+    totalTokens === undefined
+  ) {
+    return undefined;
+  }
+  return {
+    provider: "openrouter",
+    model,
+    promptTokens,
+    completionTokens,
+    totalTokens,
+  };
+}
+
+function usageMetadataFromLocal(data: any): MessageMetadata["llmUsage"] | undefined {
+  const usage =
+    data?.usage && typeof data.usage === "object"
+      ? data.usage
+      : data?.metrics && typeof data.metrics === "object"
+      ? data.metrics
+      : null;
+  if (!usage) return undefined;
+  const promptTokens = toNumber(usage.prompt_tokens ?? usage.promptTokens);
+  const completionTokens = toNumber(
+    usage.completion_tokens ?? usage.completionTokens
+  );
+  const totalTokens = toNumber(usage.total_tokens ?? usage.totalTokens);
+  if (
+    promptTokens === undefined &&
+    completionTokens === undefined &&
+    totalTokens === undefined
+  ) {
+    return undefined;
+  }
+  return {
+    provider: "local",
+    promptTokens,
+    completionTokens,
+    totalTokens,
   };
 }
 
@@ -64,6 +118,9 @@ class OpenRouterEngine implements OperatorEngine {
       role: "assistant",
       content: content.trim(),
       createdAt: Date.now(),
+      metadata: {
+        llmUsage: usageMetadataFromOpenRouter(data, model),
+      },
     };
   }
 }
@@ -92,6 +149,9 @@ class LocalHttpEngine implements OperatorEngine {
       role: "assistant",
       content: content.trim(),
       createdAt: Date.now(),
+      metadata: {
+        llmUsage: usageMetadataFromLocal(data),
+      },
     };
   }
 }
