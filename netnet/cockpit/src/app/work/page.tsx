@@ -26,12 +26,30 @@ export default function WorkPage() {
   const [owner, setOwner] = useState("");
   const [priority, setPriority] = useState("MEDIUM");
   const [tags, setTags] = useState("");
+  const [listQuery, setListQuery] = useState("");
+  const [proofOnly, setProofOnly] = useState(false);
+  const [proofIdFilter, setProofIdFilter] = useState("");
 
-  async function refresh() {
+  async function refresh(filters?: {
+    q?: string;
+    hasProof?: boolean;
+    proofId?: string;
+  }) {
     setLoading(true);
     setError(null);
     try {
-      const data = await api<{ ok: true; items: WorkItem[] }>("/api/work");
+      const params = new URLSearchParams();
+      const q = (filters?.q ?? listQuery).trim();
+      const hasProof = filters?.hasProof ?? proofOnly;
+      const proofId = (filters?.proofId ?? proofIdFilter).trim();
+
+      if (q) params.set("q", q);
+      if (hasProof) params.set("hasProof", "1");
+      if (proofId) params.set("proofId", proofId);
+
+      const suffix = params.toString();
+      const path = suffix ? `/api/work?${suffix}` : "/api/work";
+      const data = await api<{ ok: true; items: WorkItem[] }>(path);
       setItems(data.items || []);
     } catch (e: any) {
       setError(e?.message || "Failed to load");
@@ -41,7 +59,26 @@ export default function WorkPage() {
   }
 
   useEffect(() => {
-    refresh();
+    if (typeof window === "undefined") {
+      refresh();
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const initialQ = (params.get("q") || "").trim();
+    const initialProofId = (params.get("proofId") || "").trim();
+    const hasProofRaw = (params.get("hasProof") || "").toLowerCase().trim();
+    const initialProofOnly =
+      hasProofRaw === "1" || hasProofRaw === "true" || hasProofRaw === "yes";
+
+    if (initialQ) setListQuery(initialQ);
+    if (initialProofId) setProofIdFilter(initialProofId);
+    if (initialProofOnly) setProofOnly(true);
+
+    refresh({
+      q: initialQ,
+      proofId: initialProofId,
+      hasProof: initialProofOnly,
+    });
   }, []);
 
   async function create() {
@@ -87,6 +124,59 @@ export default function WorkPage() {
         guidance="Create an item with title + owner, then move it through status until complete."
         outputs="Produces: work item records, status history, and task metadata for operator follow-up."
       />
+
+      <div className="nn-surface">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] md:items-end">
+          <label className="grid gap-1">
+            <span className="text-xs text-white/70">Search</span>
+            <input
+              value={listQuery}
+              onChange={(e) => setListQuery(e.target.value)}
+              className="h-10 rounded-[11px] border border-white/15 bg-white/[0.04] px-3 text-sm text-white outline-none focus:ring-2 focus:ring-white/15"
+              placeholder="title, tag, proof id, verify url"
+            />
+          </label>
+
+          <label className="grid gap-1">
+            <span className="text-xs text-white/70">Proof ID filter</span>
+            <input
+              value={proofIdFilter}
+              onChange={(e) => setProofIdFilter(e.target.value)}
+              className="h-10 rounded-[11px] border border-white/15 bg-white/[0.04] px-3 text-sm text-white outline-none focus:ring-2 focus:ring-white/15"
+              placeholder="proof hash or prefix"
+            />
+          </label>
+
+          <label className="inline-flex h-10 items-center gap-2 text-sm text-white/85">
+            <input
+              type="checkbox"
+              checked={proofOnly}
+              onChange={(e) => setProofOnly(e.target.checked)}
+            />
+            Proof-linked only
+          </label>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => refresh()}
+              className="rounded-[11px] border border-white/15 bg-white/[0.06] px-4 py-2 text-sm font-medium text-white hover:bg-white/[0.11]"
+            >
+              Apply
+            </button>
+            <button
+              onClick={() => {
+                setListQuery("");
+                setProofIdFilter("");
+                setProofOnly(false);
+                refresh({ q: "", proofId: "", hasProof: false });
+              }}
+              className="rounded-[11px] border border-white/15 bg-white/[0.03] px-4 py-2 text-sm font-medium text-white/85 hover:bg-white/[0.09]"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div className="flex flex-wrap gap-2 text-xs">
         {Object.entries(counts).map(([k, v]) => (
@@ -165,7 +255,7 @@ export default function WorkPage() {
               Create Work Item
             </button>
             <button
-              onClick={refresh}
+              onClick={() => refresh()}
               className="rounded-[11px] border border-white/15 bg-white/[0.06] px-4 py-2 text-sm font-medium text-white hover:bg-white/[0.11]"
             >
               Refresh
