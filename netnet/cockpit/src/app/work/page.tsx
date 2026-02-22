@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
 import { WorkItemCard } from "@/components/WorkItemCard";
 
@@ -23,6 +24,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export default function WorkPage() {
+  const router = useRouter();
   const [items, setItems] = useState<WorkItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -306,7 +308,13 @@ export default function WorkPage() {
           ) : items.length === 0 ? (
             <div className="nn-surface text-sm text-white/75">No work items yet.</div>
           ) : (
-            items.map((it) => <WorkItemCard key={it.id} item={it} />)
+            items.map((it) => (
+              <WorkItemCard
+                key={it.id}
+                item={it}
+                onOpen={(id) => router.push(`/work/${id}`)}
+              />
+            ))
           )}
         </div>
       </div>
