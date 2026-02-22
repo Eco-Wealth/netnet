@@ -1,0 +1,25 @@
+{
+  "id": "netnet-api-guard-001",
+  "objective": "Add API route hardening without changing existing response contracts.",
+  "constraints": [
+    "Do not alter request or response shapes",
+    "Do not modify unrelated routes"
+  ],
+  "deliverables": [
+    "Implement route guard change",
+    "Update route-level tests",
+    "Pass drift checks"
+  ],
+  "acceptance_tests": [
+    "npm run test",
+    "npm run drift:check"
+  ],
+  "context_paths": [
+    "/Users/EcoWealth/dev/netnet/netnet/cockpit/src/app/api",
+    "/Users/EcoWealth/dev/netnet/netnet/cockpit/docs"
+  ],
+  "assumptions": [
+    "Current branch is main",
+    "No contract migrations requested"
+  ]
+}

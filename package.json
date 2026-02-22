@@ -16,7 +16,10 @@
     "contracts:check": "node scripts/check-api-contract-sot.mjs",
     "policy:integrity": "node scripts/check-policy-integrity.mjs",
     "policy:routes": "node scripts/check-route-policy-enforcement.mjs",
-    "drift:check": "npm run contracts:check && npm run policy:integrity && npm run policy:routes"
+    "drift:check": "npm run contracts:check && npm run policy:integrity && npm run policy:routes",
+    "agent:create-work-order": "python3 skills/netnet-agent-core/scripts/create_work_order.py",
+    "agent:validate-work-order": "python3 skills/netnet-agent-core/scripts/validate_work_order.py",
+    "agent:grade-run": "python3 skills/netnet-agent-core/scripts/grade_run.py"
   },
   "dependencies": {
     "axios": "^1.13.5"

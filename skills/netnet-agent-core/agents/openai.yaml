@@ -1,0 +1,4 @@
+interface:
+  display_name: "NetNet Agent Core"
+  short_description: "Work-order loop, quality gates, and deterministic run scoring."
+  default_prompt: "Use $netnet-agent-core to execute this task as a validated work order with a machine-readable run report and score."

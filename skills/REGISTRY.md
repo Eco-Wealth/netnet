@@ -32,6 +32,7 @@ Exact API request/response contracts are canonical in:
 | `netnet-cockpit-programs.md` | ACTIVE | `/api/programs` |
 | `netnet-cockpit-security.md` | ACTIVE | `/api/security/audit` |
 | `netnet-cockpit-telegram.md` | ACTIVE | `/api/telegram/webhook` |
+| `netnet-agent-core/SKILL.md` | ACTIVE | Meta execution loop for tasks affecting `netnet/cockpit/src/app/api/**`, contracts, and policy gates |
 
 ## Operator Skill Context
 | id | route | description | ownership |

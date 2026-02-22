@@ -1,0 +1,35 @@
+{
+  "work_order_id": "netnet-api-guard-001",
+  "status": "completed",
+  "deliverables_completed": [
+    "Implement route guard change",
+    "Update route-level tests",
+    "Pass drift checks"
+  ],
+  "acceptance_results": [
+    {
+      "name": "npm run test",
+      "passed": true,
+      "evidence": "npm run test"
+    },
+    {
+      "name": "npm run drift:check",
+      "passed": true,
+      "evidence": "npm run drift:check"
+    }
+  ],
+  "changed_files": [
+    {
+      "path": "netnet/cockpit/src/app/api/example/route.ts",
+      "summary": "Added scoped guard logic"
+    },
+    {
+      "path": "netnet/cockpit/tests/example.route.test.ts",
+      "summary": "Updated assertions for guard behavior"
+    }
+  ],
+  "blockers": [],
+  "next_actions": [
+    "Open PR with run report attached"
+  ]
+}
