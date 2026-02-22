@@ -59,6 +59,7 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
     "APPROVED",
     "REJECTED",
     "ESCALATED",
+    "PROOF_ATTACHED",
   ];
   const type: WorkEventType = allowed.includes(rawType as WorkEventType)
     ? (rawType as WorkEventType)

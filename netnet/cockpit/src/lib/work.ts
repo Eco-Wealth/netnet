@@ -10,7 +10,8 @@ export type WorkEventType =
   | "APPROVAL_REQUESTED"
   | "APPROVED"
   | "REJECTED"
-  | "ESCALATED";
+  | "ESCALATED"
+  | "PROOF_ATTACHED";
 
 export type WorkEvent = {
   id: string;

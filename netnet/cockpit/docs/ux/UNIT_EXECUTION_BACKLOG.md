@@ -72,3 +72,9 @@ This backlog tracks machine-first Operator execution units.
 ### Unit 087 — Runbook + handoff bundle
 
 - Added `docs/ux/AGENT_RUNBOOK_TEMPLATES.md` with low-cost execution templates.
+
+### Unit 088 — Proof to Work one-click handoff
+
+- Completed proof panel linkage to create a Work item directly from a built proof.
+- Added attach-to-existing Work ID action from `/proof`.
+- Added explicit `PROOF_ATTACHED` event compatibility in Work API.

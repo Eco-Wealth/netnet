@@ -59,5 +59,5 @@ export async function POST(req: NextRequest) {
     actor: body.actor || "operator",
   });
 
-  return NextResponse.json({ ok: true, item }, { status: 201 });
+  return NextResponse.json({ ok: true, id: item.id, item }, { status: 201 });
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { attachProofToWork, createWorkFromProof } from "@/lib/work/proofLink";
 
 type ProofKind =
   | "x402"
@@ -49,6 +50,10 @@ export default function ProofObjectPanel() {
   const [shortPost, setShortPost] = useState<string>("");
   const [longPost, setLongPost] = useState<string>("");
   const [verifyUrl, setVerifyUrl] = useState<string>("");
+  const [workIdInput, setWorkIdInput] = useState("");
+  const [workStatus, setWorkStatus] = useState<string>("");
+  const [workError, setWorkError] = useState<string | null>(null);
+  const [workBusy, setWorkBusy] = useState(false);
 
   // Restore last proof input/output
   useEffect(() => {
@@ -110,6 +115,23 @@ export default function ProofObjectPanel() {
     if (txHash && !isTxHash(txHash)) return false;
     return true;
   }, [txHash]);
+
+  const proofForWork = useMemo(() => {
+    if (!proof) return null;
+    const refs = verifyUrl
+      ? { ...proof.refs, verifyUrl }
+      : { ...proof.refs };
+    return {
+      schema: proof.schema,
+      id: proof.id,
+      kind: proof.kind,
+      subject: proof.subject,
+      refs,
+      claims: proof.claims,
+      createdAt: proof.timestamp,
+      hash: proof.id,
+    };
+  }, [proof, verifyUrl]);
 
   async function build() {
     setStatus("loading");
@@ -176,9 +198,58 @@ export default function ProofObjectPanel() {
       setLongPost(long);
 
       setStatus("ok");
+      setWorkError(null);
+      setWorkStatus("");
     } catch (e: any) {
       setStatus("error");
       setErrorMsg(e?.message ?? "Unknown error");
+    }
+  }
+
+  async function createWorkItemFromProof() {
+    if (!proofForWork || !proof) return;
+    setWorkBusy(true);
+    setWorkError(null);
+    setWorkStatus("");
+    try {
+      const title = `Proof follow-up: ${proof.kind}`;
+      const result = await createWorkFromProof({
+        title,
+        description: `Verify and publish proof ${proof.id}.`,
+        tags: ["proof", proof.kind, "followup"],
+        proof: proofForWork,
+      });
+      setWorkIdInput(result.id);
+      setWorkStatus(`Work created: ${result.id}`);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Failed to create work item";
+      setWorkError(message);
+    } finally {
+      setWorkBusy(false);
+    }
+  }
+
+  async function attachProofItemToWork() {
+    const id = workIdInput.trim();
+    if (!id || !proofForWork || !proof) {
+      setWorkError("Work ID and proof are required.");
+      return;
+    }
+    setWorkBusy(true);
+    setWorkError(null);
+    setWorkStatus("");
+    try {
+      await attachProofToWork({
+        id,
+        proof: proofForWork,
+        note: `Proof attached from /proof (${proof.id}).`,
+      });
+      setWorkStatus(`Proof attached to ${id}`);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Failed to attach proof";
+      setWorkError(message);
+    } finally {
+      setWorkBusy(false);
     }
   }
 
@@ -327,13 +398,50 @@ export default function ProofObjectPanel() {
               >
                 Copy verify URL
               </button>
+              <button
+                onClick={createWorkItemFromProof}
+                disabled={workBusy || !proofForWork}
+                className="rounded-xl border border-white/15 bg-black/30 px-4 py-2 text-sm disabled:opacity-50"
+              >
+                {workBusy ? "Working…" : "Create Work Item"}
+              </button>
             </>
           ) : null}
         </div>
 
+        {proof ? (
+          <div className="grid gap-2 rounded-2xl border border-white/10 bg-black/20 p-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <input
+              value={workIdInput}
+              onChange={(e) => setWorkIdInput(e.target.value)}
+              placeholder="Attach to existing work id"
+              className="rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-sm"
+            />
+            <button
+              onClick={attachProofItemToWork}
+              disabled={workBusy || !proofForWork || !workIdInput.trim()}
+              className="rounded-xl border border-white/15 bg-black/30 px-4 py-2 text-sm disabled:opacity-50"
+            >
+              Attach Proof
+            </button>
+          </div>
+        ) : null}
+
         {status === "error" ? (
           <div className="rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200">
             {errorMsg ?? "Error"}
+          </div>
+        ) : null}
+
+        {workError ? (
+          <div className="rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200">
+            {workError}
+          </div>
+        ) : null}
+
+        {workStatus ? (
+          <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-3 text-sm text-emerald-200">
+            {workStatus}
           </div>
         ) : null}
 
