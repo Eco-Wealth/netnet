@@ -33,6 +33,7 @@ const files = {
   proofFeed: path.join(cockpitRoot, "src", "app", "api", "proof", "feed", "route.ts"),
   proofPanel: path.join(cockpitRoot, "src", "app", "proof", "ProofObjectPanel.tsx"),
   distributePage: path.join(cockpitRoot, "src", "app", "distribute", "page.tsx"),
+  workPage: path.join(cockpitRoot, "src", "app", "work", "page.tsx"),
   workItemCard: path.join(cockpitRoot, "src", "components", "WorkItemCard.tsx"),
   workIdRoute: path.join(cockpitRoot, "src", "app", "api", "work", "[id]", "route.ts"),
   operatorDb: path.join(cockpitRoot, "src", "lib", "operator", "db.ts"),
@@ -59,6 +60,12 @@ const checks = [
     ok: exists(files.proofVerifyRoute),
   },
   {
+    label: "proof verify route returns navigation links",
+    ok:
+      exists(files.proofVerifyRoute) &&
+      read(files.proofVerifyRoute).includes("workQuery"),
+  },
+  {
     label: "proof feed reads persisted artifacts",
     ok:
       exists(files.proofFeed) &&
@@ -82,10 +89,30 @@ const checks = [
       read(files.distributePage).includes("Create Work"),
   },
   {
+    label: "distribute link-state filter",
+    ok:
+      exists(files.distributePage) &&
+      read(files.distributePage).includes("linked to work") &&
+      read(files.distributePage).includes("not linked"),
+  },
+  {
     label: "work card proof visibility",
     ok:
       exists(files.workItemCard) &&
       read(files.workItemCard).includes("Proof:"),
+  },
+  {
+    label: "work card verify open action",
+    ok:
+      exists(files.workItemCard) &&
+      read(files.workItemCard).includes("verify:") &&
+      read(files.workItemCard).includes("Open"),
+  },
+  {
+    label: "work page url-synced filters",
+    ok:
+      exists(files.workPage) &&
+      read(files.workPage).includes("history.replaceState"),
   },
   {
     label: "work route allows PROOF_ATTACHED events",

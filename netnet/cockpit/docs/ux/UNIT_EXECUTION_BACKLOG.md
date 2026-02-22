@@ -127,3 +127,34 @@ This backlog tracks machine-first Operator execution units.
   - proof lane guard
   - operator surface guard
 - Added `npm run health:proof`.
+
+### Unit 097 — Work filter URL sync
+
+- `/work` filter state now syncs into URL query params (`q`, `hasProof`, `proofId`).
+- Added Enter-to-apply behavior for filter inputs.
+
+### Unit 098 — Work card verify action
+
+- Work cards now expose an inline `Open` action for attached proof verify links.
+- Preserved card-level clickability while allowing direct verify navigation.
+
+### Unit 099 — Verify API navigation hints
+
+- `/api/proof/verify/[id]` now returns deterministic navigation links:
+  - proof page
+  - verify API route
+  - proof-scoped work query
+  - distribute anchor
+
+### Unit 100 — Distribute link-state filters
+
+- Added linked/unlinked handoff filter in `/distribute`.
+- Search now includes linked work IDs in addition to proof fields.
+
+### Unit 101 — Proof lane guard hardening
+
+- Extended `scripts/check-proof-lane.mjs` to enforce:
+  - verify API navigation links
+  - distribute link-state filter presence
+  - work card verify action
+  - work page URL-sync behavior
