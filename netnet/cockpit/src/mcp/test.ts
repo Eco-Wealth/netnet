@@ -2,9 +2,6 @@
 import { createStubMCPClient } from './index';
 
 const client = createStubMCPClient();
-async function run(): Promise<void> {
-  const result = await client.request("regen", { method: "test" });
-  console.log(result); // This should log the stub data without executing network calls.
-}
+const result = await client.request("regen", { method: "test" });
 
-void run();
+console.log(result); // This should log the stub data without executing network calls.

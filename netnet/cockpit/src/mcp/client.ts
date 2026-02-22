@@ -1,7 +1,4 @@
-import RegenAdapter from './adapters/regen';
-import BaseAdapter from './adapters/base';
-import EthAdapter from './adapters/eth';
-import type { MCPAdapter, MCPChain, MCPRequest, MCPResponse, MarketSnapshot } from './types';
+import { MCPAdapter, MCPChain, MCPRequest, MCPResponse, MarketSnapshot } from './types';
 
 function parseLatestBlock(response: MCPResponse): number {
   const value = (response.data as { latestBlock?: unknown } | undefined)?.latestBlock;
@@ -35,7 +32,7 @@ class MCPClient {
         regen: { latestBlock: parseLatestBlock(regenResponse) },
         base: { latestBlock: parseLatestBlock(baseResponse) },
       };
-    } catch (error) {
+    } catch {
       throw new Error('Failed to fetch market snapshot');
     }
   }

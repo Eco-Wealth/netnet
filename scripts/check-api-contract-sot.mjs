@@ -22,10 +22,6 @@ function resolveReference(ref) {
     candidates.push(path.join(cockpitRoot, stripped));
     candidates.push(path.join(repoRoot, "netnet", "netnet", "cockpit", stripped));
   }
-  if (ref.startsWith("netnet/netnet/cockpit/")) {
-    const stripped = ref.replace(/^netnet\/netnet\/cockpit\//, "");
-    candidates.push(path.join(cockpitRoot, stripped));
-  }
   return candidates.find((candidate) => fs.existsSync(candidate)) ?? candidates[0];
 }
 

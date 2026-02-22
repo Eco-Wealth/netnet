@@ -7,13 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "playwright test tests/bridge-registry-contract.spec.ts tests/proof-paid-contract.spec.ts",
-    "test:e2e": "playwright test tests/smoke.spec.ts",
+    "test": "playwright test",
     "audit:check": "node ./scripts/audit-check.mjs"
   },
   "dependencies": {
-    "@octokit/rest": "^22.0.0",
-    "axios": "^1.13.5",
     "next": "14.2.35",
     "react": "18.3.1",
     "react-dom": "18.3.1",
