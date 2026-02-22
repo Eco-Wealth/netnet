@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/PageHeader";
+import { createWorkFromProof } from "@/lib/work/proofLink";
 
 type ProofFeedItem = {
   id: string;
@@ -12,6 +13,27 @@ type ProofFeedItem = {
   tags?: string[];
   score?: number;
 };
+
+type ProofVerificationPayload = {
+  ok: boolean;
+  verification?: {
+    id: string;
+    schema: string;
+    kind: string;
+    hash: string;
+    verifyUrl: string;
+    payload: Record<string, unknown>;
+  };
+};
+
+function toRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value as Record<string, unknown>;
+}
+
+function readString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
 
 function fmt(ts: string) {
   try {
@@ -26,6 +48,11 @@ export default function DistributePage() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [tag, setTag] = useState<string>("all");
+  const [busyProofId, setBusyProofId] = useState<string | null>(null);
+  const [workByProofId, setWorkByProofId] = useState<Record<string, string>>({});
+  const [workErrorByProofId, setWorkErrorByProofId] = useState<
+    Record<string, string>
+  >({});
 
   useEffect(() => {
     let cancelled = false;
@@ -74,6 +101,58 @@ export default function DistributePage() {
   }, []);
   const applyTagFilter = useCallback((nextTag: string) => {
     setTag(nextTag);
+  }, []);
+
+  const createWorkFromFeedItem = useCallback(async (item: ProofFeedItem) => {
+    setBusyProofId(item.id);
+    setWorkErrorByProofId((prev) => {
+      const next = { ...prev };
+      delete next[item.id];
+      return next;
+    });
+
+    try {
+      const verifyRes = await fetch(`/api/proof/verify/${encodeURIComponent(item.id)}`, {
+        cache: "no-store",
+      });
+      const verifyBody = (await verifyRes.json().catch(() => null)) as
+        | ProofVerificationPayload
+        | null;
+      if (!verifyRes.ok || !verifyBody?.ok || !verifyBody.verification) {
+        throw new Error("Proof verify failed before work creation.");
+      }
+
+      const payload = toRecord(verifyBody.verification.payload);
+      const payloadKind = readString(payload.kind);
+      const payloadSchema = readString(payload.schema);
+      const refs = {
+        ...toRecord(payload.refs),
+        verifyUrl: verifyBody.verification.verifyUrl || `/proof/${item.id}`,
+      };
+      const proof = {
+        ...payload,
+        id: verifyBody.verification.id || item.id,
+        kind: verifyBody.verification.kind || payloadKind,
+        schema: verifyBody.verification.schema || payloadSchema,
+        hash: verifyBody.verification.hash,
+        refs,
+      };
+
+      const result = await createWorkFromProof({
+        title: `Proof follow-up: ${item.title}`,
+        description: `Review proof ${item.id}, confirm validity, and publish next action.`,
+        tags: ["proof", "distribution", "followup"],
+        proof,
+      });
+
+      setWorkByProofId((prev) => ({ ...prev, [item.id]: result.id }));
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Failed to create work item.";
+      setWorkErrorByProofId((prev) => ({ ...prev, [item.id]: message }));
+    } finally {
+      setBusyProofId((current) => (current === item.id ? null : current));
+    }
   }, []);
 
   return (
@@ -190,6 +269,27 @@ export default function DistributePage() {
                   ))}
                 </div>
               )}
+
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => createWorkFromFeedItem(it)}
+                  disabled={busyProofId === it.id}
+                  className="rounded-xl border border-white/15 px-3 py-2 text-xs text-white/85 hover:bg-white/[0.08] disabled:opacity-50"
+                >
+                  {busyProofId === it.id ? "Creating..." : "Create Work"}
+                </button>
+                {workByProofId[it.id] ? (
+                  <span className="text-xs text-emerald-300">
+                    Work created: <span className="font-mono">{workByProofId[it.id]}</span>
+                  </span>
+                ) : null}
+                {workErrorByProofId[it.id] ? (
+                  <span className="text-xs text-amber-300">
+                    {workErrorByProofId[it.id]}
+                  </span>
+                ) : null}
+              </div>
             </div>
           ))
         )}
