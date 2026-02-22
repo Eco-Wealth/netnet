@@ -3,9 +3,17 @@
 import { useMemo, useState, useTransition, type CSSProperties } from "react";
 import {
   readAIEyesArtifactsAction,
+  runOpenClawBootstrapAction,
+  runOpenClawConnectionCheckAction,
   runOpsCommandAction,
+  runOpenClawPolicyCheckAction,
+  runOpenClawSchedulerCheckAction,
   runOpsSequenceAction,
   type AIEyesArtifacts,
+  type OpenClawBootstrapResult,
+  type OpenClawConnectionResult,
+  type OpenClawPolicyResult,
+  type OpenClawSchedulerResult,
   type OpsRunResult,
   type OpsSequenceResult,
 } from "./actions";
@@ -33,6 +41,11 @@ function formatTime(ms: number): string {
 
 function formatDate(ms: number): string {
   return new Date(ms).toLocaleString();
+}
+
+function checkStatus(ok: boolean | undefined): string {
+  if (ok === undefined) return "NOT RUN";
+  return ok ? "PASS" : "FAIL";
 }
 
 function ResultPanel({ result }: { result: OpsRunResult | null }) {
@@ -159,12 +172,161 @@ function AIEyesPanel({ artifacts }: { artifacts: AIEyesArtifacts | null }) {
   );
 }
 
+function OpenClawSetupPanel({
+  role,
+  pending,
+  connection,
+  scheduler,
+  policy,
+  bootstrap,
+  onConnection,
+  onScheduler,
+  onPolicy,
+  onBootstrap,
+}: {
+  role: OpsRole;
+  pending: boolean;
+  connection: OpenClawConnectionResult | null;
+  scheduler: OpenClawSchedulerResult | null;
+  policy: OpenClawPolicyResult | null;
+  bootstrap: OpenClawBootstrapResult | null;
+  onConnection: () => void;
+  onScheduler: () => void;
+  onPolicy: () => void;
+  onBootstrap: () => void;
+}) {
+  const hasFail =
+    connection?.ok === false || scheduler?.ok === false || policy?.ok === false;
+  return (
+    <section style={panelStyle}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 15 }}>OpenClaw setup</h2>
+          <div style={{ marginTop: 6, fontSize: 13, opacity: 0.82 }}>
+            Verify env, connector reachability, scheduler smoke, and policy guardrails.
+          </div>
+        </div>
+        <div style={{ fontSize: 12, opacity: 0.9 }}>Role: {role}</div>
+      </div>
+
+      <div style={{ marginTop: 10, display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+        <article style={{ border: "1px solid var(--nn-border-subtle, #1f2b45)", borderRadius: 10, padding: 10 }}>
+          <strong>1) Verify env + connection</strong>
+          <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>
+            {checkStatus(connection?.ok)}
+          </div>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={onConnection}
+            style={{ marginTop: 8, padding: "6px 10px", borderRadius: 8 }}
+          >
+            Run connection test
+          </button>
+          {connection ? (
+            <div style={{ marginTop: 8, fontSize: 12, opacity: 0.9 }}>
+              {connection.dashboard.configured
+                ? connection.dashboard.reachable
+                  ? "Dashboard reachable."
+                  : `Dashboard check failed: ${connection.dashboard.error || "unknown"}`
+                : "OPENCLAW_DASHBOARD_URL is not configured."}
+            </div>
+          ) : null}
+        </article>
+
+        <article style={{ border: "1px solid var(--nn-border-subtle, #1f2b45)", borderRadius: 10, padding: 10 }}>
+          <strong>2) Scheduler smoke</strong>
+          <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>
+            {checkStatus(scheduler?.ok)}
+          </div>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={onScheduler}
+            style={{ marginTop: 8, padding: "6px 10px", borderRadius: 8 }}
+          >
+            Run scheduler test
+          </button>
+          {scheduler ? (
+            <div style={{ marginTop: 8, fontSize: 12, opacity: 0.9 }}>
+              Command: {scheduler.run.commandId}
+            </div>
+          ) : null}
+        </article>
+
+        <article style={{ border: "1px solid var(--nn-border-subtle, #1f2b45)", borderRadius: 10, padding: 10 }}>
+          <strong>3) Policy/permission guard</strong>
+          <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>
+            {checkStatus(policy?.ok)}
+          </div>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={onPolicy}
+            style={{ marginTop: 8, padding: "6px 10px", borderRadius: 8 }}
+          >
+            Run policy check
+          </button>
+          {policy ? (
+            <div style={{ marginTop: 8, fontSize: 12, opacity: 0.9 }}>
+              Command: {policy.run.commandId}
+            </div>
+          ) : null}
+        </article>
+      </div>
+
+      <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={onBootstrap}
+          style={{ padding: "6px 10px", borderRadius: 8 }}
+        >
+          Run full bootstrap
+        </button>
+        <span style={{ fontSize: 12, opacity: 0.85 }}>
+          Full status: {checkStatus(bootstrap?.ok)}
+          {bootstrap?.checkedAt ? ` • ${formatDate(bootstrap.checkedAt)}` : ""}
+        </span>
+        {hasFail ? (
+          <span style={{ fontSize: 12, color: "#f5b6b6" }}>
+            Fix failed step(s) before enabling autonomous schedules.
+          </span>
+        ) : null}
+      </div>
+
+      {connection ? (
+        <details style={{ marginTop: 10 }}>
+          <summary>Env checklist</summary>
+          <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+            {connection.env.map((row) => (
+              <div key={row.key} style={{ fontSize: 12, opacity: 0.9 }}>
+                [{row.present ? "ok" : "missing"}] {row.key}
+                {row.required ? " (required)" : ""}
+                {row.hint ? ` — ${row.hint}` : ""}
+              </div>
+            ))}
+          </div>
+        </details>
+      ) : null}
+    </section>
+  );
+}
+
 export default function ControlCenterClient() {
   const [role, setRole] = useState<OpsRole>("operator");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [lastResult, setLastResult] = useState<OpsRunResult | null>(null);
   const [lastSequence, setLastSequence] = useState<OpsSequenceResult | null>(null);
   const [artifacts, setArtifacts] = useState<AIEyesArtifacts | null>(null);
+  const [openClawConnection, setOpenClawConnection] =
+    useState<OpenClawConnectionResult | null>(null);
+  const [openClawScheduler, setOpenClawScheduler] =
+    useState<OpenClawSchedulerResult | null>(null);
+  const [openClawPolicy, setOpenClawPolicy] =
+    useState<OpenClawPolicyResult | null>(null);
+  const [openClawBootstrap, setOpenClawBootstrap] =
+    useState<OpenClawBootstrapResult | null>(null);
   const [pending, startTransition] = useTransition();
 
   const grouped = useMemo(() => {
@@ -217,6 +379,37 @@ export default function ControlCenterClient() {
     });
   }
 
+  function runOpenClawConnection() {
+    startTransition(async () => {
+      const result = await runOpenClawConnectionCheckAction({ role });
+      setOpenClawConnection(result);
+    });
+  }
+
+  function runOpenClawScheduler() {
+    startTransition(async () => {
+      const result = await runOpenClawSchedulerCheckAction({ role });
+      setOpenClawScheduler(result);
+    });
+  }
+
+  function runOpenClawPolicy() {
+    startTransition(async () => {
+      const result = await runOpenClawPolicyCheckAction({ role });
+      setOpenClawPolicy(result);
+    });
+  }
+
+  function runOpenClawBootstrap() {
+    startTransition(async () => {
+      const result = await runOpenClawBootstrapAction({ role });
+      setOpenClawBootstrap(result);
+      setOpenClawConnection(result.steps.connection);
+      setOpenClawScheduler(result.steps.scheduler);
+      setOpenClawPolicy(result.steps.policy);
+    });
+  }
+
   return (
     <main style={{ padding: 16, display: "grid", gap: 12 }}>
       <header style={panelStyle}>
@@ -244,6 +437,19 @@ export default function ControlCenterClient() {
           </label>
         </div>
       </header>
+
+      <OpenClawSetupPanel
+        role={role}
+        pending={pending}
+        connection={openClawConnection}
+        scheduler={openClawScheduler}
+        policy={openClawPolicy}
+        bootstrap={openClawBootstrap}
+        onConnection={runOpenClawConnection}
+        onScheduler={runOpenClawScheduler}
+        onPolicy={runOpenClawPolicy}
+        onBootstrap={runOpenClawBootstrap}
+      />
 
       <section style={{ display: "grid", gap: 12 }}>
         {(Object.keys(grouped) as Category[]).map((category) => (

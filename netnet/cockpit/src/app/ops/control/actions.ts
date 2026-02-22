@@ -1,7 +1,7 @@
 "use server";
 
 import { spawn } from "node:child_process";
-import { promises as fs } from "node:fs";
+import { existsSync, promises as fs } from "node:fs";
 import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { getOpsCommandById, type OpsCommandSpec, type OpsRole } from "./commands";
@@ -50,6 +50,53 @@ export type AIEyesArtifacts = {
   error?: string;
 };
 
+export type OpenClawEnvCheckItem = {
+  key: string;
+  required: boolean;
+  present: boolean;
+  hint?: string;
+};
+
+export type OpenClawConnectionResult = {
+  ok: boolean;
+  role: OpsRole;
+  checkedAt: number;
+  dashboard: {
+    configured: boolean;
+    reachable: boolean;
+    statusCode?: number;
+    error?: string;
+  };
+  env: OpenClawEnvCheckItem[];
+  routes: Array<{ route: string; exists: boolean }>;
+  error?: string;
+};
+
+export type OpenClawSchedulerResult = {
+  ok: boolean;
+  role: OpsRole;
+  checkedAt: number;
+  run: OpsRunResult;
+};
+
+export type OpenClawPolicyResult = {
+  ok: boolean;
+  role: OpsRole;
+  checkedAt: number;
+  run: OpsRunResult;
+};
+
+export type OpenClawBootstrapResult = {
+  ok: boolean;
+  role: OpsRole;
+  checkedAt: number;
+  steps: {
+    connection: OpenClawConnectionResult;
+    scheduler: OpenClawSchedulerResult;
+    policy: OpenClawPolicyResult;
+  };
+};
+
 type RunInput = {
   commandId: string;
   role: OpsRole;
@@ -68,6 +115,96 @@ function hasAccess(role: OpsRole, command: OpsCommandSpec): boolean {
 
 function toCwd(stepCwd: "repo" | "cockpit"): string {
   return stepCwd === "repo" ? REPO_ROOT : COCKPIT_ROOT;
+}
+
+function hasRole(role: OpsRole, allowed: OpsRole[]): boolean {
+  return allowed.includes(role);
+}
+
+function toEnvCheck(): OpenClawEnvCheckItem[] {
+  const engineMode = String(process.env.OPERATOR_ENGINE || "openrouter").trim().toLowerCase();
+  const requiresOpenRouter = engineMode !== "local";
+  const list: OpenClawEnvCheckItem[] = [
+    {
+      key: "OPENCLAW_DASHBOARD_URL",
+      required: true,
+      present: Boolean(String(process.env.OPENCLAW_DASHBOARD_URL || "").trim()),
+      hint: "OpenClaw dashboard base URL",
+    },
+    {
+      key: "OPENCLAW_API_KEY",
+      required: true,
+      present: Boolean(String(process.env.OPENCLAW_API_KEY || "").trim()),
+      hint: "Agent API key for dashboard calls",
+    },
+    {
+      key: "OPENCLAW_AGENT_ID",
+      required: false,
+      present: Boolean(String(process.env.OPENCLAW_AGENT_ID || "").trim()),
+      hint: "Optional but useful for scoped runs",
+    },
+    {
+      key: "OPENROUTER_API_KEY",
+      required: requiresOpenRouter,
+      present: Boolean(String(process.env.OPENROUTER_API_KEY || "").trim()),
+      hint: requiresOpenRouter ? "Required when OPERATOR_ENGINE is not local" : "Optional in local mode",
+    },
+    {
+      key: "REGEN_COMPUTE_OFFSET_ENABLED",
+      required: false,
+      present: Boolean(String(process.env.REGEN_COMPUTE_OFFSET_ENABLED || "").trim()),
+      hint: "Optional realtime offset lane toggle",
+    },
+  ];
+  return list;
+}
+
+function requiredEnvPass(list: OpenClawEnvCheckItem[]): boolean {
+  for (const row of list) {
+    if (row.required && !row.present) return false;
+  }
+  return true;
+}
+
+function routeExists(route: string): boolean {
+  const relative = route.replace(/^\//, "");
+  return existsSync(path.join(COCKPIT_ROOT, "src", "app", relative, "route.ts"));
+}
+
+async function checkDashboardReachability(urlValue: string): Promise<{
+  configured: boolean;
+  reachable: boolean;
+  statusCode?: number;
+  error?: string;
+}> {
+  const trimmed = String(urlValue || "").trim();
+  if (!trimmed) {
+    return { configured: false, reachable: false, error: "missing_dashboard_url" };
+  }
+  const timeoutMs = 5000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(trimmed, {
+      method: "HEAD",
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    return {
+      configured: true,
+      reachable: response.ok,
+      statusCode: response.status,
+      error: response.ok ? undefined : `dashboard_http_${response.status}`,
+    };
+  } catch (error) {
+    return {
+      configured: true,
+      reachable: false,
+      error: error instanceof Error ? error.message : "dashboard_unreachable",
+    };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function runStep(args: [string, ...string[]], cwd: string): Promise<{
@@ -276,3 +413,160 @@ export async function readAIEyesArtifactsAction(): Promise<AIEyesArtifacts> {
   }
 }
 
+export async function runOpenClawConnectionCheckAction(input: {
+  role: OpsRole;
+}): Promise<OpenClawConnectionResult> {
+  const checkedAt = Date.now();
+  if (!hasRole(input.role, ["viewer", "operator", "admin"])) {
+    return {
+      ok: false,
+      role: input.role,
+      checkedAt,
+      dashboard: {
+        configured: false,
+        reachable: false,
+        error: "role_denied",
+      },
+      env: [],
+      routes: [],
+      error: "role_denied",
+    };
+  }
+
+  const env = toEnvCheck();
+  const dashboard = await checkDashboardReachability(
+    String(process.env.OPENCLAW_DASHBOARD_URL || "")
+  );
+  const routes = [
+    "/api/health",
+    "/api/policy",
+    "/api/telegram/webhook",
+    "/api/proof/feed",
+    "/api/work",
+  ].map((route) => ({ route, exists: routeExists(route) }));
+
+  const envOk = requiredEnvPass(env);
+  const routesOk = routes.every((row) => row.exists);
+  const ok = envOk && routesOk && (dashboard.reachable || !dashboard.configured);
+
+  revalidatePath("/ops/control");
+  return {
+    ok,
+    role: input.role,
+    checkedAt,
+    dashboard,
+    env,
+    routes,
+    error: ok ? undefined : "openclaw_connection_check_failed",
+  };
+}
+
+export async function runOpenClawSchedulerCheckAction(input: {
+  role: OpsRole;
+}): Promise<OpenClawSchedulerResult> {
+  const run = await executeCommand({
+    role: input.role,
+    commandId: "health_fast",
+  });
+  revalidatePath("/ops/control");
+  return {
+    ok: run.ok,
+    role: input.role,
+    checkedAt: Date.now(),
+    run,
+  };
+}
+
+export async function runOpenClawPolicyCheckAction(input: {
+  role: OpsRole;
+}): Promise<OpenClawPolicyResult> {
+  const startedAt = Date.now();
+  const command: OpsCommandSpec = {
+    id: "openclaw_policy_guard",
+    title: "OpenClaw Policy Guard",
+    description: "Run drift checks for policy and connector guardrails.",
+    category: "health",
+    roles: ["operator", "admin"],
+    steps: [{ cwd: "repo", args: ["npm", "run", "drift:check"] }],
+  };
+
+  if (!hasAccess(input.role, command)) {
+    const denied: OpsRunResult = {
+      ok: false,
+      commandId: command.id,
+      role: input.role,
+      startedAt,
+      endedAt: Date.now(),
+      steps: [],
+      error: "role_denied",
+    };
+    return {
+      ok: false,
+      role: input.role,
+      checkedAt: Date.now(),
+      run: denied,
+    };
+  }
+
+  const stepResults: OpsStepResult[] = [];
+  for (const step of command.steps) {
+    const output = await runStep(step.args, toCwd(step.cwd));
+    stepResults.push({
+      command: step.args.join(" "),
+      cwd: step.cwd,
+      exitCode: output.exitCode,
+      ok: output.exitCode === 0,
+      stdout: output.stdout,
+      stderr: output.stderr,
+    });
+    if (output.exitCode !== 0) {
+      const failed: OpsRunResult = {
+        ok: false,
+        commandId: command.id,
+        role: input.role,
+        startedAt,
+        endedAt: Date.now(),
+        steps: stepResults,
+        error: "step_failed",
+      };
+      return {
+        ok: false,
+        role: input.role,
+        checkedAt: Date.now(),
+        run: failed,
+      };
+    }
+  }
+
+  const passed: OpsRunResult = {
+    ok: true,
+    commandId: command.id,
+    role: input.role,
+    startedAt,
+    endedAt: Date.now(),
+    steps: stepResults,
+  };
+  revalidatePath("/ops/control");
+  return {
+    ok: true,
+    role: input.role,
+    checkedAt: Date.now(),
+    run: passed,
+  };
+}
+
+export async function runOpenClawBootstrapAction(input: {
+  role: OpsRole;
+}): Promise<OpenClawBootstrapResult> {
+  const connection = await runOpenClawConnectionCheckAction(input);
+  const scheduler = await runOpenClawSchedulerCheckAction(input);
+  const policy = await runOpenClawPolicyCheckAction(input);
+  const ok = connection.ok && scheduler.ok && policy.ok;
+  revalidatePath("/ops/control");
+  return {
+    ok,
+    role: input.role,
+    checkedAt: Date.now(),
+    steps: { connection, scheduler, policy },
+  };
+}
