@@ -15,6 +15,10 @@ import {
   listBankrTemplates,
   type BankrTemplateId,
 } from "@/lib/operator/templates/bankr";
+import {
+  buildSocialAutopublishPrompt,
+  SOCIAL_AUTOPUBLISH_ORDER,
+} from "@/lib/operator/templates/social";
 import { isBankrStrategyAction, type Strategy } from "@/lib/operator/strategy";
 import type { MessageEnvelope, SkillProposalEnvelope } from "@/lib/operator/types";
 
@@ -211,6 +215,8 @@ export default function OpsBoard({
   const [runbookError, setRunbookError] = useState<string | null>(null);
   const [advancedToolsOpen, setAdvancedToolsOpen] = useState(false);
   const [quickPromptNotice, setQuickPromptNotice] = useState<string>("");
+  const [socialTopic, setSocialTopic] = useState("Weekly operator recap");
+  const [socialSchedule, setSocialSchedule] = useState("today 9am local");
   const [walletBusy, setWalletBusy] = useState(false);
   const [tokenBusy, setTokenBusy] = useState(false);
   const [walletSnapshot, setWalletSnapshot] = useState<any | null>(null);
@@ -363,6 +369,16 @@ export default function OpsBoard({
   function insertPrompt(label: string, prompt: string) {
     onInsertPrompt(prompt);
     setQuickPromptNotice(`${label} prompt inserted into chat.`);
+  }
+
+  function insertSocialSequencePrompt() {
+    insertPrompt(
+      "Social Sequence",
+      buildSocialAutopublishPrompt({
+        topic: socialTopic,
+        schedule: socialSchedule,
+      })
+    );
   }
 
   function toggleRunbook(strategy: Strategy) {
@@ -674,6 +690,34 @@ export default function OpsBoard({
                   </Button>
                 </span>
               </Tooltip>
+              <Tooltip text="Insert a social autopublish sequence prompt.">
+                <span>
+                  <Button size="sm" variant="subtle" onClick={insertSocialSequencePrompt}>
+                    Social Sequence
+                  </Button>
+                </span>
+              </Tooltip>
+            </div>
+            <div className={styles["nn-templateFields"]}>
+              <label className={styles["nn-muted"]}>
+                Topic
+                <Input
+                  value={socialTopic}
+                  onChange={(event) => setSocialTopic(event.target.value)}
+                  placeholder="Weekly operator recap"
+                />
+              </label>
+              <label className={styles["nn-muted"]}>
+                Schedule
+                <Input
+                  value={socialSchedule}
+                  onChange={(event) => setSocialSchedule(event.target.value)}
+                  placeholder="today 9am local"
+                />
+              </label>
+            </div>
+            <div className={styles["nn-muted"]}>
+              Sequence order: {SOCIAL_AUTOPUBLISH_ORDER.join(" -> ")}
             </div>
             {quickPromptNotice ? <div className={styles["nn-muted"]}>{quickPromptNotice}</div> : null}
             {!advancedToolsOpen ? (

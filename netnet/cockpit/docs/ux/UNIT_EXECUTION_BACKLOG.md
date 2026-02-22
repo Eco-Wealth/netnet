@@ -159,8 +159,6 @@ This backlog tracks machine-first Operator execution units.
   - work card verify action
   - work page URL-sync behavior
 
-## Proposed
-
 ### Unit 110 — OpenClaw dashboard agent-readiness integration
 
 - Add a dedicated Operator setup flow for OpenClaw dashboard compatibility:
@@ -170,6 +168,38 @@ This backlog tracks machine-first Operator execution units.
   - run/log verification
 - Reduce terminal-first setup by mapping routine actions to deterministic UI controls.
 - Add health checks and runbook coverage so agents can bootstrap and recover without manual shell loops.
+
+### Unit 111 — Server-authoritative ops role boundary
+
+- `/ops/control` command execution now resolves effective role on server env only.
+- Added access-context readout so requested role vs enforced role is explicit.
+
+### Unit 112 — Telegram hard proposal-only regen fence
+
+- Telegram-sourced regen compute calls no longer auto-retire credits.
+- Telegram flow remains read/propose-only while preserving proof logging.
+
+### Unit 113 — MCP readiness lane in ops control
+
+- Added deterministic MCP checks for:
+  - Regen MCP
+  - Registry Review MCP
+  - Regen KOI MCP
+  - Regen Python MCP
+- Wired MCP readiness into OpenClaw bootstrap and status UI.
+
+### Unit 114 — MCP guard in health-fast
+
+- Added `scripts/check-mcp-connectors.mjs` for MCP matrix/env/types/index integrity.
+- Included MCP checks in `health:fast` and added `npm run mcp:check`.
+
+### Unit 115 — Social sequence prompt lane
+
+- Added Operator quick prompt for social autopublish sequencing:
+  - YouTube -> X -> Instagram -> Facebook
+- Kept flow proposal-first (prompt insertion only, no execution wiring changes).
+
+## Proposed
 
 ### Unit 121 — Social autopublish sequence (YouTube -> X -> Instagram -> Facebook)
 
