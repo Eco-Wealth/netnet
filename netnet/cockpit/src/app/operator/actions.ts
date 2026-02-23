@@ -49,6 +49,7 @@ import {
 } from "@/lib/operator/store";
 import { createMessageId } from "@/lib/operator/types";
 import { processRegenComputeOffset } from "@/lib/operator/regenCompute";
+import type { SkillProposalEnvelope } from "@/lib/operator/types";
 
 export type OperatorStateResponse = {
   messages: ReturnType<typeof listMessages>;
@@ -373,6 +374,26 @@ type BankrPreflightEvaluation = {
   failedChecks: string[];
   reason?: "proposal_not_found" | "not_bankr" | "policy_denied";
 };
+
+function proposalSimulationOk(proposal: SkillProposalEnvelope): boolean {
+  const simulation = proposal.metadata?.simulation;
+  return Boolean(
+    simulation &&
+      typeof simulation === "object" &&
+      !Array.isArray(simulation) &&
+      (simulation as { ok?: unknown }).ok === true
+  );
+}
+
+function proposalPreflightOk(proposal: SkillProposalEnvelope): boolean {
+  const preflight = proposal.metadata?.preflight;
+  return Boolean(
+    preflight &&
+      typeof preflight === "object" &&
+      !Array.isArray(preflight) &&
+      (preflight as { ok?: unknown }).ok === true
+  );
+}
 
 function evaluateAndPersistBankrSimulation(id: string): BankrSimulationEvaluation {
   const proposal = getProposal(id);
@@ -724,6 +745,61 @@ export async function runBankrPrepSweepAction(): Promise<OperatorStateResponse> 
       .map((entry) => `${entry.id}: ${entry.reason}`)
       .join(" | ");
     appendAuditMessage(`Bankr prep blockers: ${details}`, "bankr.prep.sweep");
+  }
+
+  return state();
+}
+
+export async function runBankrExecuteSweepAction(): Promise<OperatorStateResponse> {
+  const MAX_EXECUTES = 12;
+  const candidates = listProposals()
+    .filter(
+      (proposal) =>
+        proposal.route.includes("/api/bankr/") &&
+        proposal.status === "approved" &&
+        proposal.executionIntent === "locked" &&
+        proposal.executionStatus === "idle" &&
+        Boolean(proposal.executionPlan) &&
+        proposalSimulationOk(proposal) &&
+        proposalPreflightOk(proposal)
+    )
+    .slice(0, MAX_EXECUTES);
+
+  if (candidates.length === 0) {
+    appendAuditMessage("Bankr execute sweep: no ready proposals.", "bankr.execute.sweep");
+    return state();
+  }
+
+  let executed = 0;
+  const failures: Array<{ id: string; reason: string }> = [];
+
+  for (const proposal of candidates) {
+    try {
+      const next = await executeProposal(proposal.id);
+      if (next.executionResult?.ok) {
+        executed += 1;
+      } else {
+        failures.push({
+          id: proposal.id,
+          reason: next.executionResult?.error || "execution_failed",
+        });
+      }
+    } catch (error) {
+      failures.push({ id: proposal.id, reason: normalizeError(error) });
+    }
+  }
+
+  const failed = candidates.length - executed;
+  appendAuditMessage(
+    `Bankr execute sweep: ${executed}/${candidates.length} executed, ${failed} failed.`,
+    "bankr.execute.sweep"
+  );
+  if (failures.length > 0) {
+    const details = failures
+      .slice(0, 3)
+      .map((entry) => `${entry.id}: ${entry.reason}`)
+      .join(" ; ");
+    appendAuditMessage(`Bankr execute failures: ${details}`, "bankr.execute.sweep");
   }
 
   return state();

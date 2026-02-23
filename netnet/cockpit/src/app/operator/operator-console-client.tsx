@@ -32,6 +32,7 @@ import {
   proposeFromBankrDraftAction,
   proposeStrategyFromAssistantProposal,
   rejectProposalAction,
+  runBankrExecuteSweepAction,
   runBankrPlanSweepAction,
   runBankrPrepSweepAction,
   runBankrSimulationSweepAction,
@@ -463,6 +464,16 @@ export default function OperatorConsoleClient({
     [activeThreadId, runActionNow]
   );
 
+  const handleExecuteSweep = useCallback(
+    () =>
+      runActionNow(
+        "execute:sweep",
+        () => runBankrExecuteSweepAction(),
+        activeThreadId
+      ),
+    [activeThreadId, runActionNow]
+  );
+
   const handleDraftStrategy = useCallback(
     (id: string) =>
       runAction(`strategy:${id}`, () => proposeStrategyFromAssistantProposal(id), activeThreadId),
@@ -654,6 +665,7 @@ export default function OperatorConsoleClient({
               onRunPlanSweep={handlePlanSweep}
               onRunPrepSweep={handlePrepSweep}
               onRunSimulationSweep={handleSimulationSweep}
+              onRunExecuteSweep={handleExecuteSweep}
               onProposeBankrDraft={handleProposeBankrDraft}
               onPinStrategy={handlePinStrategy}
               onUnpinStrategy={handleUnpinStrategy}
@@ -713,6 +725,7 @@ export default function OperatorConsoleClient({
                 onRunPlanSweep={handlePlanSweep}
                 onRunPrepSweep={handlePrepSweep}
                 onRunSimulationSweep={handleSimulationSweep}
+                onRunExecuteSweep={handleExecuteSweep}
                 onProposeBankrDraft={handleProposeBankrDraft}
                 onPinStrategy={handlePinStrategy}
                 onUnpinStrategy={handleUnpinStrategy}

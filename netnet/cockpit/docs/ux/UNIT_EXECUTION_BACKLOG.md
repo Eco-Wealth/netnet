@@ -557,3 +557,23 @@ This backlog tracks machine-first Operator execution units.
   - simulation sweep action export + audit wiring
   - operator client prop wiring for simulation sweep
   - Ops Board simulation sweep control + simulation blocker list surfacing
+
+### Unit 155 — Bankr execute sweep action
+
+- Added `runBankrExecuteSweepAction()` server action in Operator:
+  - scans execution-ready Bankr proposals (approved + locked + idle + plan + simulation ok + preflight ok)
+  - executes in deterministic bounded batch
+  - emits summary audit lines (`bankr.execute.sweep`)
+
+### Unit 156 — Ops execute-ready sweep control
+
+- Added `Execute Ready` control in Ops Board `Now` section.
+- Added execute-sweep completion/error notices.
+- Control is disabled unless at least one Bankr proposal is execution-ready.
+
+### Unit 157 — Bankr integrity guard update (execute sweep)
+
+- Extended `scripts/check-bankr-integrity.mjs` to enforce:
+  - execute sweep action export + audit wiring
+  - operator client prop wiring for execute sweep
+  - Ops Board execute-ready sweep control + ready chip surfacing

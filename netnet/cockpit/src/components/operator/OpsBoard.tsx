@@ -38,6 +38,7 @@ type OpsBoardProps = {
   onRunPlanSweep: () => Promise<void>;
   onRunPrepSweep: () => Promise<void>;
   onRunSimulationSweep: () => Promise<void>;
+  onRunExecuteSweep: () => Promise<void>;
   onProposeBankrDraft: (strategyId: string) => Promise<void>;
   onPinStrategy: (strategyId: string) => Promise<void>;
   onUnpinStrategy: (strategyId: string) => Promise<void>;
@@ -249,6 +250,7 @@ export default function OpsBoard({
   onRunPlanSweep,
   onRunPrepSweep,
   onRunSimulationSweep,
+  onRunExecuteSweep,
   onProposeBankrDraft,
   onPinStrategy,
   onUnpinStrategy,
@@ -282,6 +284,7 @@ export default function OpsBoard({
   const [planSweepNotice, setPlanSweepNotice] = useState<string>("");
   const [prepSweepNotice, setPrepSweepNotice] = useState<string>("");
   const [simulationSweepNotice, setSimulationSweepNotice] = useState<string>("");
+  const [executeSweepNotice, setExecuteSweepNotice] = useState<string>("");
   const [draftProposeError, setDraftProposeError] = useState<string | null>(null);
   const [openRunbooks, setOpenRunbooks] = useState<Record<string, boolean>>({});
   const [runbookDrafts, setRunbookDrafts] = useState<Record<string, string>>({});
@@ -573,6 +576,16 @@ export default function OpsBoard({
     }
   }
 
+  async function runExecuteSweep() {
+    setExecuteSweepNotice("");
+    try {
+      await onRunExecuteSweep();
+      setExecuteSweepNotice("Bankr execute sweep complete.");
+    } catch {
+      setExecuteSweepNotice("Bankr execute sweep failed.");
+    }
+  }
+
   function insertPrompt(label: string, prompt: string) {
     onInsertPrompt(prompt);
     setQuickPromptNotice(`${label} prompt inserted into chat.`);
@@ -732,6 +745,17 @@ export default function OpsBoard({
                 </Button>
               </span>
             </Tooltip>
+            <Tooltip text="Execute all execution-ready Bankr proposals in one sweep.">
+              <span>
+                <Button
+                  size="sm"
+                  onClick={runExecuteSweep}
+                  disabled={loadingAction !== null || bankrReadyNow.length === 0}
+                >
+                  {loadingAction === "execute:sweep" ? "Executing..." : "Execute Ready"}
+                </Button>
+              </span>
+            </Tooltip>
             <span className={styles["nn-chip"]}>blockers: {bankrPreflightBlockers.length}</span>
             <span className={styles["nn-chip"]}>plan missing: {bankrPlanBlockers.length}</span>
             <span className={styles["nn-chip"]}>sim blockers: {bankrSimulationBlockers.length}</span>
@@ -743,6 +767,7 @@ export default function OpsBoard({
           {simulationSweepNotice ? (
             <div className={styles["nn-muted"]}>{simulationSweepNotice}</div>
           ) : null}
+          {executeSweepNotice ? <div className={styles["nn-muted"]}>{executeSweepNotice}</div> : null}
 
           {nowItemsCount === 0 ? <div className={styles["nn-emptyHint"]}>{nowEmptyCopy}</div> : null}
 

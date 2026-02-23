@@ -199,6 +199,11 @@ check(function operator_actions_include_bankr_preflight_lane() {
   );
   mustContain(
     actionsSrc,
+    /export async function runBankrExecuteSweepAction\(/,
+    "operator actions export runBankrExecuteSweepAction"
+  );
+  mustContain(
+    actionsSrc,
     /bankr\.preflight/,
     "operator actions write bankr.preflight audit action"
   );
@@ -221,6 +226,11 @@ check(function operator_actions_include_bankr_preflight_lane() {
     actionsSrc,
     /bankr\.simulation\.sweep/,
     "operator actions write bankr.simulation.sweep audit action"
+  );
+  mustContain(
+    actionsSrc,
+    /bankr\.execute\.sweep/,
+    "operator actions write bankr.execute.sweep audit action"
   );
 }, results);
 
@@ -274,6 +284,11 @@ check(function operator_surface_wires_preflight_sweep_controls() {
     "operator client passes onRunSimulationSweep prop"
   );
   mustContain(
+    operatorClientSrc,
+    /onRunExecuteSweep=/,
+    "operator client passes onRunExecuteSweep prop"
+  );
+  mustContain(
     opsBoardSrc,
     /Preflight Sweep/,
     "ops board renders preflight sweep control"
@@ -295,6 +310,11 @@ check(function operator_surface_wires_preflight_sweep_controls() {
   );
   mustContain(
     opsBoardSrc,
+    /Execute Ready/,
+    "ops board renders execute-ready sweep control"
+  );
+  mustContain(
+    opsBoardSrc,
     /Preflight blockers/,
     "ops board renders preflight blockers list"
   );
@@ -312,6 +332,11 @@ check(function operator_surface_wires_preflight_sweep_controls() {
     opsBoardSrc,
     /Simulation blockers/,
     "ops board renders simulation blockers list"
+  );
+  mustContain(
+    opsBoardSrc,
+    /ready:/,
+    "ops board shows ready count chip"
   );
 }, results);
 
