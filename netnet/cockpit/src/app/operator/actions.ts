@@ -357,11 +357,73 @@ export async function generateExecutionPlanAction(id: string): Promise<OperatorS
   return state();
 }
 
+type BankrSimulationEvaluation = {
+  ok: boolean;
+  reason?:
+    | "proposal_not_found"
+    | "not_bankr"
+    | "policy_denied"
+    | "simulation_failed"
+    | "simulation_error";
+  summary?: string;
+};
+
 type BankrPreflightEvaluation = {
   ok: boolean;
   failedChecks: string[];
   reason?: "proposal_not_found" | "not_bankr" | "policy_denied";
 };
+
+function evaluateAndPersistBankrSimulation(id: string): BankrSimulationEvaluation {
+  const proposal = getProposal(id);
+  if (!proposal) {
+    return { ok: false, reason: "proposal_not_found" };
+  }
+
+  if (!proposal.route.includes("/api/bankr/")) {
+    return { ok: false, reason: "not_bankr" };
+  }
+
+  const gate = enforcePolicy("bankr.simulate", {
+    route: proposal.route,
+    venue: "bankr",
+    chain:
+      typeof proposal.proposedBody.chain === "string"
+        ? proposal.proposedBody.chain
+        : undefined,
+    fromToken:
+      typeof proposal.proposedBody.token === "string"
+        ? proposal.proposedBody.token
+        : undefined,
+  });
+  if (!gate.ok) {
+    return { ok: false, reason: "policy_denied" };
+  }
+
+  try {
+    const body =
+      proposal.proposedBody &&
+      typeof proposal.proposedBody === "object" &&
+      !Array.isArray(proposal.proposedBody)
+        ? (toSerializable(proposal.proposedBody) as Record<string, unknown>)
+        : {};
+    const simulation = simulateBankrAction({
+      ...body,
+      route: proposal.route,
+    });
+    proposal.metadata = {
+      ...(proposal.metadata || {}),
+      simulation,
+    };
+    upsertProposal(proposal);
+    if (!simulation.ok) {
+      return { ok: false, reason: "simulation_failed", summary: simulation.summary };
+    }
+    return { ok: true, summary: simulation.summary };
+  } catch {
+    return { ok: false, reason: "simulation_error" };
+  }
+}
 
 function evaluateAndPersistBankrPreflight(id: string): BankrPreflightEvaluation {
   const proposal = getProposal(id);
@@ -527,6 +589,97 @@ export async function runBankrPlanSweepAction(): Promise<OperatorStateResponse> 
   return state();
 }
 
+export async function runBankrPrepSweepAction(): Promise<OperatorStateResponse> {
+  const candidates = listProposals().filter(
+    (proposal) =>
+      proposal.route.includes("/api/bankr/") &&
+      proposal.status === "approved" &&
+      proposal.executionIntent === "locked" &&
+      proposal.executionStatus === "idle"
+  );
+
+  if (candidates.length === 0) {
+    appendAuditMessage("Bankr prep sweep: no eligible proposals.", "bankr.prep.sweep");
+    return state();
+  }
+
+  let planned = 0;
+  let simulated = 0;
+  let preflightPassed = 0;
+  let ready = 0;
+  const failures: Array<{ id: string; reason: string }> = [];
+
+  for (const proposal of candidates) {
+    const reasons: string[] = [];
+    if (!proposal.executionPlan) {
+      try {
+        generateExecutionPlan(proposal.id);
+        planned += 1;
+      } catch (error) {
+        reasons.push(`plan: ${normalizeError(error)}`);
+      }
+    }
+
+    const simulation = evaluateAndPersistBankrSimulation(proposal.id);
+    if (simulation.ok) {
+      simulated += 1;
+    } else {
+      reasons.push(
+        simulation.reason === "simulation_failed"
+          ? `simulation: ${simulation.summary || "failed"}`
+          : `simulation: ${simulation.reason || "failed"}`
+      );
+    }
+
+    const preflight = evaluateAndPersistBankrPreflight(proposal.id);
+    if (preflight.ok) {
+      preflightPassed += 1;
+    } else {
+      reasons.push(`preflight: ${preflight.failedChecks.join(" | ") || preflight.reason || "failed"}`);
+    }
+
+    const finalProposal = getProposal(proposal.id);
+    const simMetadata = finalProposal?.metadata?.simulation;
+    const simulationOk =
+      Boolean(
+        simMetadata &&
+          typeof simMetadata === "object" &&
+          !Array.isArray(simMetadata) &&
+          (simMetadata as { ok?: unknown }).ok === true
+      );
+    const preflightMetadata = finalProposal?.metadata?.preflight;
+    const preflightOk =
+      Boolean(
+        preflightMetadata &&
+          typeof preflightMetadata === "object" &&
+          !Array.isArray(preflightMetadata) &&
+          (preflightMetadata as { ok?: unknown }).ok === true
+      );
+    const planOk = Boolean(finalProposal?.executionPlan);
+    if (planOk && simulationOk && preflightOk) {
+      ready += 1;
+    }
+
+    if (reasons.length > 0) {
+      failures.push({ id: proposal.id, reason: reasons.join(" ; ") });
+    }
+  }
+
+  appendAuditMessage(
+    `Bankr prep sweep: ready ${ready}/${candidates.length}, plan+ ${planned}, sim ${simulated}, preflight ${preflightPassed}.`,
+    "bankr.prep.sweep"
+  );
+  if (failures.length > 0) {
+    const details = failures
+      .slice(0, 3)
+      .map((entry) => `${entry.id}: ${entry.reason}`)
+      .join(" | ");
+    appendAuditMessage(`Bankr prep blockers: ${details}`, "bankr.prep.sweep");
+  }
+
+  return state();
+}
+
 export async function executeProposalAction(id: string): Promise<OperatorStateResponse> {
   try {
     const preflight = getProposal(id);
@@ -596,52 +749,28 @@ export async function executeProposalAction(id: string): Promise<OperatorStateRe
 export async function simulateBankrProposalAction(
   id: string
 ): Promise<OperatorStateResponse> {
-  const proposal = getProposal(id);
-  if (!proposal) {
+  const result = evaluateAndPersistBankrSimulation(id);
+  if (result.reason === "proposal_not_found") {
     appendAuditMessage("Simulation failed: proposal not found.", "bankr.simulate");
     return state();
   }
-
-  if (!proposal.route.includes("/api/bankr/")) {
+  if (result.reason === "not_bankr") {
     appendAuditMessage("Simulation skipped: proposal is not Bankr.", "bankr.simulate");
     return state();
   }
-
-  const gate = enforcePolicy("bankr.simulate", {
-    route: proposal.route,
-    venue: "bankr",
-    chain:
-      typeof proposal.proposedBody.chain === "string"
-        ? proposal.proposedBody.chain
-        : undefined,
-    fromToken:
-      typeof proposal.proposedBody.token === "string"
-        ? proposal.proposedBody.token
-        : undefined,
-  });
-  if (!gate.ok) {
+  if (result.reason === "policy_denied") {
     appendAuditMessage("Simulation blocked: policy_denied.", "bankr.simulate");
     return state();
   }
-
-  try {
-    const body =
-      proposal.proposedBody &&
-      typeof proposal.proposedBody === "object" &&
-      !Array.isArray(proposal.proposedBody)
-        ? (toSerializable(proposal.proposedBody) as Record<string, unknown>)
-        : {};
-    const simulation = simulateBankrAction({
-      ...body,
-      route: proposal.route,
-    });
-    proposal.metadata = {
-      ...(proposal.metadata || {}),
-      simulation,
-    };
-    upsertProposal(proposal);
-  } catch (error) {
-    appendAuditMessage(`Simulation failed: ${normalizeError(error)}`, "bankr.simulate");
+  if (result.reason === "simulation_error") {
+    appendAuditMessage("Simulation failed: simulation_error", "bankr.simulate");
+    return state();
+  }
+  if (result.reason === "simulation_failed") {
+    appendAuditMessage(
+      `Simulation failed: ${result.summary || "input issues detected"}`,
+      "bankr.simulate"
+    );
   }
 
   return state();
