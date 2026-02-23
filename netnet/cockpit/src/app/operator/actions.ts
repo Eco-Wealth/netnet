@@ -484,6 +484,49 @@ export async function runBankrPreflightSweepAction(): Promise<OperatorStateRespo
   return state();
 }
 
+export async function runBankrPlanSweepAction(): Promise<OperatorStateResponse> {
+  const candidates = listProposals().filter(
+    (proposal) =>
+      proposal.route.includes("/api/bankr/") &&
+      proposal.status === "approved" &&
+      proposal.executionIntent === "locked" &&
+      proposal.executionStatus === "idle" &&
+      !proposal.executionPlan
+  );
+
+  if (candidates.length === 0) {
+    appendAuditMessage("Bankr plan sweep: no eligible proposals.", "bankr.plan.sweep");
+    return state();
+  }
+
+  let planned = 0;
+  const failures: Array<{ id: string; error: string }> = [];
+
+  for (const proposal of candidates) {
+    try {
+      generateExecutionPlan(proposal.id);
+      planned += 1;
+    } catch (error) {
+      failures.push({ id: proposal.id, error: normalizeError(error) });
+    }
+  }
+
+  const failed = candidates.length - planned;
+  appendAuditMessage(
+    `Bankr plan sweep: ${planned}/${candidates.length} planned, ${failed} failed.`,
+    "bankr.plan.sweep"
+  );
+  if (failures.length > 0) {
+    const details = failures
+      .slice(0, 3)
+      .map((entry) => `${entry.id}: ${entry.error}`)
+      .join(" ; ");
+    appendAuditMessage(`Bankr plan failures: ${details}`, "bankr.plan.sweep");
+  }
+
+  return state();
+}
+
 export async function executeProposalAction(id: string): Promise<OperatorStateResponse> {
   try {
     const preflight = getProposal(id);

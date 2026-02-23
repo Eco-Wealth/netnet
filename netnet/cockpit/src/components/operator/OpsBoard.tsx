@@ -35,6 +35,7 @@ type OpsBoardProps = {
   onCreateDraftProposal: (templateId: string, input: Record<string, string>) => Promise<void>;
   onCreateBankrDraft: (text: string) => Promise<void>;
   onRunPreflightSweep: () => Promise<void>;
+  onRunPlanSweep: () => Promise<void>;
   onProposeBankrDraft: (strategyId: string) => Promise<void>;
   onPinStrategy: (strategyId: string) => Promise<void>;
   onUnpinStrategy: (strategyId: string) => Promise<void>;
@@ -226,6 +227,7 @@ export default function OpsBoard({
   onCreateDraftProposal,
   onCreateBankrDraft,
   onRunPreflightSweep,
+  onRunPlanSweep,
   onProposeBankrDraft,
   onPinStrategy,
   onUnpinStrategy,
@@ -256,6 +258,7 @@ export default function OpsBoard({
   const [bankrDraftBusy, setBankrDraftBusy] = useState(false);
   const [bankrDraftNotice, setBankrDraftNotice] = useState<string>("");
   const [preflightSweepNotice, setPreflightSweepNotice] = useState<string>("");
+  const [planSweepNotice, setPlanSweepNotice] = useState<string>("");
   const [draftProposeError, setDraftProposeError] = useState<string | null>(null);
   const [openRunbooks, setOpenRunbooks] = useState<Record<string, boolean>>({});
   const [runbookDrafts, setRunbookDrafts] = useState<Record<string, string>>({});
@@ -367,6 +370,20 @@ export default function OpsBoard({
         .slice(0, 8),
     [proposals]
   );
+  const bankrPlanBlockers = useMemo(
+    () =>
+      proposals
+        .filter(
+          (proposal) =>
+            proposal.route.includes("/api/bankr/") &&
+            proposal.status === "approved" &&
+            proposal.executionIntent === "locked" &&
+            proposal.executionStatus === "idle" &&
+            !proposal.executionPlan
+        )
+        .slice(0, 8),
+    [proposals]
+  );
 
   const toggle = useCallback((section: SectionKey) => {
     setOpen((prev) => ({ ...prev, [section]: !prev[section] }));
@@ -450,6 +467,16 @@ export default function OpsBoard({
       setPreflightSweepNotice("Bankr preflight sweep complete.");
     } catch {
       setPreflightSweepNotice("Bankr preflight sweep failed.");
+    }
+  }
+
+  async function runPlanSweep() {
+    setPlanSweepNotice("");
+    try {
+      await onRunPlanSweep();
+      setPlanSweepNotice("Bankr plan sweep complete.");
+    } catch {
+      setPlanSweepNotice("Bankr plan sweep failed.");
     }
   }
 
@@ -576,9 +603,23 @@ export default function OpsBoard({
                 </Button>
               </span>
             </Tooltip>
+            <Tooltip text="Generate missing execution plans for Bankr proposals.">
+              <span>
+                <Button
+                  size="sm"
+                  variant="subtle"
+                  onClick={runPlanSweep}
+                  disabled={loadingAction !== null}
+                >
+                  {loadingAction === "plan:sweep" ? "Planning..." : "Generate Plans"}
+                </Button>
+              </span>
+            </Tooltip>
             <span className={styles["nn-chip"]}>blockers: {bankrPreflightBlockers.length}</span>
+            <span className={styles["nn-chip"]}>plan missing: {bankrPlanBlockers.length}</span>
           </div>
           {preflightSweepNotice ? <div className={styles["nn-muted"]}>{preflightSweepNotice}</div> : null}
+          {planSweepNotice ? <div className={styles["nn-muted"]}>{planSweepNotice}</div> : null}
 
           {nowItemsCount === 0 ? <div className={styles["nn-emptyHint"]}>{nowEmptyCopy}</div> : null}
 
@@ -687,6 +728,35 @@ export default function OpsBoard({
                     </span>
                   </div>
                   <div className={styles["nn-muted"]}>{reason}</div>
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {bankrPlanBlockers.length ? (
+            <div className={styles["nn-listBlock"]}>
+              <div className={styles["nn-muted"]}>Plan blockers</div>
+              {bankrPlanBlockers.map((proposal) => (
+                <button
+                  key={`plan-blocker-${proposal.id}`}
+                  type="button"
+                  className={[
+                    styles["nn-listItem"],
+                    styles["nn-listItemButton"],
+                    selected.kind === "proposal" && selected.id === proposal.id
+                      ? styles["nn-selectedFrame"]
+                      : "",
+                  ].join(" ")}
+                  onClick={() => {
+                    onSelectProposal(proposal.id);
+                    onFocusProposal(proposal.id);
+                  }}
+                >
+                  <div className={styles["nn-listHead"]}>
+                    <div>{proposal.skillId}</div>
+                    <span className={styles["nn-statusBadge"]}>plan missing</span>
+                  </div>
+                  <div className={styles["nn-muted"]}>{proposal.route}</div>
                 </button>
               ))}
             </div>

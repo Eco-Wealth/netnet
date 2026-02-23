@@ -184,6 +184,11 @@ check(function operator_actions_include_bankr_preflight_lane() {
   );
   mustContain(
     actionsSrc,
+    /export async function runBankrPlanSweepAction\(/,
+    "operator actions export runBankrPlanSweepAction"
+  );
+  mustContain(
+    actionsSrc,
     /bankr\.preflight/,
     "operator actions write bankr.preflight audit action"
   );
@@ -191,6 +196,11 @@ check(function operator_actions_include_bankr_preflight_lane() {
     actionsSrc,
     /bankr\.preflight\.sweep/,
     "operator actions write bankr.preflight.sweep audit action"
+  );
+  mustContain(
+    actionsSrc,
+    /bankr\.plan\.sweep/,
+    "operator actions write bankr.plan.sweep audit action"
   );
 }, results);
 
@@ -229,14 +239,29 @@ check(function operator_surface_wires_preflight_sweep_controls() {
     "operator client passes onRunPreflightSweep prop"
   );
   mustContain(
+    operatorClientSrc,
+    /onRunPlanSweep=/,
+    "operator client passes onRunPlanSweep prop"
+  );
+  mustContain(
     opsBoardSrc,
     /Preflight Sweep/,
     "ops board renders preflight sweep control"
   );
   mustContain(
     opsBoardSrc,
+    /Generate Plans/,
+    "ops board renders plan sweep control"
+  );
+  mustContain(
+    opsBoardSrc,
     /Preflight blockers/,
     "ops board renders preflight blockers list"
+  );
+  mustContain(
+    opsBoardSrc,
+    /Plan blockers/,
+    "ops board renders plan blockers list"
   );
 }, results);
 

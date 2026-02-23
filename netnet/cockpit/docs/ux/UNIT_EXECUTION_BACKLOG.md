@@ -488,3 +488,23 @@ This backlog tracks machine-first Operator execution units.
   - sweep action wiring
   - execute preflight-first UX copy
   - Ops preflight controls/blocker surfacing
+
+### Unit 146 — Bankr plan sweep action
+
+- Added `runBankrPlanSweepAction()` server action in Operator:
+  - scans approved + locked + idle Bankr proposals missing plan
+  - generates deterministic dry-run execution plans in bulk
+  - emits summary audit lines (`bankr.plan.sweep`)
+
+### Unit 147 — Ops plan blocker lane
+
+- Added `Generate Plans` control in Ops Board `Now` section.
+- Added `Plan blockers` list for Bankr proposals still missing execution plans, with one-click focus to proposal cards.
+- Added plan-missing count chip next to preflight blocker status.
+
+### Unit 148 — Bankr integrity guard update (plan sweep)
+
+- Extended `scripts/check-bankr-integrity.mjs` to enforce:
+  - plan sweep action export + audit wiring in operator actions
+  - operator console prop wiring for plan sweep
+  - Ops Board plan sweep button + plan blocker list surface
