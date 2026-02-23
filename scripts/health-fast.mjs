@@ -31,4 +31,5 @@ run("node", ["scripts/check-route-policy-enforcement.mjs"]);
 run("node", ["scripts/check-proof-lane.mjs"]);
 run("node", ["scripts/check-service-connector-health.mjs"]);
 run("node", ["scripts/check-mcp-connectors.mjs"]);
+run("node", ["scripts/check-bankr-integrity.mjs"]);
 console.log("HEALTH FAST: PASS");

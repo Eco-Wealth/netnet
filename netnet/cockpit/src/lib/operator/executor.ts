@@ -229,6 +229,20 @@ function hasConfirmedWrite(proposal: SkillProposalEnvelope): boolean {
   return proposal.metadata?.confirmedWrite === true;
 }
 
+function hasWriteReplay(proposal: SkillProposalEnvelope): boolean {
+  const metadata = toRecord(proposal.metadata);
+  const priorWriteExecutionId =
+    typeof metadata.writeExecutionId === "string"
+      ? metadata.writeExecutionId
+      : undefined;
+  const priorWriteExecutedAt =
+    typeof metadata.writeExecutedAt === "number"
+      ? metadata.writeExecutedAt
+      : undefined;
+  const priorSuccess = proposal.executionResult?.ok === true;
+  return Boolean(priorWriteExecutionId || priorWriteExecutedAt || priorSuccess);
+}
+
 function policyContextFromProposal(
   proposal: SkillProposalEnvelope,
   target: ExecutionTarget,
@@ -405,6 +419,12 @@ export function validateExecutionBoundary(
     throw new ExecutionBoundaryError(
       "write_confirmation_required",
       `Execution blocked: ${target.action} requires metadata.confirmedWrite=true.`
+    );
+  }
+  if (target.route.startsWith("/api/bankr") && isWriteAction(target.action) && hasWriteReplay(proposal)) {
+    throw new ExecutionBoundaryError(
+      "write_replay_blocked",
+      `Execution blocked: write action already executed (${target.action}).`
     );
   }
   return { route: target.route, action: target.action };

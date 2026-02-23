@@ -16,7 +16,8 @@
     "contracts:check": "node scripts/check-api-contract-sot.mjs",
     "policy:integrity": "node scripts/check-policy-integrity.mjs",
     "policy:routes": "node scripts/check-route-policy-enforcement.mjs",
-    "drift:check": "npm run contracts:check && npm run policy:integrity && npm run policy:routes"
+    "bankr:check": "node scripts/check-bankr-integrity.mjs",
+    "drift:check": "npm run contracts:check && npm run policy:integrity && npm run policy:routes && npm run bankr:check"
   },
   "dependencies": {
     "axios": "^1.13.5"

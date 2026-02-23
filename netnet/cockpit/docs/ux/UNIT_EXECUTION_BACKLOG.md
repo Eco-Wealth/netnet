@@ -314,3 +314,38 @@ This backlog tracks machine-first Operator execution units.
   - next deterministic queue action
   - social connector availability
 - Added UI controls to build and inspect handoff bundle JSON for agent handoff.
+
+### Unit 128 — Bankr integrity drift guard + health-fast lane
+
+- Added `scripts/check-bankr-integrity.mjs` to enforce canonical Bankr alignment across:
+  - skills registry
+  - API SOT routes/ownership
+  - LLM canonical action/route guidance
+  - strict proposal action/route map
+  - Bankr adapter map
+  - execution replay/write guards
+  - policy simulate allowance
+- Added `npm run bankr:check` and wired it into:
+  - `drift:check`
+  - `health:fast`
+
+### Unit 129 — Bankr integration tests (read/propose surfaces)
+
+- Added Playwright integration tests:
+  - `tests/bankr-integration.spec.ts`
+- Coverage includes:
+  - token info read route
+  - token actions catalog/propose-only lane
+  - unknown action rejection
+  - wallet state route (deterministic mock lane in test env)
+- Updated Playwright webserver env defaults for deterministic Bankr test behavior.
+
+### Unit 130 — Bankr execution boundary hardening + tests
+
+- Added write replay guard in `store.executeProposal`:
+  - blocks re-execution of previously successful write actions
+  - records write execution markers in proposal metadata
+- Added execution-boundary replay check in `src/lib/operator/executor.ts`.
+- Added Playwright boundary tests:
+  - `tests/bankr-execution-boundary.spec.ts`
+  - covers launch bad-request rejection and `execute_privy` write-lane guards.

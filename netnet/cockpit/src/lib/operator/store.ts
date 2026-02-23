@@ -549,6 +549,47 @@ function assertWriteConfirmation(
   );
 }
 
+function assertNoWriteReplay(
+  proposal: SkillProposalEnvelope,
+  action: string
+): void {
+  if (
+    !proposal.route.startsWith("/api/bankr") &&
+    !proposal.route.startsWith("/api/agent/zora") &&
+    !proposal.route.startsWith("/api/agent/kumbaya")
+  ) {
+    return;
+  }
+  const body = toRecord(proposal.proposedBody);
+  const txBody =
+    body.transaction && typeof body.transaction === "object"
+      ? toRecord(body.transaction)
+      : {};
+  const hasTransactionPayload =
+    typeof txBody.to === "string" ||
+    typeof body.to === "string" ||
+    typeof body.data === "string";
+  const treatAsWrite = isWriteAction(action) || hasTransactionPayload;
+  if (!treatAsWrite) return;
+
+  const metadata = toRecord(proposal.metadata);
+  const priorWriteExecutionId =
+    typeof metadata.writeExecutionId === "string"
+      ? metadata.writeExecutionId
+      : undefined;
+  const priorWriteExecutedAt =
+    typeof metadata.writeExecutedAt === "number"
+      ? metadata.writeExecutedAt
+      : undefined;
+  const priorSuccess = proposal.executionResult?.ok === true;
+
+  if (priorWriteExecutionId || priorWriteExecutedAt || priorSuccess) {
+    throw new Error(
+      `Execution blocked: write action already executed (${action}).`
+    );
+  }
+}
+
 function policyActionForExecution(proposal: SkillProposalEnvelope): PolicyAction {
   if (isBankrProposal(proposal)) {
     const target = getBankrExecutionTarget({ proposal });
@@ -1081,6 +1122,7 @@ export async function executeProposal(id: string): Promise<SkillProposalEnvelope
   const policyAction = policyActionForExecution(proposal);
   assertProposalWalletScope(proposal, policyAction);
   assertWriteConfirmation(proposal, policyAction);
+  assertNoWriteReplay(proposal, policyAction);
   const gate = enforcePolicy(
     policyAction,
     policyContextForExecution(proposal, policyAction, policy.autonomy)
@@ -1109,6 +1151,13 @@ export async function executeProposal(id: string): Promise<SkillProposalEnvelope
     proposal.executionStatus = "completed";
     proposal.executionCompletedAt = Date.now();
     proposal.executionError = undefined;
+    if (isWriteAction(policyAction)) {
+      proposal.metadata = {
+        ...(proposal.metadata || {}),
+        writeExecutionId: executionId,
+        writeExecutedAt: proposal.executionCompletedAt,
+      };
+    }
 
     const flows = deriveUsdFlows(proposal, result);
     if (flows.length > 0) {
