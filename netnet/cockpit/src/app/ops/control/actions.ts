@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 import { getOpsCommandById, type OpsCommandSpec, type OpsRole } from "./commands";
 import { createStubMCPClient } from "@/mcp";
 import type { MCPChain, MCPResponse } from "@/mcp/types";
-import { appendWorkEvent, createWork, type WorkItem, type WorkPriority } from "@/lib/work";
+import { appendWorkEvent, createWork, getWork, type WorkItem, type WorkPriority } from "@/lib/work";
 
 const COCKPIT_ROOT = process.cwd();
 const REPO_ROOT = path.resolve(COCKPIT_ROOT, "..", "..");
@@ -72,6 +72,18 @@ export type OpsWorkOrderContract = {
   outputs: {
     required: string[];
   };
+  incentives: {
+    payoutUsdCap: number;
+    liquidityPledge?: {
+      enabled: true;
+      mechanism: "ecowealth-pledge-v0";
+      chainId: 8453;
+      ecoToken: "0x170dc0ca26f1247ced627d8abcafa90ecf1e1519";
+      partnerToken?: string;
+      ecoMatchedCapWei?: string;
+      notes: string;
+    };
+  };
 };
 
 export type OpsWorkOrderResult = {
@@ -81,6 +93,29 @@ export type OpsWorkOrderResult = {
   workId?: string;
   title?: string;
   contract?: OpsWorkOrderContract;
+  error?: string;
+};
+
+type OpenClawRemoteResult = {
+  requested: boolean;
+  ok: boolean;
+  endpoint?: string;
+  statusCode?: number;
+  mode: "remote" | "stub";
+  response?: unknown;
+  error?: string;
+};
+
+export type VealthDispatchStatus = {
+  ok: boolean;
+  role: OpsRole;
+  checkedAt: number;
+  workId: string;
+  state: "created" | "dispatched" | "running" | "stopped" | "unknown" | "error";
+  contract?: OpsWorkOrderContract;
+  remote?: OpenClawRemoteResult;
+  lastEventType?: string;
+  lastEventAt?: string;
   error?: string;
 };
 
@@ -243,6 +278,12 @@ function toEnvCheck(): OpenClawEnvCheckItem[] {
       required: false,
       present: Boolean(String(process.env.OPENCLAW_AGENT_ID || "").trim()),
       hint: "Optional but useful for scoped runs",
+    },
+    {
+      key: "OPENCLAW_WORKORDER_ENDPOINT",
+      required: false,
+      present: Boolean(String(process.env.OPENCLAW_WORKORDER_ENDPOINT || "").trim()),
+      hint: "Optional dispatch endpoint path (default /api/agent/work-orders)",
     },
     {
       key: "OPENROUTER_API_KEY",
@@ -595,6 +636,25 @@ function readBudget(value: unknown): number {
   return Math.max(0, Math.round(numeric * 100) / 100);
 }
 
+function readBool(value: unknown): boolean {
+  if (typeof value === "boolean") return value;
+  if (typeof value !== "string") return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes";
+}
+
+function normalizeAddress(value: unknown): string | undefined {
+  const raw = String(value || "").trim();
+  if (!/^0x[a-fA-F0-9]{40}$/.test(raw)) return undefined;
+  return raw.toLowerCase();
+}
+
+function normalizeWei(value: unknown): string | undefined {
+  const raw = String(value || "").trim();
+  if (!/^\d+$/.test(raw)) return undefined;
+  return raw;
+}
+
 function toWorkOrderTitle(goal: string): string {
   const single = String(goal || "").replace(/\s+/g, " ").trim() || "Untitled work order";
   const short = single.length > 72 ? `${single.slice(0, 72)}...` : single;
@@ -607,7 +667,24 @@ function buildWorkOrderContract(args: {
   budgetUsd: number;
   commandIds: string[];
   rationale: string[];
+  liquidityPledgeEnabled: boolean;
+  liquidityPledgePartnerToken?: string;
+  liquidityPledgeCapWei?: string;
 }): OpsWorkOrderContract {
+  const pledge =
+    args.liquidityPledgeEnabled
+      ? {
+          enabled: true as const,
+          mechanism: "ecowealth-pledge-v0" as const,
+          chainId: 8453 as const,
+          ecoToken: "0x170dc0ca26f1247ced627d8abcafa90ecf1e1519" as const,
+          partnerToken: args.liquidityPledgePartnerToken,
+          ecoMatchedCapWei: args.liquidityPledgeCapWei,
+          notes:
+            "Whitelist-only pledge: match partner token with ECO and lock LP principal in vault.",
+        }
+      : undefined;
+
   return {
     version: "netnet.workorder.v1",
     goal: args.goal,
@@ -631,6 +708,10 @@ function buildWorkOrderContract(args: {
         "proof_or_audit_event_reference",
       ],
     },
+    incentives: {
+      payoutUsdCap: args.budgetUsd,
+      liquidityPledge: pledge,
+    },
   };
 }
 
@@ -652,6 +733,9 @@ export async function createVealthWorkOrderAction(input: {
   owner?: string;
   budgetUsd?: number;
   priority?: WorkPriority;
+  liquidityPledgeEnabled?: boolean;
+  liquidityPledgePartnerToken?: string;
+  liquidityPledgeCapWei?: string;
 }): Promise<OpsWorkOrderResult> {
   const effectiveRole = resolveServerRole();
   const checkedAt = Date.now();
@@ -667,12 +751,18 @@ export async function createVealthWorkOrderAction(input: {
 
   const plan = deriveCommandsFromGoal(goal);
   const budgetUsd = readBudget(input.budgetUsd);
+  const liquidityPledgeEnabled = readBool(input.liquidityPledgeEnabled);
+  const liquidityPledgePartnerToken = normalizeAddress(input.liquidityPledgePartnerToken);
+  const liquidityPledgeCapWei = normalizeWei(input.liquidityPledgeCapWei);
   const contract = buildWorkOrderContract({
     goal: plan.goal,
     role: effectiveRole,
     budgetUsd,
     commandIds: plan.commandIds,
     rationale: plan.rationale,
+    liquidityPledgeEnabled,
+    liquidityPledgePartnerToken,
+    liquidityPledgeCapWei,
   });
 
   const work = createWork({
@@ -682,6 +772,9 @@ export async function createVealthWorkOrderAction(input: {
       `Goal: ${plan.goal}`,
       `Command lane: ${plan.commandIds.join(" -> ")}`,
       `Budget cap (USD): ${contract.constraints.maxBudgetUsd}`,
+      liquidityPledgeEnabled
+        ? `Liquidity pledge: enabled (partner=${liquidityPledgePartnerToken || "unset"}, capWei=${liquidityPledgeCapWei || "unset"})`
+        : "Liquidity pledge: disabled",
     ].join("\n"),
     owner: String(input.owner || "vealth").trim() || "vealth",
     priority: readPriority(input.priority),
@@ -711,6 +804,408 @@ export async function createVealthWorkOrderAction(input: {
     title: withEvent?.title || work.title,
     contract,
   };
+}
+
+function canOperateVealth(role: OpsRole): boolean {
+  return role === "operator" || role === "admin";
+}
+
+function extractWorkOrderContract(item: WorkItem): OpsWorkOrderContract | undefined {
+  const events = [...item.events].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  for (const event of events) {
+    const patch =
+      event.patch && typeof event.patch === "object" && !Array.isArray(event.patch)
+        ? (event.patch as Record<string, unknown>)
+        : undefined;
+    const contract =
+      patch &&
+      patch.workOrderContract &&
+      typeof patch.workOrderContract === "object" &&
+      !Array.isArray(patch.workOrderContract)
+        ? (patch.workOrderContract as OpsWorkOrderContract)
+        : undefined;
+    if (contract?.version === "netnet.workorder.v1") {
+      return contract;
+    }
+  }
+  return undefined;
+}
+
+function deriveDispatchState(item: WorkItem): VealthDispatchStatus["state"] {
+  const events = [...item.events].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  for (const event of events) {
+    const patch =
+      event.patch && typeof event.patch === "object" && !Array.isArray(event.patch)
+        ? (event.patch as Record<string, unknown>)
+        : undefined;
+    const dispatch =
+      patch &&
+      patch.dispatch &&
+      typeof patch.dispatch === "object" &&
+      !Array.isArray(patch.dispatch)
+        ? (patch.dispatch as Record<string, unknown>)
+        : undefined;
+    if (dispatch && typeof dispatch.state === "string") {
+      const state = dispatch.state;
+      if (
+        state === "created" ||
+        state === "dispatched" ||
+        state === "running" ||
+        state === "stopped" ||
+        state === "unknown" ||
+        state === "error"
+      ) {
+        return state;
+      }
+    }
+  }
+  return "created";
+}
+
+async function callOpenClawDispatch(action: string, payload: Record<string, unknown>): Promise<OpenClawRemoteResult> {
+  const dashboard = String(process.env.OPENCLAW_DASHBOARD_URL || "").trim();
+  const apiKey = String(process.env.OPENCLAW_API_KEY || "").trim();
+  const endpointPath = String(process.env.OPENCLAW_WORKORDER_ENDPOINT || "/api/agent/work-orders").trim();
+  const agentId = String(process.env.OPENCLAW_AGENT_ID || "").trim();
+  const fallbackEndpoint = dashboard
+    ? `${dashboard.replace(/\/$/, "")}${endpointPath.startsWith("/") ? endpointPath : `/${endpointPath}`}`
+    : endpointPath;
+
+  if (!dashboard || !apiKey) {
+    return {
+      requested: false,
+      ok: true,
+      mode: "stub",
+      endpoint: fallbackEndpoint,
+      response: {
+        accepted: true,
+        mode: "stub",
+        reason: "missing_openclaw_dashboard_or_api_key",
+        action,
+        agentId: agentId || undefined,
+      },
+    };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12_000);
+  try {
+    const endpoint = new URL(endpointPath, dashboard).toString();
+    const response = await fetch(endpoint, {
+      method: "POST",
+      cache: "no-store",
+      signal: controller.signal,
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        action,
+        agentId: agentId || undefined,
+        payload,
+      }),
+    });
+
+    let parsed: unknown = null;
+    try {
+      parsed = await response.json();
+    } catch {
+      parsed = null;
+    }
+
+    return {
+      requested: true,
+      ok: response.ok,
+      mode: "remote",
+      endpoint,
+      statusCode: response.status,
+      response: parsed,
+      error: response.ok ? undefined : `openclaw_http_${response.status}`,
+    };
+  } catch (error) {
+    return {
+      requested: true,
+      ok: false,
+      mode: "remote",
+      endpoint: fallbackEndpoint,
+      error: error instanceof Error ? error.message : "openclaw_dispatch_failed",
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function toDispatchStatus(args: {
+  role: OpsRole;
+  checkedAt: number;
+  item: WorkItem;
+  remote?: OpenClawRemoteResult;
+  error?: string;
+}): VealthDispatchStatus {
+  const latestEvent = [...args.item.events].sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0];
+  return {
+    ok: !args.error,
+    role: args.role,
+    checkedAt: args.checkedAt,
+    workId: args.item.id,
+    state: deriveDispatchState(args.item),
+    contract: extractWorkOrderContract(args.item),
+    remote: args.remote,
+    lastEventType: latestEvent?.type,
+    lastEventAt: latestEvent?.at,
+    error: args.error,
+  };
+}
+
+export async function dispatchVealthWorkOrderAction(input: {
+  role?: OpsRole;
+  workId: string;
+}): Promise<VealthDispatchStatus> {
+  const effectiveRole = resolveServerRole();
+  const checkedAt = Date.now();
+  const workId = String(input.workId || "").trim();
+  if (!workId) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId: "",
+      state: "error",
+      error: "work_id_required",
+    };
+  }
+  if (!canOperateVealth(effectiveRole)) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId,
+      state: "error",
+      error: "role_denied",
+    };
+  }
+
+  const item = getWork(workId);
+  if (!item) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId,
+      state: "error",
+      error: "work_not_found",
+    };
+  }
+
+  const contract = extractWorkOrderContract(item);
+  const payload = {
+    workId: item.id,
+    title: item.title,
+    owner: item.owner || "vealth",
+    contract,
+  };
+  const remote = await callOpenClawDispatch("dispatch", payload);
+
+  const next = appendWorkEvent(item.id, {
+    type: "APPROVAL_REQUESTED",
+    by: "operator",
+    note: remote.ok ? "Dispatched to Vealth/OpenClaw." : "Dispatch failed for Vealth/OpenClaw.",
+    patch: {
+      dispatch: {
+        state: remote.ok ? "dispatched" : "error",
+        remote,
+      },
+    },
+  });
+  const finalItem = next || item;
+  revalidatePath("/ops/control");
+  revalidatePath("/work");
+  return toDispatchStatus({
+    role: effectiveRole,
+    checkedAt,
+    item: finalItem,
+    remote,
+    error: remote.ok ? undefined : remote.error || "dispatch_failed",
+  });
+}
+
+export async function heartbeatVealthWorkOrderAction(input: {
+  role?: OpsRole;
+  workId: string;
+  note?: string;
+}): Promise<VealthDispatchStatus> {
+  const effectiveRole = resolveServerRole();
+  const checkedAt = Date.now();
+  const workId = String(input.workId || "").trim();
+  if (!workId) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId: "",
+      state: "error",
+      error: "work_id_required",
+    };
+  }
+  if (!canOperateVealth(effectiveRole)) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId,
+      state: "error",
+      error: "role_denied",
+    };
+  }
+  const item = getWork(workId);
+  if (!item) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId,
+      state: "error",
+      error: "work_not_found",
+    };
+  }
+
+  const remote = await callOpenClawDispatch("heartbeat", {
+    workId: item.id,
+    title: item.title,
+    note: String(input.note || "").trim() || undefined,
+  });
+  const next = appendWorkEvent(item.id, {
+    type: "COMMENT",
+    by: "operator",
+    note: String(input.note || "").trim() || "Heartbeat sent to Vealth/OpenClaw.",
+    patch: {
+      dispatch: {
+        state: "running",
+        remote,
+      },
+    },
+  });
+  const finalItem = next || item;
+  revalidatePath("/ops/control");
+  revalidatePath("/work");
+  return toDispatchStatus({
+    role: effectiveRole,
+    checkedAt,
+    item: finalItem,
+    remote,
+    error: remote.ok ? undefined : remote.error || "heartbeat_failed",
+  });
+}
+
+export async function stopVealthWorkOrderAction(input: {
+  role?: OpsRole;
+  workId: string;
+  reason?: string;
+}): Promise<VealthDispatchStatus> {
+  const effectiveRole = resolveServerRole();
+  const checkedAt = Date.now();
+  const workId = String(input.workId || "").trim();
+  if (!workId) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId: "",
+      state: "error",
+      error: "work_id_required",
+    };
+  }
+  if (!canOperateVealth(effectiveRole)) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId,
+      state: "error",
+      error: "role_denied",
+    };
+  }
+  const item = getWork(workId);
+  if (!item) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId,
+      state: "error",
+      error: "work_not_found",
+    };
+  }
+
+  const reason = String(input.reason || "").trim() || "Operator requested stop.";
+  const remote = await callOpenClawDispatch("stop", {
+    workId: item.id,
+    reason,
+  });
+  const next = appendWorkEvent(item.id, {
+    type: "ESCALATED",
+    by: "operator",
+    note: reason,
+    patch: {
+      dispatch: {
+        state: "stopped",
+        remote,
+      },
+    },
+  });
+  const finalItem = next || item;
+  revalidatePath("/ops/control");
+  revalidatePath("/work");
+  return toDispatchStatus({
+    role: effectiveRole,
+    checkedAt,
+    item: finalItem,
+    remote,
+    error: remote.ok ? undefined : remote.error || "stop_failed",
+  });
+}
+
+export async function getVealthWorkOrderStatusAction(input: {
+  role?: OpsRole;
+  workId: string;
+}): Promise<VealthDispatchStatus> {
+  const effectiveRole = resolveServerRole();
+  const checkedAt = Date.now();
+  const workId = String(input.workId || "").trim();
+  if (!workId) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId: "",
+      state: "error",
+      error: "work_id_required",
+    };
+  }
+  const item = getWork(workId);
+  if (!item) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId,
+      state: "error",
+      error: "work_not_found",
+    };
+  }
+  const remote = await callOpenClawDispatch("status", {
+    workId: item.id,
+    title: item.title,
+  });
+  revalidatePath("/ops/control");
+  revalidatePath("/work");
+  return toDispatchStatus({
+    role: effectiveRole,
+    checkedAt,
+    item,
+    remote,
+    error: remote.ok ? undefined : remote.error || "status_failed",
+  });
 }
 
 export async function readAIEyesArtifactsAction(): Promise<AIEyesArtifacts> {

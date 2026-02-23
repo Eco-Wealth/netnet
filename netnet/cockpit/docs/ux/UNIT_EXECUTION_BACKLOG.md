@@ -217,6 +217,20 @@ This backlog tracks machine-first Operator execution units.
   - budget cap and required output artifacts
 - Contract is persisted in Work event audit trail (`APPROVAL_REQUESTED` patch).
 
+### Unit 118 — Vealth dispatch adapter + liquidity pledge metadata
+
+- Added `/ops/control` actions for Vealth lifecycle controls:
+  - dispatch
+  - heartbeat
+  - stop
+  - status refresh
+- Dispatch writes deterministic event patches into Work for auditability.
+- Added liquidity pledge metadata in work-order incentives:
+  - mechanism `ecowealth-pledge-v0`
+  - Base chain (`8453`) + ECO token baseline
+  - optional partner token + ECO matched cap (wei)
+- Added operator docs and env hooks for pledge-aware dispatch setup.
+
 ## Proposed
 
 ### Unit 121 — Social autopublish sequence (YouTube -> X -> Instagram -> Facebook)

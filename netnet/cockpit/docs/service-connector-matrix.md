@@ -14,6 +14,7 @@ Canonical map of external/internal connectors used by Operator workflows.
 | Registry Review MCP | External MCP | `REGISTRY_REVIEW_MCP_URL` | Registry + contract review context | platform | Read/Propose |
 | Regen KOI MCP | External MCP | `REGEN_KOI_MCP_URL` | Regen ops/market context for plans | platform | Read/Propose |
 | Regen Python MCP | External MCP | `REGEN_PYTHON_MCP_URL` | Regen analytics + scoring context | platform | Read/Propose |
+| Liquidity Pledge (EcoWealth v0) | External contract lane | Base v4 + Permit2 (work-order metadata) | Incentive matching for agent work orders with locked LP pledge semantics | platform | Proposal/Execute gated |
 | Telegram Bridge | External API | `telegram sendMessage` + `/api/telegram/webhook` | Read/Propose chat ingress | platform | No execute |
 | Bridge Quote | Internal route | `/api/bridge/quote` | Quote generation | platform | Read |
 | Bridge Retire | Internal route | `/api/bridge/retire` | Retirement execution | platform | Execute gated |

@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState, useTransition, type CSSProperties } from "react";
 import {
   createVealthWorkOrderAction,
+  dispatchVealthWorkOrderAction,
+  getVealthWorkOrderStatusAction,
+  heartbeatVealthWorkOrderAction,
   getOpsAccessContextAction,
   readAIEyesArtifactsAction,
   planOpsSequenceFromGoalAction,
@@ -13,6 +16,7 @@ import {
   runOpenClawSchedulerCheckAction,
   runOpsCommandAction,
   runOpsSequenceAction,
+  stopVealthWorkOrderAction,
   type AIEyesArtifacts,
   type OpenClawBootstrapResult,
   type OpenClawConnectionResult,
@@ -23,6 +27,7 @@ import {
   type OpsPlanResult,
   type OpsRunResult,
   type OpsSequenceResult,
+  type VealthDispatchStatus,
   type OpsWorkOrderResult,
 } from "./actions";
 import { OPS_COMMANDS, OPS_ROLES, type OpsRole } from "./commands";
@@ -380,9 +385,15 @@ export default function ControlCenterClient() {
   const [lastSequence, setLastSequence] = useState<OpsSequenceResult | null>(null);
   const [plannedSequence, setPlannedSequence] = useState<OpsPlanResult | null>(null);
   const [lastWorkOrder, setLastWorkOrder] = useState<OpsWorkOrderResult | null>(null);
+  const [dispatchStatus, setDispatchStatus] = useState<VealthDispatchStatus | null>(null);
   const [goalDraft, setGoalDraft] = useState("");
   const [workOrderOwner, setWorkOrderOwner] = useState("vealth");
   const [workOrderBudget, setWorkOrderBudget] = useState("0");
+  const [pledgeEnabled, setPledgeEnabled] = useState(false);
+  const [pledgePartnerToken, setPledgePartnerToken] = useState("");
+  const [pledgeCapWei, setPledgeCapWei] = useState("0");
+  const [heartbeatNote, setHeartbeatNote] = useState("");
+  const [stopReason, setStopReason] = useState("");
   const [workOrderPriority, setWorkOrderPriority] =
     useState<"LOW" | "MEDIUM" | "HIGH" | "CRITICAL">("MEDIUM");
   const [artifacts, setArtifacts] = useState<AIEyesArtifacts | null>(null);
@@ -468,8 +479,59 @@ export default function ControlCenterClient() {
         owner: workOrderOwner,
         budgetUsd: Number(workOrderBudget || 0),
         priority: workOrderPriority,
+        liquidityPledgeEnabled: pledgeEnabled,
+        liquidityPledgePartnerToken: pledgePartnerToken,
+        liquidityPledgeCapWei: pledgeCapWei,
       });
       setLastWorkOrder(result);
+    });
+  }
+
+  function refreshDispatchStatus() {
+    if (!lastWorkOrder?.workId) return;
+    startTransition(async () => {
+      const result = await getVealthWorkOrderStatusAction({
+        role,
+        workId: lastWorkOrder.workId!,
+      });
+      setDispatchStatus(result);
+    });
+  }
+
+  function dispatchToVealth() {
+    if (!lastWorkOrder?.workId) return;
+    startTransition(async () => {
+      const result = await dispatchVealthWorkOrderAction({
+        role,
+        workId: lastWorkOrder.workId!,
+      });
+      setDispatchStatus(result);
+    });
+  }
+
+  function sendHeartbeat() {
+    if (!lastWorkOrder?.workId) return;
+    startTransition(async () => {
+      const result = await heartbeatVealthWorkOrderAction({
+        role,
+        workId: lastWorkOrder.workId!,
+        note: heartbeatNote,
+      });
+      setDispatchStatus(result);
+      setHeartbeatNote("");
+    });
+  }
+
+  function stopDispatch() {
+    if (!lastWorkOrder?.workId) return;
+    startTransition(async () => {
+      const result = await stopVealthWorkOrderAction({
+        role,
+        workId: lastWorkOrder.workId!,
+        reason: stopReason,
+      });
+      setDispatchStatus(result);
+      setStopReason("");
     });
   }
 
@@ -742,6 +804,57 @@ export default function ControlCenterClient() {
                 <option value="CRITICAL">CRITICAL</option>
               </select>
             </label>
+            <label style={{ display: "grid", gap: 4, fontSize: 12, opacity: 0.9 }}>
+              Liquidity pledge
+              <select
+                value={pledgeEnabled ? "on" : "off"}
+                onChange={(event) => setPledgeEnabled(event.target.value === "on")}
+                style={{
+                  borderRadius: 8,
+                  padding: "6px 10px",
+                  border: "1px solid var(--nn-border-subtle, #1f2b45)",
+                  background: "var(--nn-surface-0, rgba(3, 8, 18, 0.8))",
+                  color: "inherit",
+                }}
+              >
+                <option value="off">off</option>
+                <option value="on">on</option>
+              </select>
+            </label>
+            {pledgeEnabled ? (
+              <>
+                <label style={{ display: "grid", gap: 4, fontSize: 12, opacity: 0.9 }}>
+                  Partner token (Base)
+                  <input
+                    value={pledgePartnerToken}
+                    onChange={(event) => setPledgePartnerToken(event.target.value)}
+                    placeholder="0x..."
+                    style={{
+                      borderRadius: 8,
+                      padding: "6px 10px",
+                      border: "1px solid var(--nn-border-subtle, #1f2b45)",
+                      background: "var(--nn-surface-0, rgba(3, 8, 18, 0.8))",
+                      color: "inherit",
+                    }}
+                  />
+                </label>
+                <label style={{ display: "grid", gap: 4, fontSize: 12, opacity: 0.9 }}>
+                  ECO matched cap (wei)
+                  <input
+                    value={pledgeCapWei}
+                    onChange={(event) => setPledgeCapWei(event.target.value)}
+                    placeholder="1000000000000000000"
+                    style={{
+                      borderRadius: 8,
+                      padding: "6px 10px",
+                      border: "1px solid var(--nn-border-subtle, #1f2b45)",
+                      background: "var(--nn-surface-0, rgba(3, 8, 18, 0.8))",
+                      color: "inherit",
+                    }}
+                  />
+                </label>
+              </>
+            ) : null}
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button
@@ -761,8 +874,96 @@ export default function ControlCenterClient() {
               </a>
             ) : null}
           </div>
+          {lastWorkOrder?.workId ? (
+            <div style={{ display: "grid", gap: 8 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={dispatchToVealth}
+                  style={{ padding: "6px 10px", borderRadius: 8 }}
+                >
+                  Dispatch to Vealth
+                </button>
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={refreshDispatchStatus}
+                  style={{ padding: "6px 10px", borderRadius: 8 }}
+                >
+                  Refresh status
+                </button>
+              </div>
+              <div
+                style={{
+                  display: "grid",
+                  gap: 8,
+                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                }}
+              >
+                <label style={{ display: "grid", gap: 4, fontSize: 12, opacity: 0.9 }}>
+                  Heartbeat note
+                  <input
+                    value={heartbeatNote}
+                    onChange={(event) => setHeartbeatNote(event.target.value)}
+                    placeholder="Agent running in bounded mode."
+                    style={{
+                      borderRadius: 8,
+                      padding: "6px 10px",
+                      border: "1px solid var(--nn-border-subtle, #1f2b45)",
+                      background: "var(--nn-surface-0, rgba(3, 8, 18, 0.8))",
+                      color: "inherit",
+                    }}
+                  />
+                </label>
+                <label style={{ display: "grid", gap: 4, fontSize: 12, opacity: 0.9 }}>
+                  Stop reason
+                  <input
+                    value={stopReason}
+                    onChange={(event) => setStopReason(event.target.value)}
+                    placeholder="Budget cap reached."
+                    style={{
+                      borderRadius: 8,
+                      padding: "6px 10px",
+                      border: "1px solid var(--nn-border-subtle, #1f2b45)",
+                      background: "var(--nn-surface-0, rgba(3, 8, 18, 0.8))",
+                      color: "inherit",
+                    }}
+                  />
+                </label>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={sendHeartbeat}
+                  style={{ padding: "6px 10px", borderRadius: 8 }}
+                >
+                  Heartbeat
+                </button>
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={stopDispatch}
+                  style={{ padding: "6px 10px", borderRadius: 8 }}
+                >
+                  Stop
+                </button>
+              </div>
+            </div>
+          ) : null}
           {lastWorkOrder?.error ? (
             <div style={{ fontSize: 12, color: "#f5b6b6" }}>Error: {lastWorkOrder.error}</div>
+          ) : null}
+          {dispatchStatus ? (
+            <div style={{ fontSize: 12, opacity: 0.85 }}>
+              Dispatch: {dispatchStatus.state}
+              {dispatchStatus.remote
+                ? ` • ${dispatchStatus.remote.mode}${dispatchStatus.remote.requested ? "" : " (local queue)"}`
+                : ""}
+              {dispatchStatus.remote?.statusCode ? ` • HTTP ${dispatchStatus.remote.statusCode}` : ""}
+              {dispatchStatus.error ? ` • ${dispatchStatus.error}` : ""}
+            </div>
           ) : null}
           {lastWorkOrder?.contract ? (
             <details>
