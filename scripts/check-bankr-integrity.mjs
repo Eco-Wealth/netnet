@@ -17,7 +17,9 @@ const files = {
   adapter: path.join(cockpitRoot, "src/lib/operator/adapters/bankr.ts"),
   actionSchema: path.join(cockpitRoot, "src/lib/bankr/actionSchema.ts"),
   actions: path.join(cockpitRoot, "src/app/operator/actions.ts"),
+  operatorClient: path.join(cockpitRoot, "src/app/operator/operator-console-client.tsx"),
   conversation: path.join(cockpitRoot, "src/components/operator/ConversationPanel.tsx"),
+  opsBoard: path.join(cockpitRoot, "src/components/operator/OpsBoard.tsx"),
   store: path.join(cockpitRoot, "src/lib/operator/store.ts"),
   executor: path.join(cockpitRoot, "src/lib/operator/executor.ts"),
   policyTypes: path.join(cockpitRoot, "src/lib/policy/types.ts"),
@@ -56,7 +58,9 @@ const proposalSrc = read(files.proposal);
 const adapterSrc = read(files.adapter);
 const actionSchemaSrc = read(files.actionSchema);
 const actionsSrc = read(files.actions);
+const operatorClientSrc = read(files.operatorClient);
 const conversationSrc = read(files.conversation);
+const opsBoardSrc = read(files.opsBoard);
 const storeSrc = read(files.store);
 const executorSrc = read(files.executor);
 const policyTypesSrc = read(files.policyTypes);
@@ -175,8 +179,18 @@ check(function operator_actions_include_bankr_preflight_lane() {
   );
   mustContain(
     actionsSrc,
+    /export async function runBankrPreflightSweepAction\(/,
+    "operator actions export runBankrPreflightSweepAction"
+  );
+  mustContain(
+    actionsSrc,
     /bankr\.preflight/,
     "operator actions write bankr.preflight audit action"
+  );
+  mustContain(
+    actionsSrc,
+    /bankr\.preflight\.sweep/,
+    "operator actions write bankr.preflight.sweep audit action"
   );
 }, results);
 
@@ -195,6 +209,34 @@ check(function conversation_surface_shows_preflight_and_failure_details() {
     conversationSrc,
     /failureCategory/,
     "conversation surfaces failure category"
+  );
+  mustContain(
+    conversationSrc,
+    /Run Preflight first\./,
+    "conversation execute gate surfaces preflight-first guidance"
+  );
+}, results);
+
+check(function operator_surface_wires_preflight_sweep_controls() {
+  mustContain(
+    operatorClientSrc,
+    /runBankrPreflightSweepAction/,
+    "operator client imports/wires preflight sweep action"
+  );
+  mustContain(
+    operatorClientSrc,
+    /onRunPreflightSweep=/,
+    "operator client passes onRunPreflightSweep prop"
+  );
+  mustContain(
+    opsBoardSrc,
+    /Preflight Sweep/,
+    "ops board renders preflight sweep control"
+  );
+  mustContain(
+    opsBoardSrc,
+    /Preflight blockers/,
+    "ops board renders preflight blockers list"
   );
 }, results);
 

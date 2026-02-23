@@ -464,3 +464,27 @@ This backlog tracks machine-first Operator execution units.
   - preflight action export and audit wiring in operator actions
   - proposal preflight parsing/rendering in conversation UI
   - failure-category surfacing regression guard
+
+### Unit 143 — Bankr preflight sweep action
+
+- Added `runBankrPreflightSweepAction()` server action in Operator:
+  - scans approved + locked + idle Bankr proposals
+  - runs deterministic preflight on each candidate
+  - persists metadata preflight snapshots + normalized payloads
+  - emits summary audit lines (`bankr.preflight.sweep`)
+
+### Unit 144 — Execute gate requires preflight pass for Bankr
+
+- Tightened proposal-card execute UX gate:
+  - Bankr execute now requires both simulation pass and preflight pass
+  - Execute tooltip now guides explicitly: `Run Preflight first.`
+- Keeps backend enforcement unchanged while preventing avoidable failed execute attempts.
+
+### Unit 145 — Ops preflight blocker lane + drift checks
+
+- Added `Preflight Sweep` control in Ops Board `Now` section.
+- Added `Preflight blockers` list for Bankr proposals failing/missing preflight, with one-click focus into proposal cards.
+- Extended `scripts/check-bankr-integrity.mjs` to guard:
+  - sweep action wiring
+  - execute preflight-first UX copy
+  - Ops preflight controls/blocker surfacing

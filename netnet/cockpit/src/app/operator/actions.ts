@@ -357,16 +357,20 @@ export async function generateExecutionPlanAction(id: string): Promise<OperatorS
   return state();
 }
 
-export async function runBankrPreflightAction(id: string): Promise<OperatorStateResponse> {
+type BankrPreflightEvaluation = {
+  ok: boolean;
+  failedChecks: string[];
+  reason?: "proposal_not_found" | "not_bankr" | "policy_denied";
+};
+
+function evaluateAndPersistBankrPreflight(id: string): BankrPreflightEvaluation {
   const proposal = getProposal(id);
   if (!proposal) {
-    appendAuditMessage("Bankr preflight failed: proposal not found.", "bankr.preflight");
-    return state();
+    return { ok: false, failedChecks: ["proposal_not_found"], reason: "proposal_not_found" };
   }
 
   if (!proposal.route.includes("/api/bankr/")) {
-    appendAuditMessage("Bankr preflight skipped: proposal is not Bankr.", "bankr.preflight");
-    return state();
+    return { ok: false, failedChecks: ["not_bankr"], reason: "not_bankr" };
   }
 
   const gate = enforcePolicy("bankr.simulate", {
@@ -382,8 +386,7 @@ export async function runBankrPreflightAction(id: string): Promise<OperatorState
         : undefined,
   });
   if (!gate.ok) {
-    appendAuditMessage("Bankr preflight blocked: policy_denied.", "bankr.preflight");
-    return state();
+    return { ok: false, failedChecks: ["policy_denied"], reason: "policy_denied" };
   }
 
   const preflightBundle = getBankrExecutionPreflightBundle(id);
@@ -406,13 +409,76 @@ export async function runBankrPreflightAction(id: string): Promise<OperatorState
     .filter((check) => !check.ok)
     .map((check) => `${check.key}${check.detail ? ` (${check.detail})` : ""}`);
 
-  if (preflightBundle.ok) {
+  return { ok: preflightBundle.ok, failedChecks };
+}
+
+export async function runBankrPreflightAction(id: string): Promise<OperatorStateResponse> {
+  const result = evaluateAndPersistBankrPreflight(id);
+  if (result.reason === "proposal_not_found") {
+    appendAuditMessage("Bankr preflight failed: proposal not found.", "bankr.preflight");
+    return state();
+  }
+  if (result.reason === "not_bankr") {
+    appendAuditMessage("Bankr preflight skipped: proposal is not Bankr.", "bankr.preflight");
+    return state();
+  }
+  if (result.reason === "policy_denied") {
+    appendAuditMessage("Bankr preflight blocked: policy_denied.", "bankr.preflight");
+    return state();
+  }
+  if (result.ok) {
     appendAuditMessage("Bankr preflight passed.", "bankr.preflight");
   } else {
     appendAuditMessage(
-      `Bankr preflight failed (${failedChecks.join(" | ") || "unknown"}).`,
+      `Bankr preflight failed (${result.failedChecks.join(" | ") || "unknown"}).`,
       "bankr.preflight"
     );
+  }
+
+  return state();
+}
+
+export async function runBankrPreflightSweepAction(): Promise<OperatorStateResponse> {
+  const candidates = listProposals().filter(
+    (proposal) =>
+      proposal.route.includes("/api/bankr/") &&
+      proposal.status === "approved" &&
+      proposal.executionIntent === "locked" &&
+      proposal.executionStatus === "idle"
+  );
+
+  if (candidates.length === 0) {
+    appendAuditMessage("Bankr preflight sweep: no eligible proposals.", "bankr.preflight.sweep");
+    return state();
+  }
+
+  let passed = 0;
+  const failures: Array<{ id: string; reason: string }> = [];
+
+  for (const proposal of candidates) {
+    const evaluation = evaluateAndPersistBankrPreflight(proposal.id);
+    if (evaluation.ok) {
+      passed += 1;
+      continue;
+    }
+    const reason =
+      evaluation.reason === "policy_denied"
+        ? "policy_denied"
+        : evaluation.failedChecks.join(" | ") || evaluation.reason || "unknown";
+    failures.push({ id: proposal.id, reason });
+  }
+
+  const failed = candidates.length - passed;
+  appendAuditMessage(
+    `Bankr preflight sweep: ${passed}/${candidates.length} passed, ${failed} failed.`,
+    "bankr.preflight.sweep"
+  );
+  if (failures.length > 0) {
+    const details = failures
+      .slice(0, 3)
+      .map((entry) => `${entry.id}: ${entry.reason}`)
+      .join(" ; ");
+    appendAuditMessage(`Bankr preflight failures: ${details}`, "bankr.preflight.sweep");
   }
 
   return state();

@@ -34,6 +34,7 @@ type OpsBoardProps = {
   clarity: ClarityLevel;
   onCreateDraftProposal: (templateId: string, input: Record<string, string>) => Promise<void>;
   onCreateBankrDraft: (text: string) => Promise<void>;
+  onRunPreflightSweep: () => Promise<void>;
   onProposeBankrDraft: (strategyId: string) => Promise<void>;
   onPinStrategy: (strategyId: string) => Promise<void>;
   onUnpinStrategy: (strategyId: string) => Promise<void>;
@@ -146,6 +147,25 @@ function readPreflightSummary(proposal: SkillProposalEnvelope): {
   };
 }
 
+function readPreflightFailures(proposal: SkillProposalEnvelope): string[] {
+  const raw = proposal.metadata?.preflight;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
+  const value = raw as Record<string, unknown>;
+  const checks = Array.isArray(value.checks)
+    ? value.checks.filter(
+        (entry): entry is Record<string, unknown> =>
+          Boolean(entry && typeof entry === "object")
+      )
+    : [];
+  return checks
+    .filter((check) => check.ok !== true)
+    .map((check) => {
+      const key = typeof check.key === "string" ? check.key : "unknown";
+      const detail = typeof check.detail === "string" ? check.detail : "";
+      return detail ? `${key}: ${detail}` : key;
+    });
+}
+
 function renderRunbookMarkdown(markdown: string): JSX.Element {
   const lines = markdown.split("\n");
   const nodes: JSX.Element[] = [];
@@ -205,6 +225,7 @@ export default function OpsBoard({
   clarity,
   onCreateDraftProposal,
   onCreateBankrDraft,
+  onRunPreflightSweep,
   onProposeBankrDraft,
   onPinStrategy,
   onUnpinStrategy,
@@ -234,6 +255,7 @@ export default function OpsBoard({
   const [bankrDraftText, setBankrDraftText] = useState("");
   const [bankrDraftBusy, setBankrDraftBusy] = useState(false);
   const [bankrDraftNotice, setBankrDraftNotice] = useState<string>("");
+  const [preflightSweepNotice, setPreflightSweepNotice] = useState<string>("");
   const [draftProposeError, setDraftProposeError] = useState<string | null>(null);
   const [openRunbooks, setOpenRunbooks] = useState<Record<string, boolean>>({});
   const [runbookDrafts, setRunbookDrafts] = useState<Record<string, string>>({});
@@ -316,6 +338,35 @@ export default function OpsBoard({
         .slice(0, 6),
     [proposals]
   );
+  const bankrPreflightBlockers = useMemo(
+    () =>
+      proposals
+        .filter(
+          (proposal) =>
+            proposal.route.includes("/api/bankr/") &&
+            proposal.status === "approved" &&
+            proposal.executionIntent === "locked" &&
+            proposal.executionStatus === "idle"
+        )
+        .map((proposal) => {
+          const preflight = readPreflightSummary(proposal);
+          if (!preflight.has) {
+            return {
+              proposal,
+              reason: "preflight missing",
+            };
+          }
+          if (preflight.ok) return null;
+          const failures = readPreflightFailures(proposal);
+          return {
+            proposal,
+            reason: failures.slice(0, 2).join(" | ") || "preflight failed",
+          };
+        })
+        .filter((entry): entry is { proposal: SkillProposalEnvelope; reason: string } => Boolean(entry))
+        .slice(0, 8),
+    [proposals]
+  );
 
   const toggle = useCallback((section: SectionKey) => {
     setOpen((prev) => ({ ...prev, [section]: !prev[section] }));
@@ -389,6 +440,16 @@ export default function OpsBoard({
       setBankrDraftNotice("Couldn't create Bankr draft.");
     } finally {
       setBankrDraftBusy(false);
+    }
+  }
+
+  async function runPreflightSweep() {
+    setPreflightSweepNotice("");
+    try {
+      await onRunPreflightSweep();
+      setPreflightSweepNotice("Bankr preflight sweep complete.");
+    } catch {
+      setPreflightSweepNotice("Bankr preflight sweep failed.");
     }
   }
 
@@ -502,6 +563,22 @@ export default function OpsBoard({
                 : "Action queue for approvals, intent lock, and execution."}
             </div>
           ) : null}
+          <div className={styles["nn-chipRow"]}>
+            <Tooltip text="Run Bankr preflight on all approved locked proposals.">
+              <span>
+                <Button
+                  size="sm"
+                  variant="subtle"
+                  onClick={runPreflightSweep}
+                  disabled={loadingAction !== null}
+                >
+                  {loadingAction === "preflight:sweep" ? "Sweeping..." : "Preflight Sweep"}
+                </Button>
+              </span>
+            </Tooltip>
+            <span className={styles["nn-chip"]}>blockers: {bankrPreflightBlockers.length}</span>
+          </div>
+          {preflightSweepNotice ? <div className={styles["nn-muted"]}>{preflightSweepNotice}</div> : null}
 
           {nowItemsCount === 0 ? <div className={styles["nn-emptyHint"]}>{nowEmptyCopy}</div> : null}
 
@@ -581,6 +658,37 @@ export default function OpsBoard({
                   </button>
                 );
               })}
+            </div>
+          ) : null}
+
+          {bankrPreflightBlockers.length ? (
+            <div className={styles["nn-listBlock"]}>
+              <div className={styles["nn-muted"]}>Preflight blockers</div>
+              {bankrPreflightBlockers.map(({ proposal, reason }) => (
+                <button
+                  key={`preflight-blocker-${proposal.id}`}
+                  type="button"
+                  className={[
+                    styles["nn-listItem"],
+                    styles["nn-listItemButton"],
+                    selected.kind === "proposal" && selected.id === proposal.id
+                      ? styles["nn-selectedFrame"]
+                      : "",
+                  ].join(" ")}
+                  onClick={() => {
+                    onSelectProposal(proposal.id);
+                    onFocusProposal(proposal.id);
+                  }}
+                >
+                  <div className={styles["nn-listHead"]}>
+                    <div>{proposal.skillId}</div>
+                    <span className={[styles["nn-statusBadge"], styles["nn-failure"]].join(" ")}>
+                      blocked
+                    </span>
+                  </div>
+                  <div className={styles["nn-muted"]}>{reason}</div>
+                </button>
+              ))}
             </div>
           ) : null}
 

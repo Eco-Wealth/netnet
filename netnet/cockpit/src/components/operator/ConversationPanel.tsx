@@ -293,7 +293,8 @@ const ProposalInlineCard = memo(function ProposalInlineCard({
     proposal.executionIntent === "locked" &&
     proposal.executionStatus === "idle" &&
     Boolean(proposal.executionPlan);
-  const canExecute = canExecuteBase && (!isBankrProposal || Boolean(simulation?.ok));
+  const canExecute =
+    canExecuteBase && (!isBankrProposal || (Boolean(simulation?.ok) && Boolean(preflight?.ok)));
   const showSimulate =
     isBankrProposal &&
     proposal.status === "approved" &&
@@ -301,6 +302,7 @@ const ProposalInlineCard = memo(function ProposalInlineCard({
     proposal.executionStatus === "idle";
   const showPreflight = showSimulate;
   const executeNeedsSimulation = showSimulate && !Boolean(simulation?.ok);
+  const executeNeedsPreflight = showPreflight && !Boolean(preflight?.ok);
   const preflightCounts = useMemo(() => {
     if (!preflight) return { passed: 0, total: 0, failed: 0 };
     const passed = preflight.checks.filter((check) => check.ok).length;
@@ -517,6 +519,8 @@ const ProposalInlineCard = memo(function ProposalInlineCard({
             text={
               executeNeedsSimulation
                 ? "Run Simulate first."
+                : executeNeedsPreflight
+                ? "Run Preflight first."
                 : "Execute approved, locked, planned proposal."
             }
           >
@@ -525,7 +529,7 @@ const ProposalInlineCard = memo(function ProposalInlineCard({
                 size="sm"
                 className={styles["nn-primaryAction"]}
                 onClick={() => onExecute(proposal.id)}
-                disabled={loadingAction !== null || executeNeedsSimulation}
+                disabled={loadingAction !== null || !canExecute}
               >
                 {loadingAction === `execute:${proposal.id}` ? "Executing..." : "Execute"}
               </Button>
