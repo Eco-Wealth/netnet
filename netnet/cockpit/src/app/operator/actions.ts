@@ -589,6 +589,55 @@ export async function runBankrPlanSweepAction(): Promise<OperatorStateResponse> 
   return state();
 }
 
+export async function runBankrSimulationSweepAction(): Promise<OperatorStateResponse> {
+  const candidates = listProposals().filter(
+    (proposal) =>
+      proposal.route.includes("/api/bankr/") &&
+      proposal.status === "approved" &&
+      proposal.executionIntent === "locked" &&
+      proposal.executionStatus === "idle"
+  );
+
+  if (candidates.length === 0) {
+    appendAuditMessage(
+      "Bankr simulation sweep: no eligible proposals.",
+      "bankr.simulation.sweep"
+    );
+    return state();
+  }
+
+  let passed = 0;
+  const failures: Array<{ id: string; reason: string }> = [];
+
+  for (const proposal of candidates) {
+    const simulation = evaluateAndPersistBankrSimulation(proposal.id);
+    if (simulation.ok) {
+      passed += 1;
+      continue;
+    }
+    const reason =
+      simulation.reason === "simulation_failed"
+        ? simulation.summary || "simulation_failed"
+        : simulation.reason || "simulation_failed";
+    failures.push({ id: proposal.id, reason });
+  }
+
+  const failed = candidates.length - passed;
+  appendAuditMessage(
+    `Bankr simulation sweep: ${passed}/${candidates.length} passed, ${failed} failed.`,
+    "bankr.simulation.sweep"
+  );
+  if (failures.length > 0) {
+    const details = failures
+      .slice(0, 3)
+      .map((entry) => `${entry.id}: ${entry.reason}`)
+      .join(" ; ");
+    appendAuditMessage(`Bankr simulation failures: ${details}`, "bankr.simulation.sweep");
+  }
+
+  return state();
+}
+
 export async function runBankrPrepSweepAction(): Promise<OperatorStateResponse> {
   const candidates = listProposals().filter(
     (proposal) =>

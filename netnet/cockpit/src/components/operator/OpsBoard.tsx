@@ -37,6 +37,7 @@ type OpsBoardProps = {
   onRunPreflightSweep: () => Promise<void>;
   onRunPlanSweep: () => Promise<void>;
   onRunPrepSweep: () => Promise<void>;
+  onRunSimulationSweep: () => Promise<void>;
   onProposeBankrDraft: (strategyId: string) => Promise<void>;
   onPinStrategy: (strategyId: string) => Promise<void>;
   onUnpinStrategy: (strategyId: string) => Promise<void>;
@@ -247,6 +248,7 @@ export default function OpsBoard({
   onRunPreflightSweep,
   onRunPlanSweep,
   onRunPrepSweep,
+  onRunSimulationSweep,
   onProposeBankrDraft,
   onPinStrategy,
   onUnpinStrategy,
@@ -279,6 +281,7 @@ export default function OpsBoard({
   const [preflightSweepNotice, setPreflightSweepNotice] = useState<string>("");
   const [planSweepNotice, setPlanSweepNotice] = useState<string>("");
   const [prepSweepNotice, setPrepSweepNotice] = useState<string>("");
+  const [simulationSweepNotice, setSimulationSweepNotice] = useState<string>("");
   const [draftProposeError, setDraftProposeError] = useState<string | null>(null);
   const [openRunbooks, setOpenRunbooks] = useState<Record<string, boolean>>({});
   const [runbookDrafts, setRunbookDrafts] = useState<Record<string, string>>({});
@@ -423,6 +426,37 @@ export default function OpsBoard({
         .slice(0, 8),
     [proposals]
   );
+  const bankrSimulationBlockers = useMemo(
+    () =>
+      proposals
+        .filter(
+          (proposal) =>
+            proposal.route.includes("/api/bankr/") &&
+            proposal.status === "approved" &&
+            proposal.executionIntent === "locked" &&
+            proposal.executionStatus === "idle"
+        )
+        .map((proposal) => {
+          const simulation = readSimulationSummary(proposal);
+          if (simulation.ok) return null;
+          return {
+            proposal,
+            reason: simulation.has
+              ? simulation.summary || "simulation failed"
+              : "simulation missing",
+          };
+        })
+        .filter(
+          (
+            entry
+          ): entry is {
+            proposal: SkillProposalEnvelope;
+            reason: string;
+          } => Boolean(entry)
+        )
+        .slice(0, 8),
+    [proposals]
+  );
 
   const toggle = useCallback((section: SectionKey) => {
     setOpen((prev) => ({ ...prev, [section]: !prev[section] }));
@@ -526,6 +560,16 @@ export default function OpsBoard({
       setPrepSweepNotice("Bankr prep sweep complete.");
     } catch {
       setPrepSweepNotice("Bankr prep sweep failed.");
+    }
+  }
+
+  async function runSimulationSweep() {
+    setSimulationSweepNotice("");
+    try {
+      await onRunSimulationSweep();
+      setSimulationSweepNotice("Bankr simulation sweep complete.");
+    } catch {
+      setSimulationSweepNotice("Bankr simulation sweep failed.");
     }
   }
 
@@ -676,13 +720,29 @@ export default function OpsBoard({
                 </Button>
               </span>
             </Tooltip>
+            <Tooltip text="Run Bankr simulation checks for approved locked proposals.">
+              <span>
+                <Button
+                  size="sm"
+                  variant="subtle"
+                  onClick={runSimulationSweep}
+                  disabled={loadingAction !== null}
+                >
+                  {loadingAction === "simulation:sweep" ? "Simulating..." : "Simulation Sweep"}
+                </Button>
+              </span>
+            </Tooltip>
             <span className={styles["nn-chip"]}>blockers: {bankrPreflightBlockers.length}</span>
             <span className={styles["nn-chip"]}>plan missing: {bankrPlanBlockers.length}</span>
+            <span className={styles["nn-chip"]}>sim blockers: {bankrSimulationBlockers.length}</span>
             <span className={styles["nn-chip"]}>ready: {bankrReadyNow.length}</span>
           </div>
           {preflightSweepNotice ? <div className={styles["nn-muted"]}>{preflightSweepNotice}</div> : null}
           {planSweepNotice ? <div className={styles["nn-muted"]}>{planSweepNotice}</div> : null}
           {prepSweepNotice ? <div className={styles["nn-muted"]}>{prepSweepNotice}</div> : null}
+          {simulationSweepNotice ? (
+            <div className={styles["nn-muted"]}>{simulationSweepNotice}</div>
+          ) : null}
 
           {nowItemsCount === 0 ? <div className={styles["nn-emptyHint"]}>{nowEmptyCopy}</div> : null}
 
@@ -820,6 +880,37 @@ export default function OpsBoard({
                     <span className={styles["nn-statusBadge"]}>plan missing</span>
                   </div>
                   <div className={styles["nn-muted"]}>{proposal.route}</div>
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {bankrSimulationBlockers.length ? (
+            <div className={styles["nn-listBlock"]}>
+              <div className={styles["nn-muted"]}>Simulation blockers</div>
+              {bankrSimulationBlockers.map(({ proposal, reason }) => (
+                <button
+                  key={`simulation-blocker-${proposal.id}`}
+                  type="button"
+                  className={[
+                    styles["nn-listItem"],
+                    styles["nn-listItemButton"],
+                    selected.kind === "proposal" && selected.id === proposal.id
+                      ? styles["nn-selectedFrame"]
+                      : "",
+                  ].join(" ")}
+                  onClick={() => {
+                    onSelectProposal(proposal.id);
+                    onFocusProposal(proposal.id);
+                  }}
+                >
+                  <div className={styles["nn-listHead"]}>
+                    <div>{proposal.skillId}</div>
+                    <span className={[styles["nn-statusBadge"], styles["nn-failure"]].join(" ")}>
+                      blocked
+                    </span>
+                  </div>
+                  <div className={styles["nn-muted"]}>{reason}</div>
                 </button>
               ))}
             </div>
