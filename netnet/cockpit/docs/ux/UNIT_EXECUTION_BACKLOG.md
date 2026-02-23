@@ -231,14 +231,31 @@ This backlog tracks machine-first Operator execution units.
   - optional partner token + ECO matched cap (wei)
 - Added operator docs and env hooks for pledge-aware dispatch setup.
 
-## Proposed
+### Unit 119 — Vealth verification gate + acceptance checks
+
+- Added `/ops/control` verification action for work-order acceptance checks:
+  - replays deterministic command lane from contract acceptance checks
+  - records pass/fail and exit-code evidence in Work audit events
+  - computes payout eligibility from required checks + payout cap
+- Added UI controls in Ops Control to run verification and view required-check pass ratio.
+
+### Unit 120 — Vealth payout authorization + queue tick automation lane
+
+- Added `/ops/control` payout authorization action:
+  - requires successful verification
+  - enforces payout cap from work-order incentives
+  - writes payout authorization into Work event patch
+- Added `/ops/control` queue tick action:
+  - deterministic next-action resolver (`dispatch` -> `verify` -> `payout`)
+  - dry-run mode for operator preview
+  - execute mode for one-step progression with audit-safe patches
+- Added UI controls for payout amount, payout authorize, and queue tick dry-run/execute.
 
 ### Unit 121 — Social autopublish sequence (YouTube -> X -> Instagram -> Facebook)
 
-- Add seamless post scheduling and execution-ready proposal templates for social distribution.
-- Enforce deterministic sequence order:
-  1. YouTube
-  2. X
-  3. Instagram
-  4. Facebook
-- Keep posting proposal-first with approval + execution gates, while making scheduling effortless in Operator UI.
+- Added `/ops/control` social autopublish work-order action:
+  - builds deterministic sequence metadata in work-order contract
+  - includes scheduling/topic/tone/CTA fields and proposal prompt payload
+  - stores connector availability matrix for YouTube/X/Instagram/Facebook
+- Added Ops Control UI form for one-click social work-order creation with strict sequence order.
+- Kept flow proposal-first and approval-gated; no automatic social posting execution was added.

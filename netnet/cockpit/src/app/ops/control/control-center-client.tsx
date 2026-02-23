@@ -2,10 +2,13 @@
 
 import { useEffect, useMemo, useState, useTransition, type CSSProperties } from "react";
 import {
+  authorizeVealthPayoutAction,
+  createSocialAutopublishWorkOrderAction,
   createVealthWorkOrderAction,
   dispatchVealthWorkOrderAction,
   getVealthWorkOrderStatusAction,
   heartbeatVealthWorkOrderAction,
+  runVealthQueueTickAction,
   getOpsAccessContextAction,
   readAIEyesArtifactsAction,
   planOpsSequenceFromGoalAction,
@@ -17,6 +20,7 @@ import {
   runOpsCommandAction,
   runOpsSequenceAction,
   stopVealthWorkOrderAction,
+  verifyVealthWorkOrderAction,
   type AIEyesArtifacts,
   type OpenClawBootstrapResult,
   type OpenClawConnectionResult,
@@ -28,6 +32,9 @@ import {
   type OpsRunResult,
   type OpsSequenceResult,
   type VealthDispatchStatus,
+  type VealthPayoutAuthorizationResult,
+  type VealthQueueTickResult,
+  type VealthVerificationResult,
   type OpsWorkOrderResult,
 } from "./actions";
 import { OPS_COMMANDS, OPS_ROLES, type OpsRole } from "./commands";
@@ -386,9 +393,20 @@ export default function ControlCenterClient() {
   const [plannedSequence, setPlannedSequence] = useState<OpsPlanResult | null>(null);
   const [lastWorkOrder, setLastWorkOrder] = useState<OpsWorkOrderResult | null>(null);
   const [dispatchStatus, setDispatchStatus] = useState<VealthDispatchStatus | null>(null);
+  const [verificationStatus, setVerificationStatus] =
+    useState<VealthVerificationResult | null>(null);
+  const [payoutStatus, setPayoutStatus] =
+    useState<VealthPayoutAuthorizationResult | null>(null);
+  const [queueTickStatus, setQueueTickStatus] =
+    useState<VealthQueueTickResult | null>(null);
   const [goalDraft, setGoalDraft] = useState("");
   const [workOrderOwner, setWorkOrderOwner] = useState("vealth");
   const [workOrderBudget, setWorkOrderBudget] = useState("0");
+  const [payoutAmount, setPayoutAmount] = useState("0");
+  const [socialTopic, setSocialTopic] = useState("Weekly operator recap");
+  const [socialSchedule, setSocialSchedule] = useState("today 9am local");
+  const [socialCallToAction, setSocialCallToAction] = useState("Reply for details");
+  const [socialTone, setSocialTone] = useState("clear and concise");
   const [pledgeEnabled, setPledgeEnabled] = useState(false);
   const [pledgePartnerToken, setPledgePartnerToken] = useState("");
   const [pledgeCapWei, setPledgeCapWei] = useState("0");
@@ -484,6 +502,10 @@ export default function ControlCenterClient() {
         liquidityPledgeCapWei: pledgeCapWei,
       });
       setLastWorkOrder(result);
+      setDispatchStatus(null);
+      setVerificationStatus(null);
+      setPayoutStatus(null);
+      setQueueTickStatus(null);
     });
   }
 
@@ -532,6 +554,68 @@ export default function ControlCenterClient() {
       });
       setDispatchStatus(result);
       setStopReason("");
+    });
+  }
+
+  function verifyWorkOrder() {
+    if (!lastWorkOrder?.workId) return;
+    startTransition(async () => {
+      const result = await verifyVealthWorkOrderAction({
+        role,
+        workId: lastWorkOrder.workId!,
+      });
+      setVerificationStatus(result);
+    });
+  }
+
+  function authorizePayout() {
+    if (!lastWorkOrder?.workId) return;
+    const parsed = Number(payoutAmount);
+    const amountUsd = Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+    startTransition(async () => {
+      const result = await authorizeVealthPayoutAction({
+        role,
+        workId: lastWorkOrder.workId!,
+        amountUsd,
+        note: "Authorized from Ops Control lane.",
+      });
+      setPayoutStatus(result);
+      if (result.ok) {
+        setPayoutAmount("0");
+      }
+    });
+  }
+
+  function runQueueTick(dryRun: boolean) {
+    startTransition(async () => {
+      const result = await runVealthQueueTickAction({
+        role,
+        dryRun,
+      });
+      setQueueTickStatus(result);
+      if (result.dispatch) setDispatchStatus(result.dispatch);
+      if (result.verification) setVerificationStatus(result.verification);
+      if (result.payout) setPayoutStatus(result.payout);
+    });
+  }
+
+  function createSocialWorkOrder() {
+    startTransition(async () => {
+      const result = await createSocialAutopublishWorkOrderAction({
+        role,
+        owner: workOrderOwner,
+        budgetUsd: Number(workOrderBudget || 0),
+        priority: workOrderPriority,
+        topic: socialTopic,
+        schedule: socialSchedule,
+        callToAction: socialCallToAction,
+        tone: socialTone,
+      });
+      setLastWorkOrder(result);
+      setDispatchStatus(null);
+      setVerificationStatus(null);
+      setPayoutStatus(null);
+      setQueueTickStatus(null);
     });
   }
 
@@ -856,6 +940,94 @@ export default function ControlCenterClient() {
               </>
             ) : null}
           </div>
+          <div
+            style={{
+              border: "1px solid var(--nn-border-subtle, #1f2b45)",
+              borderRadius: 10,
+              padding: 10,
+              display: "grid",
+              gap: 8,
+            }}
+          >
+            <strong style={{ fontSize: 13 }}>Social autopublish sequence</strong>
+            <div style={{ fontSize: 12, opacity: 0.82 }}>
+              Generates proposal-first work order in strict order: YouTube -&gt; X -&gt; Instagram -&gt; Facebook.
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gap: 8,
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              }}
+            >
+              <label style={{ display: "grid", gap: 4, fontSize: 12, opacity: 0.9 }}>
+                Topic
+                <input
+                  value={socialTopic}
+                  onChange={(event) => setSocialTopic(event.target.value)}
+                  style={{
+                    borderRadius: 8,
+                    padding: "6px 10px",
+                    border: "1px solid var(--nn-border-subtle, #1f2b45)",
+                    background: "var(--nn-surface-0, rgba(3, 8, 18, 0.8))",
+                    color: "inherit",
+                  }}
+                />
+              </label>
+              <label style={{ display: "grid", gap: 4, fontSize: 12, opacity: 0.9 }}>
+                Schedule
+                <input
+                  value={socialSchedule}
+                  onChange={(event) => setSocialSchedule(event.target.value)}
+                  style={{
+                    borderRadius: 8,
+                    padding: "6px 10px",
+                    border: "1px solid var(--nn-border-subtle, #1f2b45)",
+                    background: "var(--nn-surface-0, rgba(3, 8, 18, 0.8))",
+                    color: "inherit",
+                  }}
+                />
+              </label>
+              <label style={{ display: "grid", gap: 4, fontSize: 12, opacity: 0.9 }}>
+                CTA
+                <input
+                  value={socialCallToAction}
+                  onChange={(event) => setSocialCallToAction(event.target.value)}
+                  style={{
+                    borderRadius: 8,
+                    padding: "6px 10px",
+                    border: "1px solid var(--nn-border-subtle, #1f2b45)",
+                    background: "var(--nn-surface-0, rgba(3, 8, 18, 0.8))",
+                    color: "inherit",
+                  }}
+                />
+              </label>
+              <label style={{ display: "grid", gap: 4, fontSize: 12, opacity: 0.9 }}>
+                Tone
+                <input
+                  value={socialTone}
+                  onChange={(event) => setSocialTone(event.target.value)}
+                  style={{
+                    borderRadius: 8,
+                    padding: "6px 10px",
+                    border: "1px solid var(--nn-border-subtle, #1f2b45)",
+                    background: "var(--nn-surface-0, rgba(3, 8, 18, 0.8))",
+                    color: "inherit",
+                  }}
+                />
+              </label>
+            </div>
+            <div>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={createSocialWorkOrder}
+                style={{ padding: "6px 10px", borderRadius: 8 }}
+              >
+                Create Social Work Order
+              </button>
+            </div>
+          </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button
               type="button"
@@ -950,6 +1122,100 @@ export default function ControlCenterClient() {
                   Stop
                 </button>
               </div>
+              <div
+                style={{
+                  border: "1px solid var(--nn-border-subtle, #1f2b45)",
+                  borderRadius: 10,
+                  padding: 10,
+                  display: "grid",
+                  gap: 8,
+                }}
+              >
+                <strong style={{ fontSize: 13 }}>Verification + payout lane</strong>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={verifyWorkOrder}
+                    style={{ padding: "6px 10px", borderRadius: 8 }}
+                  >
+                    Verify checks
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => runQueueTick(true)}
+                    style={{ padding: "6px 10px", borderRadius: 8 }}
+                  >
+                    Queue tick (dry run)
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => runQueueTick(false)}
+                    style={{ padding: "6px 10px", borderRadius: 8 }}
+                  >
+                    Queue tick (execute)
+                  </button>
+                </div>
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 8,
+                    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                  }}
+                >
+                  <label style={{ display: "grid", gap: 4, fontSize: 12, opacity: 0.9 }}>
+                    Payout amount USD (optional)
+                    <input
+                      value={payoutAmount}
+                      onChange={(event) => setPayoutAmount(event.target.value)}
+                      placeholder="0"
+                      style={{
+                        borderRadius: 8,
+                        padding: "6px 10px",
+                        border: "1px solid var(--nn-border-subtle, #1f2b45)",
+                        background: "var(--nn-surface-0, rgba(3, 8, 18, 0.8))",
+                        color: "inherit",
+                      }}
+                    />
+                  </label>
+                  <div style={{ display: "grid", alignContent: "end" }}>
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={authorizePayout}
+                      style={{ padding: "6px 10px", borderRadius: 8, width: "fit-content" }}
+                    >
+                      Authorize payout
+                    </button>
+                  </div>
+                </div>
+                {verificationStatus ? (
+                  <div style={{ fontSize: 12, opacity: 0.88 }}>
+                    Verification: {verificationStatus.ok ? "PASS" : "FAIL"} • required{" "}
+                    {verificationStatus.passedRequired}/{verificationStatus.totalRequired}
+                    {" • "}
+                    payoutEligible={verificationStatus.payoutEligible ? "yes" : "no"}
+                    {verificationStatus.error ? ` • ${verificationStatus.error}` : ""}
+                  </div>
+                ) : null}
+                {payoutStatus ? (
+                  <div style={{ fontSize: 12, opacity: 0.88 }}>
+                    Payout: {payoutStatus.ok ? "AUTHORIZED" : "NOT AUTHORIZED"}
+                    {typeof payoutStatus.authorizedUsd === "number"
+                      ? ` • ${payoutStatus.authorizedUsd} USD`
+                      : ""}
+                    {payoutStatus.error ? ` • ${payoutStatus.error}` : ""}
+                  </div>
+                ) : null}
+                {queueTickStatus ? (
+                  <div style={{ fontSize: 12, opacity: 0.88 }}>
+                    Queue tick: {queueTickStatus.nextAction} • {queueTickStatus.details}
+                    {queueTickStatus.error ? ` • ${queueTickStatus.error}` : ""}
+                  </div>
+                ) : null}
+              </div>
             </div>
           ) : null}
           {lastWorkOrder?.error ? (
@@ -963,6 +1229,17 @@ export default function ControlCenterClient() {
                 : ""}
               {dispatchStatus.remote?.statusCode ? ` • HTTP ${dispatchStatus.remote.statusCode}` : ""}
               {dispatchStatus.error ? ` • ${dispatchStatus.error}` : ""}
+            </div>
+          ) : null}
+          {lastWorkOrder?.contract?.socialAutopublish?.enabled ? (
+            <div style={{ fontSize: 12, opacity: 0.85 }}>
+              Social sequence: {lastWorkOrder.contract.socialAutopublish.order.join(" -> ")}
+              {" • "}
+              {lastWorkOrder.contract.socialAutopublish.connectors
+                .map((connector) =>
+                  `${connector.channel}:${connector.available ? "ready" : "missing"}`
+                )
+                .join(" | ")}
             </div>
           ) : null}
           {lastWorkOrder?.contract ? (

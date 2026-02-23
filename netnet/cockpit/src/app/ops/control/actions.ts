@@ -7,7 +7,21 @@ import { revalidatePath } from "next/cache";
 import { getOpsCommandById, type OpsCommandSpec, type OpsRole } from "./commands";
 import { createStubMCPClient } from "@/mcp";
 import type { MCPChain, MCPResponse } from "@/mcp/types";
-import { appendWorkEvent, createWork, getWork, type WorkItem, type WorkPriority } from "@/lib/work";
+import {
+  buildSocialAutopublishPrompt,
+  SOCIAL_AUTOPUBLISH_ORDER,
+  type SocialAutopublishInput,
+  type SocialChannel,
+} from "@/lib/operator/templates/social";
+import {
+  appendWorkEvent,
+  createWork,
+  getWork,
+  listWork,
+  updateWork,
+  type WorkItem,
+  type WorkPriority,
+} from "@/lib/work";
 
 const COCKPIT_ROOT = process.cwd();
 const REPO_ROOT = path.resolve(COCKPIT_ROOT, "..", "..");
@@ -84,6 +98,20 @@ export type OpsWorkOrderContract = {
       notes: string;
     };
   };
+  socialAutopublish?: {
+    enabled: true;
+    order: SocialChannel[];
+    topic: string;
+    schedule: string;
+    callToAction: string;
+    tone: string;
+    prompt: string;
+    connectors: Array<{
+      channel: SocialChannel;
+      route: string;
+      available: boolean;
+    }>;
+  };
 };
 
 export type OpsWorkOrderResult = {
@@ -116,6 +144,50 @@ export type VealthDispatchStatus = {
   remote?: OpenClawRemoteResult;
   lastEventType?: string;
   lastEventAt?: string;
+  error?: string;
+};
+
+export type VealthVerificationResult = {
+  ok: boolean;
+  role: OpsRole;
+  checkedAt: number;
+  workId: string;
+  checks: Array<{
+    commandId: string;
+    required: boolean;
+    ok: boolean;
+    exitCode?: number;
+    error?: string;
+  }>;
+  passedRequired: number;
+  totalRequired: number;
+  payoutEligible: boolean;
+  payoutCapUsd: number;
+  error?: string;
+};
+
+export type VealthPayoutAuthorizationResult = {
+  ok: boolean;
+  role: OpsRole;
+  checkedAt: number;
+  workId: string;
+  payoutEligible: boolean;
+  payoutCapUsd: number;
+  authorizedUsd?: number;
+  error?: string;
+};
+
+export type VealthQueueTickResult = {
+  ok: boolean;
+  role: OpsRole;
+  checkedAt: number;
+  dryRun: boolean;
+  workId?: string;
+  nextAction: "dispatch" | "verify" | "payout" | "none";
+  details: string;
+  dispatch?: VealthDispatchStatus;
+  verification?: VealthVerificationResult;
+  payout?: VealthPayoutAuthorizationResult;
   error?: string;
 };
 
@@ -655,6 +727,47 @@ function normalizeWei(value: unknown): string | undefined {
   return raw;
 }
 
+function socialRouteForChannel(channel: SocialChannel): string {
+  if (channel === "youtube") return "/api/agent/youtube";
+  if (channel === "x") return "/api/agent/x";
+  if (channel === "instagram") return "/api/agent/instagram";
+  return "/api/agent/facebook";
+}
+
+function buildSocialAutopublishContract(
+  input: SocialAutopublishInput
+): NonNullable<OpsWorkOrderContract["socialAutopublish"]> {
+  const topic = String(input.topic || "").trim() || "Weekly operator recap";
+  const schedule = String(input.schedule || "").trim() || "today 9am local";
+  const callToAction =
+    String(input.callToAction || "").trim() || "Reply for details";
+  const tone = String(input.tone || "").trim() || "clear and concise";
+  const prompt = buildSocialAutopublishPrompt({
+    topic,
+    schedule,
+    callToAction,
+    tone,
+  });
+  const connectors = SOCIAL_AUTOPUBLISH_ORDER.map((channel) => {
+    const route = socialRouteForChannel(channel);
+    return {
+      channel,
+      route,
+      available: routeExists(route),
+    };
+  });
+  return {
+    enabled: true,
+    order: [...SOCIAL_AUTOPUBLISH_ORDER],
+    topic,
+    schedule,
+    callToAction,
+    tone,
+    prompt,
+    connectors,
+  };
+}
+
 function toWorkOrderTitle(goal: string): string {
   const single = String(goal || "").replace(/\s+/g, " ").trim() || "Untitled work order";
   const short = single.length > 72 ? `${single.slice(0, 72)}...` : single;
@@ -670,6 +783,7 @@ function buildWorkOrderContract(args: {
   liquidityPledgeEnabled: boolean;
   liquidityPledgePartnerToken?: string;
   liquidityPledgeCapWei?: string;
+  socialAutopublish?: NonNullable<OpsWorkOrderContract["socialAutopublish"]>;
 }): OpsWorkOrderContract {
   const pledge =
     args.liquidityPledgeEnabled
@@ -712,6 +826,7 @@ function buildWorkOrderContract(args: {
       payoutUsdCap: args.budgetUsd,
       liquidityPledge: pledge,
     },
+    socialAutopublish: args.socialAutopublish,
   };
 }
 
@@ -719,12 +834,19 @@ function createAcceptanceCriteria(contract: OpsWorkOrderContract): string {
   const checks = contract.acceptanceChecks
     .map((check) => `- ${check.commandId}: pass`)
     .join("\n");
-  return [
+  const lines = [
     "Execute with proposal-first guardrails and return deterministic evidence.",
     "Required checks:",
     checks,
     "Attach proof/audit reference and include real exit codes.",
-  ].join("\n");
+  ];
+  if (contract.socialAutopublish?.enabled) {
+    lines.push(
+      `Social sequence order: ${contract.socialAutopublish.order.join(" -> ")}.`,
+      "Do not execute posting automatically; keep proposals as draft until approved + locked."
+    );
+  }
+  return lines.join("\n");
 }
 
 export async function createVealthWorkOrderAction(input: {
@@ -736,6 +858,7 @@ export async function createVealthWorkOrderAction(input: {
   liquidityPledgeEnabled?: boolean;
   liquidityPledgePartnerToken?: string;
   liquidityPledgeCapWei?: string;
+  socialAutopublish?: NonNullable<OpsWorkOrderContract["socialAutopublish"]>;
 }): Promise<OpsWorkOrderResult> {
   const effectiveRole = resolveServerRole();
   const checkedAt = Date.now();
@@ -763,6 +886,7 @@ export async function createVealthWorkOrderAction(input: {
     liquidityPledgeEnabled,
     liquidityPledgePartnerToken,
     liquidityPledgeCapWei,
+    socialAutopublish: input.socialAutopublish,
   });
 
   const work = createWork({
@@ -775,7 +899,12 @@ export async function createVealthWorkOrderAction(input: {
       liquidityPledgeEnabled
         ? `Liquidity pledge: enabled (partner=${liquidityPledgePartnerToken || "unset"}, capWei=${liquidityPledgeCapWei || "unset"})`
         : "Liquidity pledge: disabled",
-    ].join("\n"),
+      contract.socialAutopublish?.enabled
+        ? `Social sequence: ${contract.socialAutopublish.order.join(" -> ")} (${contract.socialAutopublish.schedule})`
+        : undefined,
+    ]
+      .filter((line): line is string => Boolean(line))
+      .join("\n"),
     owner: String(input.owner || "vealth").trim() || "vealth",
     priority: readPriority(input.priority),
     acceptanceCriteria: createAcceptanceCriteria(contract),
@@ -804,6 +933,38 @@ export async function createVealthWorkOrderAction(input: {
     title: withEvent?.title || work.title,
     contract,
   };
+}
+
+export async function createSocialAutopublishWorkOrderAction(input: {
+  role?: OpsRole;
+  owner?: string;
+  budgetUsd?: number;
+  priority?: WorkPriority;
+  topic?: string;
+  schedule?: string;
+  callToAction?: string;
+  tone?: string;
+}): Promise<OpsWorkOrderResult> {
+  const socialAutopublish = buildSocialAutopublishContract({
+    topic: input.topic,
+    schedule: input.schedule,
+    callToAction: input.callToAction,
+    tone: input.tone,
+  });
+  const goal = [
+    "Social autopublish sequence",
+    `order=${socialAutopublish.order.join("->")}`,
+    `topic=${socialAutopublish.topic}`,
+    `schedule=${socialAutopublish.schedule}`,
+  ].join(" | ");
+  return createVealthWorkOrderAction({
+    role: input.role,
+    goal,
+    owner: input.owner || "vealth-social",
+    budgetUsd: input.budgetUsd,
+    priority: input.priority || "MEDIUM",
+    socialAutopublish,
+  });
 }
 
 function canOperateVealth(role: OpsRole): boolean {
@@ -860,6 +1021,89 @@ function deriveDispatchState(item: WorkItem): VealthDispatchStatus["state"] {
     }
   }
   return "created";
+}
+
+function extractLatestVerification(item: WorkItem): {
+  ok: boolean;
+  checkedAt?: number;
+  payoutEligible?: boolean;
+  payoutCapUsd?: number;
+} | null {
+  const events = [...item.events].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  for (const event of events) {
+    const patch =
+      event.patch && typeof event.patch === "object" && !Array.isArray(event.patch)
+        ? (event.patch as Record<string, unknown>)
+        : undefined;
+    const verification =
+      patch &&
+      patch.verification &&
+      typeof patch.verification === "object" &&
+      !Array.isArray(patch.verification)
+        ? (patch.verification as Record<string, unknown>)
+        : undefined;
+    if (!verification) continue;
+    const ok = verification.ok === true;
+    const checkedAtRaw = Number(verification.checkedAt);
+    const payoutCapUsdRaw = Number(verification.payoutCapUsd);
+    return {
+      ok,
+      checkedAt: Number.isFinite(checkedAtRaw) ? checkedAtRaw : undefined,
+      payoutEligible: verification.payoutEligible === true,
+      payoutCapUsd: Number.isFinite(payoutCapUsdRaw) ? payoutCapUsdRaw : undefined,
+    };
+  }
+  return null;
+}
+
+function extractLatestPayout(item: WorkItem): {
+  authorizedUsd?: number;
+  approvedAt?: string;
+} | null {
+  const events = [...item.events].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  for (const event of events) {
+    const patch =
+      event.patch && typeof event.patch === "object" && !Array.isArray(event.patch)
+        ? (event.patch as Record<string, unknown>)
+        : undefined;
+    const payout =
+      patch &&
+      patch.payout &&
+      typeof patch.payout === "object" &&
+      !Array.isArray(patch.payout)
+        ? (patch.payout as Record<string, unknown>)
+        : undefined;
+    if (!payout) continue;
+    const authorizedUsdRaw = Number(payout.authorizedUsd);
+    return {
+      authorizedUsd: Number.isFinite(authorizedUsdRaw) ? authorizedUsdRaw : undefined,
+      approvedAt: event.at,
+    };
+  }
+  return null;
+}
+
+function requiredChecksFromContract(contract: OpsWorkOrderContract): Array<{
+  commandId: string;
+  required: boolean;
+}> {
+  if (Array.isArray(contract.acceptanceChecks) && contract.acceptanceChecks.length > 0) {
+    return contract.acceptanceChecks.map((check) => ({
+      commandId: String(check.commandId || "").trim(),
+      required: check.required !== false,
+    }));
+  }
+  return (contract.commandIds || []).map((commandId) => ({
+    commandId: String(commandId || "").trim(),
+    required: true,
+  }));
+}
+
+function priorityWeight(priority: WorkPriority): number {
+  if (priority === "CRITICAL") return 4;
+  if (priority === "HIGH") return 3;
+  if (priority === "MEDIUM") return 2;
+  return 1;
 }
 
 async function callOpenClawDispatch(action: string, payload: Record<string, unknown>): Promise<OpenClawRemoteResult> {
@@ -1206,6 +1450,395 @@ export async function getVealthWorkOrderStatusAction(input: {
     remote,
     error: remote.ok ? undefined : remote.error || "status_failed",
   });
+}
+
+export async function verifyVealthWorkOrderAction(input: {
+  role?: OpsRole;
+  workId: string;
+}): Promise<VealthVerificationResult> {
+  const effectiveRole = resolveServerRole();
+  const checkedAt = Date.now();
+  const workId = String(input.workId || "").trim();
+  if (!workId) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId: "",
+      checks: [],
+      passedRequired: 0,
+      totalRequired: 0,
+      payoutEligible: false,
+      payoutCapUsd: 0,
+      error: "work_id_required",
+    };
+  }
+  if (!canOperateVealth(effectiveRole)) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId,
+      checks: [],
+      passedRequired: 0,
+      totalRequired: 0,
+      payoutEligible: false,
+      payoutCapUsd: 0,
+      error: "role_denied",
+    };
+  }
+  const item = getWork(workId);
+  if (!item) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId,
+      checks: [],
+      passedRequired: 0,
+      totalRequired: 0,
+      payoutEligible: false,
+      payoutCapUsd: 0,
+      error: "work_not_found",
+    };
+  }
+  const contract = extractWorkOrderContract(item);
+  if (!contract) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId,
+      checks: [],
+      passedRequired: 0,
+      totalRequired: 0,
+      payoutEligible: false,
+      payoutCapUsd: 0,
+      error: "work_order_contract_missing",
+    };
+  }
+
+  const checks = requiredChecksFromContract(contract).filter((check) => check.commandId);
+  const results: VealthVerificationResult["checks"] = [];
+  for (const check of checks) {
+    const run = await executeCommand({ role: effectiveRole, commandId: check.commandId });
+    results.push({
+      commandId: check.commandId,
+      required: check.required,
+      ok: run.ok,
+      exitCode: run.steps.at(-1)?.exitCode,
+      error: run.ok ? undefined : run.error || "command_failed",
+    });
+  }
+
+  const required = results.filter((row) => row.required);
+  const passedRequired = required.filter((row) => row.ok).length;
+  const totalRequired = required.length;
+  const ok = totalRequired === 0 ? true : passedRequired === totalRequired;
+  const payoutCapUsd = readBudget(contract.incentives?.payoutUsdCap ?? 0);
+  const payoutEligible = ok && payoutCapUsd > 0;
+
+  appendWorkEvent(item.id, {
+    type: "UPDATED",
+    by: "operator",
+    note: ok ? "Acceptance checks passed." : "Acceptance checks failed.",
+    patch: {
+      verification: {
+        ok,
+        checkedAt,
+        checks: results,
+        passedRequired,
+        totalRequired,
+        payoutEligible,
+        payoutCapUsd,
+      },
+    },
+  });
+
+  revalidatePath("/ops/control");
+  revalidatePath("/work");
+  return {
+    ok,
+    role: effectiveRole,
+    checkedAt,
+    workId: item.id,
+    checks: results,
+    passedRequired,
+    totalRequired,
+    payoutEligible,
+    payoutCapUsd,
+    error: ok ? undefined : "verification_failed",
+  };
+}
+
+export async function authorizeVealthPayoutAction(input: {
+  role?: OpsRole;
+  workId: string;
+  amountUsd?: number;
+  note?: string;
+}): Promise<VealthPayoutAuthorizationResult> {
+  const effectiveRole = resolveServerRole();
+  const checkedAt = Date.now();
+  const workId = String(input.workId || "").trim();
+  if (!workId) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId: "",
+      payoutEligible: false,
+      payoutCapUsd: 0,
+      error: "work_id_required",
+    };
+  }
+  if (!canOperateVealth(effectiveRole)) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId,
+      payoutEligible: false,
+      payoutCapUsd: 0,
+      error: "role_denied",
+    };
+  }
+  const item = getWork(workId);
+  if (!item) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId,
+      payoutEligible: false,
+      payoutCapUsd: 0,
+      error: "work_not_found",
+    };
+  }
+  const contract = extractWorkOrderContract(item);
+  if (!contract) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId,
+      payoutEligible: false,
+      payoutCapUsd: 0,
+      error: "work_order_contract_missing",
+    };
+  }
+
+  const verification = extractLatestVerification(item);
+  if (!verification?.ok) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId,
+      payoutEligible: false,
+      payoutCapUsd: readBudget(contract.incentives?.payoutUsdCap ?? 0),
+      error: "verification_required",
+    };
+  }
+
+  const payoutCapUsd = readBudget(contract.incentives?.payoutUsdCap ?? 0);
+  const requestedUsd =
+    typeof input.amountUsd === "number" ? input.amountUsd : payoutCapUsd;
+  const authorizedUsd = readBudget(requestedUsd);
+  if (authorizedUsd <= 0) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId,
+      payoutEligible: false,
+      payoutCapUsd,
+      error: "payout_amount_required",
+    };
+  }
+  if (authorizedUsd > payoutCapUsd) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId,
+      payoutEligible: false,
+      payoutCapUsd,
+      authorizedUsd,
+      error: "payout_over_cap",
+    };
+  }
+
+  appendWorkEvent(item.id, {
+    type: "APPROVED",
+    by: "operator",
+    note: String(input.note || "").trim() || `Payout authorized: ${authorizedUsd} USD`,
+    patch: {
+      payout: {
+        authorizedUsd,
+        payoutCapUsd,
+        checkedAt,
+        verificationCheckedAt: verification.checkedAt,
+        liquidityPledge: contract.incentives?.liquidityPledge || undefined,
+      },
+    },
+  });
+  updateWork(item.id, {
+    status: "DONE",
+    actor: "operator",
+    note: `Payout authorized (${authorizedUsd} USD).`,
+  });
+
+  revalidatePath("/ops/control");
+  revalidatePath("/work");
+  return {
+    ok: true,
+    role: effectiveRole,
+    checkedAt,
+    workId: item.id,
+    payoutEligible: true,
+    payoutCapUsd,
+    authorizedUsd,
+  };
+}
+
+export async function runVealthQueueTickAction(input: {
+  role?: OpsRole;
+  dryRun?: boolean;
+  defaultPayoutUsd?: number;
+}): Promise<VealthQueueTickResult> {
+  const effectiveRole = resolveServerRole();
+  const checkedAt = Date.now();
+  if (!canOperateVealth(effectiveRole)) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      dryRun: input.dryRun !== false,
+      nextAction: "none",
+      details: "Role is not allowed to run queue ticks.",
+      error: "role_denied",
+    };
+  }
+
+  const candidates = listWork()
+    .filter((item) => {
+      if (item.status === "DONE" || item.status === "CANCELED") return false;
+      const owner = String(item.owner || "").toLowerCase();
+      const tags = item.tags || [];
+      return owner.includes("vealth") || tags.includes("work-order");
+    })
+    .sort((a, b) => {
+      const byPriority = priorityWeight(b.priority) - priorityWeight(a.priority);
+      if (byPriority !== 0) return byPriority;
+      return Date.parse(a.createdAt) - Date.parse(b.createdAt);
+    });
+
+  const item = candidates[0];
+  if (!item) {
+    return {
+      ok: true,
+      role: effectiveRole,
+      checkedAt,
+      dryRun: input.dryRun !== false,
+      nextAction: "none",
+      details: "No eligible Vealth work orders in queue.",
+    };
+  }
+
+  const dispatchState = deriveDispatchState(item);
+  const verification = extractLatestVerification(item);
+  const payout = extractLatestPayout(item);
+
+  let nextAction: VealthQueueTickResult["nextAction"] = "none";
+  if (dispatchState === "created" || dispatchState === "error") {
+    nextAction = "dispatch";
+  } else if (!verification?.ok) {
+    nextAction = "verify";
+  } else if (!payout?.authorizedUsd) {
+    nextAction = "payout";
+  }
+
+  const dryRun = input.dryRun !== false;
+  if (dryRun || nextAction === "none") {
+    return {
+      ok: true,
+      role: effectiveRole,
+      checkedAt,
+      dryRun,
+      workId: item.id,
+      nextAction,
+      details:
+        nextAction === "none"
+          ? "Queue item already dispatched, verified, and paid."
+          : `Next action for ${item.id}: ${nextAction}.`,
+    };
+  }
+
+  if (nextAction === "dispatch") {
+    const dispatch = await dispatchVealthWorkOrderAction({
+      role: effectiveRole,
+      workId: item.id,
+    });
+    return {
+      ok: dispatch.ok,
+      role: effectiveRole,
+      checkedAt,
+      dryRun: false,
+      workId: item.id,
+      nextAction,
+      details: dispatch.ok
+        ? `Dispatched ${item.id} to Vealth.`
+        : `Dispatch failed for ${item.id}.`,
+      dispatch,
+      error: dispatch.error,
+    };
+  }
+
+  if (nextAction === "verify") {
+    const verify = await verifyVealthWorkOrderAction({
+      role: effectiveRole,
+      workId: item.id,
+    });
+    return {
+      ok: verify.ok,
+      role: effectiveRole,
+      checkedAt,
+      dryRun: false,
+      workId: item.id,
+      nextAction,
+      details: verify.ok
+        ? `Verification passed for ${item.id}.`
+        : `Verification failed for ${item.id}.`,
+      verification: verify,
+      error: verify.error,
+    };
+  }
+
+  const contract = extractWorkOrderContract(item);
+  const fallbackPayout = readBudget(input.defaultPayoutUsd);
+  const payoutAmount =
+    fallbackPayout > 0
+      ? fallbackPayout
+      : readBudget(contract?.incentives?.payoutUsdCap ?? 0);
+  const payoutResult = await authorizeVealthPayoutAction({
+    role: effectiveRole,
+    workId: item.id,
+    amountUsd: payoutAmount,
+    note: "Queue tick payout authorization.",
+  });
+  return {
+    ok: payoutResult.ok,
+    role: effectiveRole,
+    checkedAt,
+    dryRun: false,
+    workId: item.id,
+    nextAction,
+    details: payoutResult.ok
+      ? `Payout authorized for ${item.id}.`
+      : `Payout authorization failed for ${item.id}.`,
+    payout: payoutResult,
+    error: payoutResult.error,
+  };
 }
 
 export async function readAIEyesArtifactsAction(): Promise<AIEyesArtifacts> {
