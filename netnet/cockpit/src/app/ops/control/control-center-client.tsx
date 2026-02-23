@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState, useTransition, type CSSProperties } from "react";
 import {
   authorizeVealthPayoutAction,
+  buildSocialAutopublishPacketsAction,
+  buildVealthHandoffBundleAction,
   createSocialAutopublishWorkOrderAction,
   createVealthWorkOrderAction,
   dispatchVealthWorkOrderAction,
@@ -21,6 +23,7 @@ import {
   runOpenClawConnectionCheckAction,
   runOpenClawPolicyCheckAction,
   runOpenClawSchedulerCheckAction,
+  runVealthStaleGuardAction,
   runOpsCommandAction,
   runOpsSequenceAction,
   stopVealthWorkOrderAction,
@@ -41,8 +44,11 @@ import {
   type VealthQueueListItem,
   type VealthQueueSnapshotResult,
   type VealthQueueTickResult,
+  type VealthStaleGuardResult,
   type VealthWorkOrderContextResult,
   type VealthVerificationResult,
+  type VealthHandoffBundleResult,
+  type SocialAutopublishPacketsResult,
   type SocialAutopublishReadinessResult,
   type OpsWorkOrderResult,
 } from "./actions";
@@ -412,8 +418,15 @@ export default function ControlCenterClient() {
     useState<VealthQueueSnapshotResult | null>(null);
   const [queueBatchStatus, setQueueBatchStatus] =
     useState<VealthQueueBatchResult | null>(null);
+  const [staleGuardStatus, setStaleGuardStatus] =
+    useState<VealthStaleGuardResult | null>(null);
+  const [staleAfterHours, setStaleAfterHours] = useState("6");
   const [socialReadiness, setSocialReadiness] =
     useState<SocialAutopublishReadinessResult | null>(null);
+  const [socialPackets, setSocialPackets] =
+    useState<SocialAutopublishPacketsResult | null>(null);
+  const [handoffBundle, setHandoffBundle] =
+    useState<VealthHandoffBundleResult | null>(null);
   const [activeWorkId, setActiveWorkId] = useState("");
   const [goalDraft, setGoalDraft] = useState("");
   const [workOrderOwner, setWorkOrderOwner] = useState("vealth");
@@ -542,6 +555,8 @@ export default function ControlCenterClient() {
       setVerificationStatus(null);
       setPayoutStatus(null);
       setQueueTickStatus(null);
+      setSocialPackets(null);
+      setHandoffBundle(null);
       if (result.workId) setActiveWorkId(result.workId);
       await refreshQueueSnapshot();
     });
@@ -667,6 +682,8 @@ export default function ControlCenterClient() {
         workId,
       });
       if (!context.ok || !context.workId) return;
+      setSocialPackets(null);
+      setHandoffBundle(null);
       setActiveWorkId(context.workId);
       setLastWorkOrder({
         ok: true,
@@ -729,6 +746,52 @@ export default function ControlCenterClient() {
     });
   }
 
+  function runStaleGuard(dryRun: boolean) {
+    const parsed = Number(staleAfterHours);
+    const threshold = Number.isFinite(parsed) && parsed > 0 ? parsed : 6;
+    startTransition(async () => {
+      const result = await runVealthStaleGuardAction({
+        role,
+        staleAfterHours: threshold,
+        dryRun,
+      });
+      setStaleGuardStatus(result);
+      await refreshQueueSnapshot();
+    });
+  }
+
+  function buildSocialPacketsFor(workId: string) {
+    startTransition(async () => {
+      const result = await buildSocialAutopublishPacketsAction({
+        role,
+        workId,
+      });
+      setSocialPackets(result);
+    });
+  }
+
+  function buildSocialPackets() {
+    const workId = selectedWorkId();
+    if (!workId) return;
+    buildSocialPacketsFor(workId);
+  }
+
+  function buildHandoffBundleFor(workId: string) {
+    startTransition(async () => {
+      const result = await buildVealthHandoffBundleAction({
+        role,
+        workId,
+      });
+      setHandoffBundle(result);
+    });
+  }
+
+  function buildHandoffBundle() {
+    const workId = selectedWorkId();
+    if (!workId) return;
+    buildHandoffBundleFor(workId);
+  }
+
   function createSocialWorkOrder() {
     startTransition(async () => {
       const result = await createSocialAutopublishWorkOrderAction({
@@ -746,6 +809,8 @@ export default function ControlCenterClient() {
       setVerificationStatus(null);
       setPayoutStatus(null);
       setQueueTickStatus(null);
+      setSocialPackets(null);
+      setHandoffBundle(null);
       if (result.workId) setActiveWorkId(result.workId);
       await refreshQueueSnapshot();
       await refreshSocialReadiness();
@@ -891,6 +956,35 @@ export default function ControlCenterClient() {
             >
               Batch execute
             </button>
+            <input
+              value={staleAfterHours}
+              onChange={(event) => setStaleAfterHours(event.target.value)}
+              aria-label="stale after hours"
+              style={{
+                borderRadius: 8,
+                padding: "6px 10px",
+                border: "1px solid var(--nn-border-subtle, #1f2b45)",
+                background: "var(--nn-surface-0, rgba(3, 8, 18, 0.8))",
+                color: "inherit",
+                width: 100,
+              }}
+            />
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => runStaleGuard(true)}
+              style={{ padding: "6px 10px", borderRadius: 8 }}
+            >
+              Stale guard dry run
+            </button>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => runStaleGuard(false)}
+              style={{ padding: "6px 10px", borderRadius: 8 }}
+            >
+              Stale guard execute
+            </button>
           </div>
         </div>
 
@@ -908,6 +1002,15 @@ export default function ControlCenterClient() {
             {socialReadiness.channels
               .map((row) => `${row.channel}:${row.exists ? "ok" : "missing"}`)
               .join(" | ")}
+          </div>
+        ) : null}
+
+        {staleGuardStatus ? (
+          <div style={{ marginTop: 8, fontSize: 12, opacity: 0.86 }}>
+            Stale guard: scanned={staleGuardStatus.scanned} • stale=
+            {staleGuardStatus.staleItems.length} • escalated=
+            {staleGuardStatus.escalatedCount}
+            {staleGuardStatus.error ? ` • ${staleGuardStatus.error}` : ""}
           </div>
         ) : null}
 
@@ -967,6 +1070,28 @@ export default function ControlCenterClient() {
                     style={{ padding: "6px 10px", borderRadius: 8 }}
                   >
                     Tick execute
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pending || !item.hasSocialAutopublish}
+                    onClick={() => {
+                      setActiveWorkId(item.workId);
+                      buildSocialPacketsFor(item.workId);
+                    }}
+                    style={{ padding: "6px 10px", borderRadius: 8 }}
+                  >
+                    Social packets
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => {
+                      setActiveWorkId(item.workId);
+                      buildHandoffBundleFor(item.workId);
+                    }}
+                    style={{ padding: "6px 10px", borderRadius: 8 }}
+                  >
+                    Handoff bundle
                   </button>
                 </div>
               </article>
@@ -1476,6 +1601,47 @@ export default function ControlCenterClient() {
                   </div>
                 ) : null}
               </div>
+              <div
+                style={{
+                  border: "1px solid var(--nn-border-subtle, #1f2b45)",
+                  borderRadius: 10,
+                  padding: 10,
+                  display: "grid",
+                  gap: 8,
+                }}
+              >
+                <strong style={{ fontSize: 13 }}>Agent handoff lane</strong>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={buildHandoffBundle}
+                    style={{ padding: "6px 10px", borderRadius: 8 }}
+                  >
+                    Build handoff bundle
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pending || !lastWorkOrder?.contract?.socialAutopublish?.enabled}
+                    onClick={buildSocialPackets}
+                    style={{ padding: "6px 10px", borderRadius: 8 }}
+                  >
+                    Build social packets
+                  </button>
+                </div>
+                {socialPackets ? (
+                  <div style={{ fontSize: 12, opacity: 0.88 }}>
+                    Social packets: {socialPackets.packets.length} • topic={socialPackets.topic || "n/a"}
+                    {socialPackets.error ? ` • ${socialPackets.error}` : ""}
+                  </div>
+                ) : null}
+                {handoffBundle ? (
+                  <div style={{ fontSize: 12, opacity: 0.88 }}>
+                    Handoff bundle: {handoffBundle.ok ? "ready" : "failed"}
+                    {handoffBundle.error ? ` • ${handoffBundle.error}` : ""}
+                  </div>
+                ) : null}
+              </div>
             </div>
           ) : null}
           {lastWorkOrder?.error ? (
@@ -1515,6 +1681,38 @@ export default function ControlCenterClient() {
                 }}
               >
                 {JSON.stringify(lastWorkOrder.contract, null, 2)}
+              </pre>
+            </details>
+          ) : null}
+          {socialPackets ? (
+            <details>
+              <summary style={{ fontSize: 12 }}>Social packets (json)</summary>
+              <pre
+                style={{
+                  marginTop: 8,
+                  maxHeight: 200,
+                  overflow: "auto",
+                  whiteSpace: "pre-wrap",
+                  fontSize: 12,
+                }}
+              >
+                {JSON.stringify(socialPackets, null, 2)}
+              </pre>
+            </details>
+          ) : null}
+          {handoffBundle?.bundle ? (
+            <details>
+              <summary style={{ fontSize: 12 }}>Handoff bundle (json)</summary>
+              <pre
+                style={{
+                  marginTop: 8,
+                  maxHeight: 220,
+                  overflow: "auto",
+                  whiteSpace: "pre-wrap",
+                  fontSize: 12,
+                }}
+              >
+                {JSON.stringify(handoffBundle.bundle, null, 2)}
               </pre>
             </details>
           ) : null}

@@ -286,3 +286,31 @@ This backlog tracks machine-first Operator execution units.
   - Facebook
 - Added readiness status UI in queue panel to keep social posting lane explicit and auditable.
 - Missing connectors now surface as explicit readiness gaps while preserving proposal-first flow.
+
+### Unit 125 — Vealth stale-work watchdog lane
+
+- Added `/ops/control` stale guard action with configurable stale threshold (hours).
+- Stale guard scans running/dispatched queue items and can:
+  - dry-run for preview
+  - execute to append deterministic `ESCALATED` stale-guard events
+- Added queue-panel controls and stale summary output for operator visibility.
+
+### Unit 126 — Social autopublish packet builder
+
+- Added `/ops/control` action to build draft social proposal packets from a social-enabled work order.
+- Packet builder returns deterministic channel payloads in strict order:
+  - YouTube
+  - X
+  - Instagram
+  - Facebook
+- Added UI controls to build and inspect social packets as JSON artifacts.
+
+### Unit 127 — Vealth handoff bundle generator
+
+- Added `/ops/control` action to generate a machine-readable handoff bundle for selected work orders.
+- Bundle includes:
+  - contract
+  - dispatch/verification/payout snapshots
+  - next deterministic queue action
+  - social connector availability
+- Added UI controls to build and inspect handoff bundle JSON for agent handoff.

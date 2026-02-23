@@ -250,6 +250,51 @@ export type SocialAutopublishReadinessResult = {
   details: string;
 };
 
+export type VealthStaleGuardResult = {
+  ok: boolean;
+  role: OpsRole;
+  checkedAt: number;
+  staleAfterHours: number;
+  scanned: number;
+  escalatedCount: number;
+  staleItems: Array<{
+    workId: string;
+    title: string;
+    dispatchState: VealthDispatchStatus["state"];
+    ageHours: number;
+    alreadyEscalated: boolean;
+  }>;
+  error?: string;
+};
+
+export type SocialAutopublishPacketsResult = {
+  ok: boolean;
+  role: OpsRole;
+  checkedAt: number;
+  workId: string;
+  prompt?: string;
+  topic?: string;
+  schedule?: string;
+  packets: Array<{
+    channel: SocialChannel;
+    route: string;
+    title: string;
+    status: "draft";
+    available: boolean;
+    body: Record<string, unknown>;
+  }>;
+  error?: string;
+};
+
+export type VealthHandoffBundleResult = {
+  ok: boolean;
+  role: OpsRole;
+  checkedAt: number;
+  workId: string;
+  bundle?: Record<string, unknown>;
+  error?: string;
+};
+
 export type AIEyesArtifacts = {
   ok: boolean;
   updatedAt?: number;
@@ -1199,6 +1244,38 @@ function toVealthQueueListItem(item: WorkItem): VealthQueueListItem {
   };
 }
 
+function latestWorkEvent(item: WorkItem) {
+  return [...item.events].sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0];
+}
+
+function hasRecentStaleEscalation(item: WorkItem): boolean {
+  const latest = latestWorkEvent(item);
+  if (!latest) return false;
+  return latest.type === "ESCALATED" && String(latest.note || "").includes("stale_guard");
+}
+
+function itemAgeHours(item: WorkItem): number {
+  const updatedMs = Date.parse(item.updatedAt);
+  if (!Number.isFinite(updatedMs)) return 0;
+  return Math.max(0, (Date.now() - updatedMs) / (60 * 60 * 1000));
+}
+
+function deriveQueueNextAction(item: WorkItem): VealthQueueTickResult["nextAction"] {
+  const dispatchState = deriveDispatchState(item);
+  const verification = extractLatestVerification(item);
+  const payout = extractLatestPayout(item);
+  if (dispatchState === "created" || dispatchState === "error") {
+    return "dispatch";
+  }
+  if (!verification?.ok) {
+    return "verify";
+  }
+  if (!payout?.authorizedUsd) {
+    return "payout";
+  }
+  return "none";
+}
+
 async function callOpenClawDispatch(action: string, payload: Record<string, unknown>): Promise<OpenClawRemoteResult> {
   const dashboard = String(process.env.OPENCLAW_DASHBOARD_URL || "").trim();
   const apiKey = String(process.env.OPENCLAW_API_KEY || "").trim();
@@ -1279,7 +1356,7 @@ function toDispatchStatus(args: {
   remote?: OpenClawRemoteResult;
   error?: string;
 }): VealthDispatchStatus {
-  const latestEvent = [...args.item.events].sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0];
+  const latestEvent = latestWorkEvent(args.item);
   return {
     ok: !args.error,
     role: args.role,
@@ -1827,18 +1904,7 @@ export async function runVealthQueueTickAction(input: {
     };
   }
 
-  const dispatchState = deriveDispatchState(item);
-  const verification = extractLatestVerification(item);
-  const payout = extractLatestPayout(item);
-
-  let nextAction: VealthQueueTickResult["nextAction"] = "none";
-  if (dispatchState === "created" || dispatchState === "error") {
-    nextAction = "dispatch";
-  } else if (!verification?.ok) {
-    nextAction = "verify";
-  } else if (!payout?.authorizedUsd) {
-    nextAction = "payout";
-  }
+  const nextAction = deriveQueueNextAction(item);
 
   const dryRun = input.dryRun !== false;
   if (dryRun || nextAction === "none") {
@@ -2062,6 +2128,221 @@ export async function runSocialAutopublishReadinessAction(input?: {
     channels,
     allRoutesPresent,
     details,
+  };
+}
+
+export async function runVealthStaleGuardAction(input?: {
+  role?: OpsRole;
+  staleAfterHours?: number;
+  dryRun?: boolean;
+}): Promise<VealthStaleGuardResult> {
+  const effectiveRole = resolveServerRole();
+  const checkedAt = Date.now();
+  if (!canOperateVealth(effectiveRole)) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      staleAfterHours: 0,
+      scanned: 0,
+      escalatedCount: 0,
+      staleItems: [],
+      error: "role_denied",
+    };
+  }
+
+  const staleAfterRaw =
+    typeof input?.staleAfterHours === "number" && Number.isFinite(input.staleAfterHours)
+      ? input.staleAfterHours
+      : 6;
+  const staleAfterHours = Math.max(1, Math.min(168, Math.floor(staleAfterRaw)));
+  const dryRun = input?.dryRun !== false;
+
+  const candidates = sortVealthQueue(listWork().filter((item) => isVealthQueueCandidate(item)));
+  const staleItems: VealthStaleGuardResult["staleItems"] = [];
+  let escalatedCount = 0;
+
+  for (const item of candidates) {
+    const dispatchState = deriveDispatchState(item);
+    if (dispatchState !== "running" && dispatchState !== "dispatched") continue;
+    const ageHours = itemAgeHours(item);
+    if (ageHours < staleAfterHours) continue;
+    const alreadyEscalated = hasRecentStaleEscalation(item);
+    staleItems.push({
+      workId: item.id,
+      title: item.title,
+      dispatchState,
+      ageHours: Math.round(ageHours * 10) / 10,
+      alreadyEscalated,
+    });
+    if (!dryRun && !alreadyEscalated) {
+      appendWorkEvent(item.id, {
+        type: "ESCALATED",
+        by: "operator",
+        note: `stale_guard: stale running work order after ${Math.round(ageHours)}h`,
+        patch: {
+          staleGuard: {
+            checkedAt,
+            staleAfterHours,
+            ageHours: Math.round(ageHours * 10) / 10,
+            dispatchState,
+          },
+        },
+      });
+      escalatedCount += 1;
+    }
+  }
+
+  revalidatePath("/ops/control");
+  revalidatePath("/work");
+  return {
+    ok: true,
+    role: effectiveRole,
+    checkedAt,
+    staleAfterHours,
+    scanned: candidates.length,
+    escalatedCount,
+    staleItems,
+  };
+}
+
+export async function buildSocialAutopublishPacketsAction(input: {
+  role?: OpsRole;
+  workId: string;
+}): Promise<SocialAutopublishPacketsResult> {
+  const effectiveRole = resolveServerRole();
+  const checkedAt = Date.now();
+  const workId = String(input.workId || "").trim();
+  if (!workId) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId: "",
+      packets: [],
+      error: "work_id_required",
+    };
+  }
+  const item = getWork(workId);
+  if (!item) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId,
+      packets: [],
+      error: "work_not_found",
+    };
+  }
+  const contract = extractWorkOrderContract(item);
+  const social = contract?.socialAutopublish;
+  if (!social?.enabled) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId: item.id,
+      packets: [],
+      error: "social_autopublish_not_enabled",
+    };
+  }
+  const packets = social.order.map((channel) => {
+    const route = socialRouteForChannel(channel);
+    return {
+      channel,
+      route,
+      title: `${channel.toUpperCase()} proposal`,
+      status: "draft" as const,
+      available: routeExists(route),
+      body: {
+        channel,
+        route,
+        topic: social.topic,
+        schedule: social.schedule,
+        tone: social.tone,
+        callToAction: social.callToAction,
+        proposalMode: "draft_only",
+      },
+    };
+  });
+  revalidatePath("/ops/control");
+  return {
+    ok: true,
+    role: effectiveRole,
+    checkedAt,
+    workId: item.id,
+    prompt: social.prompt,
+    topic: social.topic,
+    schedule: social.schedule,
+    packets,
+  };
+}
+
+export async function buildVealthHandoffBundleAction(input: {
+  role?: OpsRole;
+  workId: string;
+}): Promise<VealthHandoffBundleResult> {
+  const effectiveRole = resolveServerRole();
+  const checkedAt = Date.now();
+  const workId = String(input.workId || "").trim();
+  if (!workId) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId: "",
+      error: "work_id_required",
+    };
+  }
+  const item = getWork(workId);
+  if (!item) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId,
+      error: "work_not_found",
+    };
+  }
+  const contract = extractWorkOrderContract(item);
+  const verification = extractLatestVerification(item);
+  const payout = extractLatestPayout(item);
+  const dispatchState = deriveDispatchState(item);
+  const nextAction = deriveQueueNextAction(item);
+  const socialConnectors =
+    contract?.socialAutopublish?.order.map((channel) => {
+      const route = socialRouteForChannel(channel);
+      return {
+        channel,
+        route,
+        available: routeExists(route),
+      };
+    }) || [];
+
+  const bundle = {
+    generatedAt: checkedAt,
+    workId: item.id,
+    title: item.title,
+    owner: item.owner,
+    priority: item.priority,
+    status: item.status,
+    updatedAt: item.updatedAt,
+    dispatchState,
+    nextAction,
+    verification,
+    payout,
+    contract,
+    socialConnectors,
+    latestEvent: latestWorkEvent(item) || null,
+  } as Record<string, unknown>;
+
+  revalidatePath("/ops/control");
+  return {
+    ok: true,
+    role: effectiveRole,
+    checkedAt,
+    workId: item.id,
+    bundle,
   };
 }
 
