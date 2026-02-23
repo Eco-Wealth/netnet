@@ -32,6 +32,7 @@ import {
   proposeFromBankrDraftAction,
   proposeStrategyFromAssistantProposal,
   rejectProposalAction,
+  runBankrPreflightAction,
   requestExecutionIntentAction,
   sendOperatorMessageAction,
   setActiveWalletProfileAction,
@@ -412,6 +413,12 @@ export default function OperatorConsoleClient({
     [activeThreadId, runAction]
   );
 
+  const handlePreflight = useCallback(
+    (id: string) =>
+      runAction(`preflight:${id}`, () => runBankrPreflightAction(id), activeThreadId),
+    [activeThreadId, runAction]
+  );
+
   const handleDraftStrategy = useCallback(
     (id: string) =>
       runAction(`strategy:${id}`, () => proposeStrategyFromAssistantProposal(id), activeThreadId),
@@ -578,6 +585,7 @@ export default function OperatorConsoleClient({
               onGeneratePlan={handleGeneratePlan}
               onExecute={handleExecute}
               onSimulate={handleSimulate}
+              onPreflight={handlePreflight}
               onDraftStrategy={handleDraftStrategy}
               onSelectProposal={handleSelectProposal}
               onSelectMessage={handleSelectMessage}

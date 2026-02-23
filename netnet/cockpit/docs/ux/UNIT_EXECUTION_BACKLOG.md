@@ -439,3 +439,28 @@ This backlog tracks machine-first Operator execution units.
   - store execution path
   - operator executor boundary path
 - Updated Bankr integrity checks to guard new validation/preflight/idempotency/classification markers.
+
+### Unit 140 — Bankr preflight run action
+
+- Added `runBankrPreflightAction(proposalId)` server action in Operator:
+  - Bankr-only preflight path (no execution)
+  - policy-gated via `bankr.simulate`
+  - persists preflight snapshot in proposal metadata
+  - emits deterministic audit messages (`bankr.preflight`)
+
+### Unit 141 — Proposal diagnostics surface (preflight + failure reason)
+
+- Proposal cards now surface:
+  - explicit `Preflight` action for approved+locked Bankr proposals
+  - preflight pass/fail panel with failed-check details
+  - execution failure category in proposal metadata strip
+- Ops Board reliability lists now include:
+  - failure category chip
+  - preflight status chip for failed/ready Bankr executions
+
+### Unit 142 — Bankr drift guard extension
+
+- Extended `scripts/check-bankr-integrity.mjs` to enforce:
+  - preflight action export and audit wiring in operator actions
+  - proposal preflight parsing/rendering in conversation UI
+  - failure-category surfacing regression guard

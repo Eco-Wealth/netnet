@@ -28,6 +28,7 @@ type ConversationPanelProps = {
   onGeneratePlan: (id: string) => void;
   onExecute: (id: string) => void;
   onSimulate: (id: string) => void;
+  onPreflight: (id: string) => void;
   onDraftStrategy: (id: string) => void;
   onSelectProposal: (id: string) => void;
   onSelectMessage: (id: string) => void;
@@ -60,6 +61,18 @@ type ProposalSimulation = {
   timestamp: string;
 };
 
+type ProposalPreflight = {
+  ok: boolean;
+  checkedAt?: number;
+  action?: string;
+  route?: string;
+  checks: Array<{
+    key: string;
+    ok: boolean;
+    detail?: string;
+  }>;
+};
+
 function readProposalSimulation(proposal: SkillProposalEnvelope): ProposalSimulation | null {
   const raw = proposal.metadata?.simulation;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
@@ -90,6 +103,29 @@ function readProposalSimulation(proposal: SkillProposalEnvelope): ProposalSimula
     steps: value.steps,
     warnings: value.warnings,
     timestamp: value.timestamp,
+  };
+}
+
+function readProposalPreflight(proposal: SkillProposalEnvelope): ProposalPreflight | null {
+  const raw = proposal.metadata?.preflight;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const value = raw as Record<string, unknown>;
+  if (typeof value.ok !== "boolean") return null;
+  const checksRaw = Array.isArray(value.checks) ? value.checks : [];
+  const checks = checksRaw
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object"))
+    .map((entry) => ({
+      key: typeof entry.key === "string" ? entry.key : "unknown",
+      ok: entry.ok === true,
+      detail: typeof entry.detail === "string" ? entry.detail : undefined,
+    }));
+
+  return {
+    ok: value.ok,
+    checkedAt: typeof value.checkedAt === "number" ? value.checkedAt : undefined,
+    action: typeof value.action === "string" ? value.action : undefined,
+    route: typeof value.route === "string" ? value.route : undefined,
+    checks,
   };
 }
 
@@ -231,6 +267,7 @@ const ProposalInlineCard = memo(function ProposalInlineCard({
   onGeneratePlan,
   onExecute,
   onSimulate,
+  onPreflight,
   onDraftStrategy,
 }: {
   proposal: SkillProposalEnvelope;
@@ -244,11 +281,13 @@ const ProposalInlineCard = memo(function ProposalInlineCard({
   onGeneratePlan: (id: string) => void;
   onExecute: (id: string) => void;
   onSimulate: (id: string) => void;
+  onPreflight: (id: string) => void;
   onDraftStrategy: (id: string) => void;
 }) {
   const [showJson, setShowJson] = useState(false);
   const isBankrProposal = proposal.route.includes("/api/bankr/");
   const simulation = useMemo(() => readProposalSimulation(proposal), [proposal]);
+  const preflight = useMemo(() => readProposalPreflight(proposal), [proposal]);
   const canExecuteBase =
     proposal.status === "approved" &&
     proposal.executionIntent === "locked" &&
@@ -260,7 +299,15 @@ const ProposalInlineCard = memo(function ProposalInlineCard({
     proposal.status === "approved" &&
     proposal.executionIntent === "locked" &&
     proposal.executionStatus === "idle";
+  const showPreflight = showSimulate;
   const executeNeedsSimulation = showSimulate && !Boolean(simulation?.ok);
+  const preflightCounts = useMemo(() => {
+    if (!preflight) return { passed: 0, total: 0, failed: 0 };
+    const passed = preflight.checks.filter((check) => check.ok).length;
+    const total = preflight.checks.length;
+    return { passed, total, failed: total - passed };
+  }, [preflight]);
+  const failureCategory = proposal.executionResult?.failureCategory || null;
 
   const headlineStatus = useMemo(() => {
     if (proposal.executionStatus === "failed") return "failed";
@@ -352,6 +399,12 @@ const ProposalInlineCard = memo(function ProposalInlineCard({
         <span>intent: {proposal.executionIntent}</span>
         <span>plan: {proposal.executionPlan ? "ready" : "none"}</span>
         <span>{proposal.executionResult ? (proposal.executionResult.ok ? "result: success" : "result: failed") : "result: none"}</span>
+        {failureCategory ? <span>failure: {failureCategory}</span> : null}
+        {preflight ? (
+          <span>
+            preflight: {preflightCounts.passed}/{preflightCounts.total || 0}
+          </span>
+        ) : null}
       </div>
 
       <div className={styles["nn-proposalActions"]} onClick={(event) => event.stopPropagation()}>
@@ -444,6 +497,21 @@ const ProposalInlineCard = memo(function ProposalInlineCard({
           </Tooltip>
         ) : null}
 
+        {showPreflight ? (
+          <Tooltip text="Run deterministic preflight checks before execute.">
+            <span>
+              <Button
+                size="sm"
+                variant="subtle"
+                onClick={() => onPreflight(proposal.id)}
+                disabled={loadingAction !== null}
+              >
+                {loadingAction === `preflight:${proposal.id}` ? "Checking..." : "Preflight"}
+              </Button>
+            </span>
+          </Tooltip>
+        ) : null}
+
         {canExecuteBase ? (
           <Tooltip
             text={
@@ -515,6 +583,49 @@ const ProposalInlineCard = memo(function ProposalInlineCard({
         </div>
       ) : null}
 
+      {preflight ? (
+        <div className={styles["nn-preflightPanel"]}>
+          <div className={styles["nn-simulationHead"]}>
+            <div className={styles["nn-simulationTitle"]}>Preflight</div>
+            <span
+              className={[
+                styles["nn-statusBadge"],
+                preflight.ok ? styles["nn-success"] : styles["nn-failure"],
+              ].join(" ")}
+            >
+              {preflight.ok ? "pass" : "fail"}
+            </span>
+          </div>
+          <div className={styles["nn-simulationSummary"]}>
+            {preflightCounts.passed}/{preflightCounts.total || 0} checks passed
+            {preflight.checkedAt ? ` • ${new Date(preflight.checkedAt).toLocaleTimeString()}` : ""}
+          </div>
+          {preflight.action || preflight.route ? (
+            <div className={styles["nn-muted"]}>
+              {preflight.action || "bankr"}
+              {" -> "}
+              {preflight.route || proposal.route}
+            </div>
+          ) : null}
+          {preflightCounts.failed > 0 ? (
+            <ul className={styles["nn-simulationWarnings"]}>
+              {preflight.checks
+                .filter((check) => !check.ok)
+                .slice(0, 6)
+                .map((check) => (
+                  <li key={`${proposal.id}-preflight-${check.key}`}>
+                    {check.key}
+                    {check.detail ? `: ${check.detail}` : ""}
+                  </li>
+                ))}
+              {preflightCounts.failed > 6 ? (
+                <li className={styles["nn-muted"]}>+{preflightCounts.failed - 6} more</li>
+              ) : null}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className={styles["nn-proposalToggleRow"]} onClick={(event) => event.stopPropagation()}>
         <button
           type="button"
@@ -555,6 +666,7 @@ type MessageRowProps = {
   onGeneratePlan: (id: string) => void;
   onExecute: (id: string) => void;
   onSimulate: (id: string) => void;
+  onPreflight: (id: string) => void;
   onDraftStrategy: (id: string) => void;
 };
 
@@ -578,6 +690,7 @@ const MessageRow = memo(function MessageRow({
   onGeneratePlan,
   onExecute,
   onSimulate,
+  onPreflight,
   onDraftStrategy,
 }: MessageRowProps) {
   const tags = message.metadata?.tags || [];
@@ -631,6 +744,7 @@ const MessageRow = memo(function MessageRow({
             onGeneratePlan={onGeneratePlan}
             onExecute={onExecute}
             onSimulate={onSimulate}
+            onPreflight={onPreflight}
             onDraftStrategy={onDraftStrategy}
           />
         ) : (
@@ -676,6 +790,7 @@ type ConversationFeedProps = {
   onGeneratePlan: (id: string) => void;
   onExecute: (id: string) => void;
   onSimulate: (id: string) => void;
+  onPreflight: (id: string) => void;
   onDraftStrategy: (id: string) => void;
   onSelectProposal: (id: string) => void;
   onSelectMessage: (id: string) => void;
@@ -695,6 +810,7 @@ const ConversationFeed = memo(function ConversationFeed({
   onGeneratePlan,
   onExecute,
   onSimulate,
+  onPreflight,
   onDraftStrategy,
   onSelectProposal,
   onSelectMessage,
@@ -924,6 +1040,7 @@ const ConversationFeed = memo(function ConversationFeed({
             onGeneratePlan={onGeneratePlan}
             onExecute={onExecute}
             onSimulate={onSimulate}
+            onPreflight={onPreflight}
             onDraftStrategy={onDraftStrategy}
           />
         );
@@ -1057,6 +1174,7 @@ export default function ConversationPanel({
   onGeneratePlan,
   onExecute,
   onSimulate,
+  onPreflight,
   onDraftStrategy,
   onSelectProposal,
   onSelectMessage,
@@ -1081,6 +1199,7 @@ export default function ConversationPanel({
         onGeneratePlan={onGeneratePlan}
         onExecute={onExecute}
         onSimulate={onSimulate}
+        onPreflight={onPreflight}
         onDraftStrategy={onDraftStrategy}
         onSelectProposal={onSelectProposal}
         onSelectMessage={onSelectMessage}

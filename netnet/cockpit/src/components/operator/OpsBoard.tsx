@@ -120,6 +120,32 @@ const Section = memo(function Section({
   );
 });
 
+function readPreflightSummary(proposal: SkillProposalEnvelope): {
+  has: boolean;
+  ok: boolean;
+  passed: number;
+  total: number;
+} {
+  const raw = proposal.metadata?.preflight;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { has: false, ok: false, passed: 0, total: 0 };
+  }
+  const value = raw as Record<string, unknown>;
+  const checks = Array.isArray(value.checks)
+    ? value.checks.filter(
+        (entry): entry is Record<string, unknown> =>
+          Boolean(entry && typeof entry === "object")
+      )
+    : [];
+  const passed = checks.filter((check) => check.ok === true).length;
+  return {
+    has: true,
+    ok: value.ok === true,
+    passed,
+    total: checks.length,
+  };
+}
+
 function renderRunbookMarkdown(markdown: string): JSX.Element {
   const lines = markdown.split("\n");
   const nodes: JSX.Element[] = [];
@@ -513,34 +539,48 @@ export default function OpsBoard({
           {readyToExecute.length ? (
             <div className={styles["nn-listBlock"]}>
               <div className={styles["nn-muted"]}>Ready to execute</div>
-              {readyToExecute.map((proposal) => (
-                <button
-                  key={proposal.id}
-                  type="button"
-                  className={[
-                    styles["nn-listItem"],
-                    styles["nn-listItemButton"],
-                    selected.kind === "proposal" && selected.id === proposal.id
-                      ? styles["nn-selectedFrame"]
-                      : "",
-                  ].join(" ")}
-                  onClick={() => {
-                    onSelectProposal(proposal.id);
-                    onFocusProposal(proposal.id);
-                  }}
-                >
-                  <div className={styles["nn-listHead"]}>
-                    <div>{proposal.skillId}</div>
-                    <span className={styles["nn-statusBadge"]}>
-                      {proposal.executionPlan ? "plan ready" : "plan missing"}
-                    </span>
-                  </div>
-                  <div className={styles["nn-chipRow"]}>
-                    <span className={styles["nn-chip"]}>intent: {proposal.executionIntent}</span>
-                    <span className={styles["nn-chip"]}>status: {proposal.status}</span>
-                  </div>
-                </button>
-              ))}
+              {readyToExecute.map((proposal) => {
+                const preflight = readPreflightSummary(proposal);
+                const isBankr = proposal.route.includes("/api/bankr/");
+                return (
+                  <button
+                    key={proposal.id}
+                    type="button"
+                    className={[
+                      styles["nn-listItem"],
+                      styles["nn-listItemButton"],
+                      selected.kind === "proposal" && selected.id === proposal.id
+                        ? styles["nn-selectedFrame"]
+                        : "",
+                    ].join(" ")}
+                    onClick={() => {
+                      onSelectProposal(proposal.id);
+                      onFocusProposal(proposal.id);
+                    }}
+                  >
+                    <div className={styles["nn-listHead"]}>
+                      <div>{proposal.skillId}</div>
+                      <span className={styles["nn-statusBadge"]}>
+                        {proposal.executionPlan ? "plan ready" : "plan missing"}
+                      </span>
+                    </div>
+                    <div className={styles["nn-chipRow"]}>
+                      <span className={styles["nn-chip"]}>intent: {proposal.executionIntent}</span>
+                      <span className={styles["nn-chip"]}>status: {proposal.status}</span>
+                      {isBankr ? (
+                        <span className={styles["nn-chip"]}>
+                          preflight:{" "}
+                          {preflight.has
+                            ? preflight.ok
+                              ? `${preflight.passed}/${preflight.total || 0}`
+                              : "fail"
+                            : "missing"}
+                        </span>
+                      ) : null}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           ) : null}
 
@@ -603,6 +643,13 @@ export default function OpsBoard({
                   <div className={styles["nn-muted"]}>
                     {proposal.executionResult?.route || proposal.route}
                   </div>
+                  {proposal.executionResult?.failureCategory ? (
+                    <div className={styles["nn-chipRow"]}>
+                      <span className={styles["nn-chip"]}>
+                        reason: {proposal.executionResult.failureCategory}
+                      </span>
+                    </div>
+                  ) : null}
                 </button>
               ))}
             </div>
@@ -1035,7 +1082,9 @@ export default function OpsBoard({
             {failedExecutions.length ? (
               <div className={styles["nn-listBlock"]}>
                 <div className={styles["nn-muted"]}>Failed executions</div>
-                {failedExecutions.map((proposal) => (
+                {failedExecutions.map((proposal) => {
+                  const preflight = readPreflightSummary(proposal);
+                  return (
                   <div key={`failed-${proposal.id}`} className={styles["nn-listItem"]}>
                     <div className={styles["nn-listHead"]}>
                       <div>
@@ -1044,6 +1093,19 @@ export default function OpsBoard({
                       </div>
                       <span className={[styles["nn-statusBadge"], styles["nn-failure"]].join(" ")}>
                         failed
+                      </span>
+                    </div>
+                    <div className={styles["nn-chipRow"]}>
+                      <span className={styles["nn-chip"]}>
+                        reason: {proposal.executionResult?.failureCategory || "unknown"}
+                      </span>
+                      <span className={styles["nn-chip"]}>
+                        preflight:{" "}
+                        {preflight.has
+                          ? preflight.ok
+                            ? `${preflight.passed}/${preflight.total || 0}`
+                            : "failed"
+                          : "not-run"}
                       </span>
                     </div>
                     <div className={styles["nn-chipRow"]}>
@@ -1066,7 +1128,8 @@ export default function OpsBoard({
                       </Button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className={styles["nn-muted"]}>No failed executions in recent history.</div>

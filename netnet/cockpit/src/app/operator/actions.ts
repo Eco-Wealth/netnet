@@ -357,6 +357,67 @@ export async function generateExecutionPlanAction(id: string): Promise<OperatorS
   return state();
 }
 
+export async function runBankrPreflightAction(id: string): Promise<OperatorStateResponse> {
+  const proposal = getProposal(id);
+  if (!proposal) {
+    appendAuditMessage("Bankr preflight failed: proposal not found.", "bankr.preflight");
+    return state();
+  }
+
+  if (!proposal.route.includes("/api/bankr/")) {
+    appendAuditMessage("Bankr preflight skipped: proposal is not Bankr.", "bankr.preflight");
+    return state();
+  }
+
+  const gate = enforcePolicy("bankr.simulate", {
+    route: proposal.route,
+    venue: "bankr",
+    chain:
+      typeof proposal.proposedBody.chain === "string"
+        ? proposal.proposedBody.chain
+        : undefined,
+    fromToken:
+      typeof proposal.proposedBody.token === "string"
+        ? proposal.proposedBody.token
+        : undefined,
+  });
+  if (!gate.ok) {
+    appendAuditMessage("Bankr preflight blocked: policy_denied.", "bankr.preflight");
+    return state();
+  }
+
+  const preflightBundle = getBankrExecutionPreflightBundle(id);
+  proposal.metadata = {
+    ...(proposal.metadata || {}),
+    preflight: {
+      ok: preflightBundle.ok,
+      checkedAt: Date.now(),
+      action: preflightBundle.action,
+      route: preflightBundle.route,
+      checks: preflightBundle.checks,
+    },
+  };
+  if (preflightBundle.normalizedBody) {
+    proposal.proposedBody = preflightBundle.normalizedBody;
+  }
+  upsertProposal(proposal);
+
+  const failedChecks = preflightBundle.checks
+    .filter((check) => !check.ok)
+    .map((check) => `${check.key}${check.detail ? ` (${check.detail})` : ""}`);
+
+  if (preflightBundle.ok) {
+    appendAuditMessage("Bankr preflight passed.", "bankr.preflight");
+  } else {
+    appendAuditMessage(
+      `Bankr preflight failed (${failedChecks.join(" | ") || "unknown"}).`,
+      "bankr.preflight"
+    );
+  }
+
+  return state();
+}
+
 export async function executeProposalAction(id: string): Promise<OperatorStateResponse> {
   try {
     const preflight = getProposal(id);

@@ -16,6 +16,8 @@ const files = {
   proposal: path.join(cockpitRoot, "src/lib/operator/proposal.ts"),
   adapter: path.join(cockpitRoot, "src/lib/operator/adapters/bankr.ts"),
   actionSchema: path.join(cockpitRoot, "src/lib/bankr/actionSchema.ts"),
+  actions: path.join(cockpitRoot, "src/app/operator/actions.ts"),
+  conversation: path.join(cockpitRoot, "src/components/operator/ConversationPanel.tsx"),
   store: path.join(cockpitRoot, "src/lib/operator/store.ts"),
   executor: path.join(cockpitRoot, "src/lib/operator/executor.ts"),
   policyTypes: path.join(cockpitRoot, "src/lib/policy/types.ts"),
@@ -53,6 +55,8 @@ const llmSrc = read(files.llm);
 const proposalSrc = read(files.proposal);
 const adapterSrc = read(files.adapter);
 const actionSchemaSrc = read(files.actionSchema);
+const actionsSrc = read(files.actions);
+const conversationSrc = read(files.conversation);
 const storeSrc = read(files.store);
 const executorSrc = read(files.executor);
 const policyTypesSrc = read(files.policyTypes);
@@ -160,6 +164,37 @@ check(function execution_store_has_write_confirmation_and_replay_guard() {
     storeSrc,
     /failureCategory|classifyExecutionFailureMessage/,
     "store execution classifies failures"
+  );
+}, results);
+
+check(function operator_actions_include_bankr_preflight_lane() {
+  mustContain(
+    actionsSrc,
+    /export async function runBankrPreflightAction\(/,
+    "operator actions export runBankrPreflightAction"
+  );
+  mustContain(
+    actionsSrc,
+    /bankr\.preflight/,
+    "operator actions write bankr.preflight audit action"
+  );
+}, results);
+
+check(function conversation_surface_shows_preflight_and_failure_details() {
+  mustContain(
+    conversationSrc,
+    /readProposalPreflight\(/,
+    "conversation parses proposal preflight metadata"
+  );
+  mustContain(
+    conversationSrc,
+    /Preflight/,
+    "conversation surfaces preflight button/panel labels"
+  );
+  mustContain(
+    conversationSrc,
+    /failureCategory/,
+    "conversation surfaces failure category"
   );
 }, results);
 

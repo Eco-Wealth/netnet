@@ -737,6 +737,15 @@
   color: rgba(252, 211, 77, 0.95);
 }
 
+.nn-preflightPanel {
+  border: 1px solid rgba(59, 130, 246, 0.28);
+  border-radius: 7px;
+  background: rgba(15, 23, 42, 0.78);
+  padding: 6px;
+  display: grid;
+  gap: 5px;
+}
+
 .nn-opsBoard {
   min-height: 100%;
   overflow: visible;
