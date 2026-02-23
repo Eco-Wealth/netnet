@@ -259,3 +259,30 @@ This backlog tracks machine-first Operator execution units.
   - stores connector availability matrix for YouTube/X/Instagram/Facebook
 - Added Ops Control UI form for one-click social work-order creation with strict sequence order.
 - Kept flow proposal-first and approval-gated; no automatic social posting execution was added.
+
+### Unit 122 — Vealth queue snapshot + load-context controls
+
+- Added `/ops/control` queue snapshot action to list active Vealth work orders with:
+  - dispatch state
+  - verification/payout completion flags
+  - social lane flag
+- Added `/ops/control` work-order context action for loading existing work ids back into the control lane.
+- Added UI panel to browse queue items and load context without terminal work.
+
+### Unit 123 — Vealth bounded batch tick runner
+
+- Added `/ops/control` batch tick action with bounded loop:
+  - dry-run mode (single deterministic preview)
+  - execute mode (multi-step progression, bounded by limit)
+- Batch runner reuses existing queue tick logic and keeps strict approval-first behavior.
+- Added UI controls for batch dry-run and batch execute with summarized outcomes.
+
+### Unit 124 — Social autopublish readiness guard lane
+
+- Added `/ops/control` social readiness action that checks connector route coverage for:
+  - YouTube
+  - X
+  - Instagram
+  - Facebook
+- Added readiness status UI in queue panel to keep social posting lane explicit and auditable.
+- Missing connectors now surface as explicit readiness gaps while preserving proposal-first flow.

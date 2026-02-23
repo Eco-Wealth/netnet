@@ -21,6 +21,7 @@ import {
   updateWork,
   type WorkItem,
   type WorkPriority,
+  type WorkStatus,
 } from "@/lib/work";
 
 const COCKPIT_ROOT = process.cwd();
@@ -189,6 +190,64 @@ export type VealthQueueTickResult = {
   verification?: VealthVerificationResult;
   payout?: VealthPayoutAuthorizationResult;
   error?: string;
+};
+
+export type VealthQueueListItem = {
+  workId: string;
+  title: string;
+  owner?: string;
+  priority: WorkPriority;
+  status: WorkStatus;
+  updatedAt: string;
+  dispatchState: VealthDispatchStatus["state"];
+  hasContract: boolean;
+  hasSocialAutopublish: boolean;
+  verificationOk: boolean;
+  payoutAuthorized: boolean;
+};
+
+export type VealthQueueSnapshotResult = {
+  ok: boolean;
+  role: OpsRole;
+  checkedAt: number;
+  items: VealthQueueListItem[];
+  error?: string;
+};
+
+export type VealthQueueBatchResult = {
+  ok: boolean;
+  role: OpsRole;
+  checkedAt: number;
+  dryRun: boolean;
+  limit: number;
+  runs: VealthQueueTickResult[];
+  error?: string;
+};
+
+export type VealthWorkOrderContextResult = {
+  ok: boolean;
+  role: OpsRole;
+  checkedAt: number;
+  workId: string;
+  title?: string;
+  contract?: OpsWorkOrderContract;
+  dispatchState?: VealthDispatchStatus["state"];
+  verification?: ReturnType<typeof extractLatestVerification>;
+  payout?: ReturnType<typeof extractLatestPayout>;
+  error?: string;
+};
+
+export type SocialAutopublishReadinessResult = {
+  ok: boolean;
+  role: OpsRole;
+  checkedAt: number;
+  channels: Array<{
+    channel: SocialChannel;
+    route: string;
+    exists: boolean;
+  }>;
+  allRoutesPresent: boolean;
+  details: string;
 };
 
 export type AIEyesArtifacts = {
@@ -1106,6 +1165,40 @@ function priorityWeight(priority: WorkPriority): number {
   return 1;
 }
 
+function isVealthQueueCandidate(item: WorkItem): boolean {
+  if (item.status === "DONE" || item.status === "CANCELED") return false;
+  const owner = String(item.owner || "").toLowerCase();
+  const tags = item.tags || [];
+  return owner.includes("vealth") || tags.includes("work-order");
+}
+
+function sortVealthQueue(items: WorkItem[]): WorkItem[] {
+  return [...items].sort((a, b) => {
+    const byPriority = priorityWeight(b.priority) - priorityWeight(a.priority);
+    if (byPriority !== 0) return byPriority;
+    return Date.parse(a.createdAt) - Date.parse(b.createdAt);
+  });
+}
+
+function toVealthQueueListItem(item: WorkItem): VealthQueueListItem {
+  const contract = extractWorkOrderContract(item);
+  const verification = extractLatestVerification(item);
+  const payout = extractLatestPayout(item);
+  return {
+    workId: item.id,
+    title: item.title,
+    owner: item.owner,
+    priority: item.priority,
+    status: item.status,
+    updatedAt: item.updatedAt,
+    dispatchState: deriveDispatchState(item),
+    hasContract: Boolean(contract),
+    hasSocialAutopublish: contract?.socialAutopublish?.enabled === true,
+    verificationOk: verification?.ok === true,
+    payoutAuthorized: typeof payout?.authorizedUsd === "number" && payout.authorizedUsd > 0,
+  };
+}
+
 async function callOpenClawDispatch(action: string, payload: Record<string, unknown>): Promise<OpenClawRemoteResult> {
   const dashboard = String(process.env.OPENCLAW_DASHBOARD_URL || "").trim();
   const apiKey = String(process.env.OPENCLAW_API_KEY || "").trim();
@@ -1720,18 +1813,7 @@ export async function runVealthQueueTickAction(input: {
     };
   }
 
-  const candidates = listWork()
-    .filter((item) => {
-      if (item.status === "DONE" || item.status === "CANCELED") return false;
-      const owner = String(item.owner || "").toLowerCase();
-      const tags = item.tags || [];
-      return owner.includes("vealth") || tags.includes("work-order");
-    })
-    .sort((a, b) => {
-      const byPriority = priorityWeight(b.priority) - priorityWeight(a.priority);
-      if (byPriority !== 0) return byPriority;
-      return Date.parse(a.createdAt) - Date.parse(b.createdAt);
-    });
+  const candidates = sortVealthQueue(listWork().filter((item) => isVealthQueueCandidate(item)));
 
   const item = candidates[0];
   if (!item) {
@@ -1838,6 +1920,148 @@ export async function runVealthQueueTickAction(input: {
       : `Payout authorization failed for ${item.id}.`,
     payout: payoutResult,
     error: payoutResult.error,
+  };
+}
+
+export async function listVealthQueueAction(input?: {
+  role?: OpsRole;
+  limit?: number;
+}): Promise<VealthQueueSnapshotResult> {
+  const effectiveRole = resolveServerRole();
+  const checkedAt = Date.now();
+  const rawLimit =
+    typeof input?.limit === "number" && Number.isFinite(input.limit) ? input.limit : 12;
+  const limit = Math.max(1, Math.min(50, Math.floor(rawLimit)));
+  const items = sortVealthQueue(listWork().filter((item) => isVealthQueueCandidate(item)))
+    .slice(0, limit)
+    .map((item) => toVealthQueueListItem(item));
+  revalidatePath("/ops/control");
+  return {
+    ok: true,
+    role: effectiveRole,
+    checkedAt,
+    items,
+  };
+}
+
+export async function getVealthWorkOrderContextAction(input: {
+  role?: OpsRole;
+  workId: string;
+}): Promise<VealthWorkOrderContextResult> {
+  const effectiveRole = resolveServerRole();
+  const checkedAt = Date.now();
+  const workId = String(input.workId || "").trim();
+  if (!workId) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId: "",
+      error: "work_id_required",
+    };
+  }
+  const item = getWork(workId);
+  if (!item) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      workId,
+      error: "work_not_found",
+    };
+  }
+  const contract = extractWorkOrderContract(item);
+  const verification = extractLatestVerification(item);
+  const payout = extractLatestPayout(item);
+  revalidatePath("/ops/control");
+  return {
+    ok: true,
+    role: effectiveRole,
+    checkedAt,
+    workId: item.id,
+    title: item.title,
+    contract,
+    dispatchState: deriveDispatchState(item),
+    verification,
+    payout,
+  };
+}
+
+export async function runVealthQueueBatchAction(input?: {
+  role?: OpsRole;
+  dryRun?: boolean;
+  limit?: number;
+  defaultPayoutUsd?: number;
+}): Promise<VealthQueueBatchResult> {
+  const effectiveRole = resolveServerRole();
+  const checkedAt = Date.now();
+  if (!canOperateVealth(effectiveRole)) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      dryRun: input?.dryRun !== false,
+      limit: 0,
+      runs: [],
+      error: "role_denied",
+    };
+  }
+  const dryRun = input?.dryRun !== false;
+  const rawLimit =
+    typeof input?.limit === "number" && Number.isFinite(input.limit) ? input.limit : 3;
+  const normalizedLimit = Math.max(1, Math.min(10, Math.floor(rawLimit)));
+  const limit = dryRun ? 1 : normalizedLimit;
+  const runs: VealthQueueTickResult[] = [];
+  for (let index = 0; index < limit; index += 1) {
+    const run = await runVealthQueueTickAction({
+      role: effectiveRole,
+      dryRun,
+      defaultPayoutUsd: input?.defaultPayoutUsd,
+    });
+    runs.push(run);
+    if (!run.ok) break;
+    if (run.nextAction === "none") break;
+    if (dryRun) break;
+  }
+  const ok = runs.every((run) => run.ok);
+  const failed = runs.find((run) => !run.ok);
+  revalidatePath("/ops/control");
+  return {
+    ok,
+    role: effectiveRole,
+    checkedAt,
+    dryRun,
+    limit,
+    runs,
+    error: failed?.error,
+  };
+}
+
+export async function runSocialAutopublishReadinessAction(input?: {
+  role?: OpsRole;
+}): Promise<SocialAutopublishReadinessResult> {
+  const effectiveRole = resolveServerRole();
+  const checkedAt = Date.now();
+  const channels = SOCIAL_AUTOPUBLISH_ORDER.map((channel) => {
+    const route = socialRouteForChannel(channel);
+    return {
+      channel,
+      route,
+      exists: routeExists(route),
+    };
+  });
+  const allRoutesPresent = channels.every((channel) => channel.exists);
+  const details = allRoutesPresent
+    ? "All social connector routes are present."
+    : "Missing one or more social connector routes; keep social lane proposal-first.";
+  revalidatePath("/ops/control");
+  return {
+    ok: allRoutesPresent,
+    role: effectiveRole,
+    checkedAt,
+    channels,
+    allRoutesPresent,
+    details,
   };
 }
 

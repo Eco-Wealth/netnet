@@ -6,9 +6,13 @@ import {
   createSocialAutopublishWorkOrderAction,
   createVealthWorkOrderAction,
   dispatchVealthWorkOrderAction,
+  getVealthWorkOrderContextAction,
   getVealthWorkOrderStatusAction,
   heartbeatVealthWorkOrderAction,
+  listVealthQueueAction,
   runVealthQueueTickAction,
+  runVealthQueueBatchAction,
+  runSocialAutopublishReadinessAction,
   getOpsAccessContextAction,
   readAIEyesArtifactsAction,
   planOpsSequenceFromGoalAction,
@@ -33,8 +37,13 @@ import {
   type OpsSequenceResult,
   type VealthDispatchStatus,
   type VealthPayoutAuthorizationResult,
+  type VealthQueueBatchResult,
+  type VealthQueueListItem,
+  type VealthQueueSnapshotResult,
   type VealthQueueTickResult,
+  type VealthWorkOrderContextResult,
   type VealthVerificationResult,
+  type SocialAutopublishReadinessResult,
   type OpsWorkOrderResult,
 } from "./actions";
 import { OPS_COMMANDS, OPS_ROLES, type OpsRole } from "./commands";
@@ -399,6 +408,13 @@ export default function ControlCenterClient() {
     useState<VealthPayoutAuthorizationResult | null>(null);
   const [queueTickStatus, setQueueTickStatus] =
     useState<VealthQueueTickResult | null>(null);
+  const [queueSnapshot, setQueueSnapshot] =
+    useState<VealthQueueSnapshotResult | null>(null);
+  const [queueBatchStatus, setQueueBatchStatus] =
+    useState<VealthQueueBatchResult | null>(null);
+  const [socialReadiness, setSocialReadiness] =
+    useState<SocialAutopublishReadinessResult | null>(null);
+  const [activeWorkId, setActiveWorkId] = useState("");
   const [goalDraft, setGoalDraft] = useState("");
   const [workOrderOwner, setWorkOrderOwner] = useState("vealth");
   const [workOrderBudget, setWorkOrderBudget] = useState("0");
@@ -430,6 +446,10 @@ export default function ControlCenterClient() {
   const effectiveRole = accessContext?.effectiveRole || null;
   const runtimeRole = effectiveRole || role;
 
+  function selectedWorkId(): string | null {
+    return activeWorkId || lastWorkOrder?.workId || null;
+  }
+
   const grouped = useMemo(() => {
     const bucket: Record<Category, typeof OPS_COMMANDS> = {
       health: [],
@@ -444,6 +464,7 @@ export default function ControlCenterClient() {
   }, []);
 
   const selectedCount = selectedIds.length;
+  const selectedId = selectedWorkId();
 
   useEffect(() => {
     let cancelled = false;
@@ -454,6 +475,21 @@ export default function ControlCenterClient() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all([
+      listVealthQueueAction({ role, limit: 16 }),
+      runSocialAutopublishReadinessAction({ role }),
+    ]).then(([queue, readiness]) => {
+      if (cancelled) return;
+      setQueueSnapshot(queue);
+      setSocialReadiness(readiness);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [role]);
 
   function toggleSelection(commandId: string) {
     setSelectedIds((current) =>
@@ -506,76 +542,88 @@ export default function ControlCenterClient() {
       setVerificationStatus(null);
       setPayoutStatus(null);
       setQueueTickStatus(null);
+      if (result.workId) setActiveWorkId(result.workId);
+      await refreshQueueSnapshot();
     });
   }
 
   function refreshDispatchStatus() {
-    if (!lastWorkOrder?.workId) return;
+    const workId = selectedWorkId();
+    if (!workId) return;
     startTransition(async () => {
       const result = await getVealthWorkOrderStatusAction({
         role,
-        workId: lastWorkOrder.workId!,
+        workId,
       });
       setDispatchStatus(result);
     });
   }
 
   function dispatchToVealth() {
-    if (!lastWorkOrder?.workId) return;
+    const workId = selectedWorkId();
+    if (!workId) return;
     startTransition(async () => {
       const result = await dispatchVealthWorkOrderAction({
         role,
-        workId: lastWorkOrder.workId!,
+        workId,
       });
       setDispatchStatus(result);
+      void refreshQueueSnapshot();
     });
   }
 
   function sendHeartbeat() {
-    if (!lastWorkOrder?.workId) return;
+    const workId = selectedWorkId();
+    if (!workId) return;
     startTransition(async () => {
       const result = await heartbeatVealthWorkOrderAction({
         role,
-        workId: lastWorkOrder.workId!,
+        workId,
         note: heartbeatNote,
       });
       setDispatchStatus(result);
       setHeartbeatNote("");
+      void refreshQueueSnapshot();
     });
   }
 
   function stopDispatch() {
-    if (!lastWorkOrder?.workId) return;
+    const workId = selectedWorkId();
+    if (!workId) return;
     startTransition(async () => {
       const result = await stopVealthWorkOrderAction({
         role,
-        workId: lastWorkOrder.workId!,
+        workId,
         reason: stopReason,
       });
       setDispatchStatus(result);
       setStopReason("");
+      void refreshQueueSnapshot();
     });
   }
 
   function verifyWorkOrder() {
-    if (!lastWorkOrder?.workId) return;
+    const workId = selectedWorkId();
+    if (!workId) return;
     startTransition(async () => {
       const result = await verifyVealthWorkOrderAction({
         role,
-        workId: lastWorkOrder.workId!,
+        workId,
       });
       setVerificationStatus(result);
+      void refreshQueueSnapshot();
     });
   }
 
   function authorizePayout() {
-    if (!lastWorkOrder?.workId) return;
+    const workId = selectedWorkId();
+    if (!workId) return;
     const parsed = Number(payoutAmount);
     const amountUsd = Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
     startTransition(async () => {
       const result = await authorizeVealthPayoutAction({
         role,
-        workId: lastWorkOrder.workId!,
+        workId,
         amountUsd,
         note: "Authorized from Ops Control lane.",
       });
@@ -583,6 +631,7 @@ export default function ControlCenterClient() {
       if (result.ok) {
         setPayoutAmount("0");
       }
+      void refreshQueueSnapshot();
     });
   }
 
@@ -596,6 +645,87 @@ export default function ControlCenterClient() {
       if (result.dispatch) setDispatchStatus(result.dispatch);
       if (result.verification) setVerificationStatus(result.verification);
       if (result.payout) setPayoutStatus(result.payout);
+      if (result.workId) setActiveWorkId(result.workId);
+      void refreshQueueSnapshot();
+    });
+  }
+
+  async function refreshQueueSnapshot() {
+    const result = await listVealthQueueAction({ role, limit: 16 });
+    setQueueSnapshot(result);
+  }
+
+  async function refreshSocialReadiness() {
+    const result = await runSocialAutopublishReadinessAction({ role });
+    setSocialReadiness(result);
+  }
+
+  function loadWorkContext(workId: string) {
+    startTransition(async () => {
+      const context: VealthWorkOrderContextResult = await getVealthWorkOrderContextAction({
+        role,
+        workId,
+      });
+      if (!context.ok || !context.workId) return;
+      setActiveWorkId(context.workId);
+      setLastWorkOrder({
+        ok: true,
+        role: context.role,
+        checkedAt: context.checkedAt,
+        workId: context.workId,
+        title: context.title,
+        contract: context.contract,
+      });
+      const status = await getVealthWorkOrderStatusAction({
+        role,
+        workId: context.workId,
+      });
+      setDispatchStatus(status);
+      if (context.verification) {
+        setVerificationStatus({
+          ok: context.verification.ok,
+          role: context.role,
+          checkedAt: context.verification.checkedAt || context.checkedAt,
+          workId: context.workId,
+          checks: [],
+          passedRequired: 0,
+          totalRequired: 0,
+          payoutEligible: context.verification.payoutEligible === true,
+          payoutCapUsd: context.verification.payoutCapUsd || 0,
+          error: context.verification.ok ? undefined : "verification_previous_failed",
+        });
+      } else {
+        setVerificationStatus(null);
+      }
+      if (context.payout && typeof context.payout.authorizedUsd === "number") {
+        setPayoutStatus({
+          ok: true,
+          role: context.role,
+          checkedAt: context.checkedAt,
+          workId: context.workId,
+          payoutEligible: true,
+          payoutCapUsd: context.payout.authorizedUsd,
+          authorizedUsd: context.payout.authorizedUsd,
+        });
+      } else {
+        setPayoutStatus(null);
+      }
+    });
+  }
+
+  function runQueueBatch(dryRun: boolean) {
+    startTransition(async () => {
+      const result = await runVealthQueueBatchAction({
+        role,
+        dryRun,
+        limit: 4,
+      });
+      setQueueBatchStatus(result);
+      const lastRun = [...result.runs].reverse().find((run) => run.workId);
+      if (lastRun?.workId) {
+        setActiveWorkId(lastRun.workId);
+      }
+      void refreshQueueSnapshot();
     });
   }
 
@@ -616,6 +746,9 @@ export default function ControlCenterClient() {
       setVerificationStatus(null);
       setPayoutStatus(null);
       setQueueTickStatus(null);
+      if (result.workId) setActiveWorkId(result.workId);
+      await refreshQueueSnapshot();
+      await refreshSocialReadiness();
     });
   }
 
@@ -719,6 +852,128 @@ export default function ControlCenterClient() {
         onMcp={runOpenClawMcp}
         onBootstrap={runOpenClawBootstrap}
       />
+
+      <section style={panelStyle}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 15 }}>Vealth queue snapshot</h2>
+            <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>
+              Load existing work orders, run bounded queue ticks, and monitor social lane readiness.
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => {
+                startTransition(async () => {
+                  await refreshQueueSnapshot();
+                  await refreshSocialReadiness();
+                });
+              }}
+              style={{ padding: "6px 10px", borderRadius: 8 }}
+            >
+              Refresh queue
+            </button>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => runQueueBatch(true)}
+              style={{ padding: "6px 10px", borderRadius: 8 }}
+            >
+              Batch dry run
+            </button>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => runQueueBatch(false)}
+              style={{ padding: "6px 10px", borderRadius: 8 }}
+            >
+              Batch execute
+            </button>
+          </div>
+        </div>
+
+        {queueBatchStatus ? (
+          <div style={{ marginTop: 8, fontSize: 12, opacity: 0.86 }}>
+            Batch: {queueBatchStatus.ok ? "PASS" : "FAIL"} • dryRun=
+            {queueBatchStatus.dryRun ? "yes" : "no"} • runs={queueBatchStatus.runs.length}
+            {queueBatchStatus.error ? ` • ${queueBatchStatus.error}` : ""}
+          </div>
+        ) : null}
+
+        {socialReadiness ? (
+          <div style={{ marginTop: 8, fontSize: 12, opacity: 0.86 }}>
+            Social readiness: {socialReadiness.ok ? "READY" : "MISSING ROUTES"} •{" "}
+            {socialReadiness.channels
+              .map((row) => `${row.channel}:${row.exists ? "ok" : "missing"}`)
+              .join(" | ")}
+          </div>
+        ) : null}
+
+        <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+          {(queueSnapshot?.items || []).length === 0 ? (
+            <div style={{ fontSize: 12, opacity: 0.75 }}>
+              No Vealth work orders in queue.
+            </div>
+          ) : (
+            (queueSnapshot?.items || []).map((item: VealthQueueListItem) => (
+              <article
+                key={item.workId}
+                style={{
+                  border: "1px solid var(--nn-border-subtle, #1f2b45)",
+                  borderRadius: 10,
+                  padding: 10,
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                  <strong>{item.title}</strong>
+                  <span style={{ fontSize: 12, opacity: 0.85 }}>{item.workId}</span>
+                </div>
+                <div style={{ marginTop: 6, fontSize: 12, opacity: 0.86 }}>
+                  priority={item.priority} • status={item.status} • dispatch={item.dispatchState}
+                  {" • "}
+                  verify={item.verificationOk ? "ok" : "pending"} • payout=
+                  {item.payoutAuthorized ? "done" : "pending"}
+                  {item.hasSocialAutopublish ? " • social=enabled" : ""}
+                </div>
+                <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => loadWorkContext(item.workId)}
+                    style={{ padding: "6px 10px", borderRadius: 8 }}
+                  >
+                    Load context
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => {
+                      setActiveWorkId(item.workId);
+                      runQueueTick(true);
+                    }}
+                    style={{ padding: "6px 10px", borderRadius: 8 }}
+                  >
+                    Tick dry run
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => {
+                      setActiveWorkId(item.workId);
+                      runQueueTick(false);
+                    }}
+                    style={{ padding: "6px 10px", borderRadius: 8 }}
+                  >
+                    Tick execute
+                  </button>
+                </div>
+              </article>
+            ))
+          )}
+        </div>
+      </section>
 
       <section style={{ display: "grid", gap: 12 }}>
         {(Object.keys(grouped) as Category[]).map((category) => (
@@ -830,6 +1085,11 @@ export default function ControlCenterClient() {
           <div style={{ fontSize: 13, opacity: 0.86 }}>
             Create a machine-readable work order from the goal for Vealth/OpenClaw dispatch.
           </div>
+          {selectedId ? (
+            <div style={{ fontSize: 12, opacity: 0.8 }}>
+              Active work id: {selectedId}
+            </div>
+          ) : null}
           <div
             style={{
               display: "grid",
@@ -1037,16 +1297,16 @@ export default function ControlCenterClient() {
             >
               Create Work Order
             </button>
-            {lastWorkOrder?.workId ? (
+            {selectedId ? (
               <a
-                href={`/work?q=${encodeURIComponent(lastWorkOrder.workId)}`}
+                href={`/work?q=${encodeURIComponent(selectedId)}`}
                 style={{ fontSize: 12, opacity: 0.9, alignSelf: "center" }}
               >
-                Open Work: {lastWorkOrder.workId}
+                Open Work: {selectedId}
               </a>
             ) : null}
           </div>
-          {lastWorkOrder?.workId ? (
+          {selectedId ? (
             <div style={{ display: "grid", gap: 8 }}>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button
