@@ -394,3 +394,48 @@ This backlog tracks machine-first Operator execution units.
   - `drift:check`
   - `health:fast`
   - `health:bankr`
+
+### Unit 135 — Bankr action schema hardening
+
+- Added `src/lib/bankr/actionSchema.ts` with canonical Bankr validation helpers:
+  - `validateBankrActionPayload(...)`
+  - `deriveTokenRouteActionFromPayload(...)`
+  - alias normalization + strict canonical route alignment
+- Wired payload normalization/validation into proposal upsert and Bankr route execution.
+
+### Unit 136 — Bankr preflight bundle gate
+
+- Added `getBankrExecutionPreflightBundle(proposalId)` in operator store.
+- Preflight checks now include:
+  - approved + locked + idle state
+  - canonical route map
+  - payload validation
+  - wallet scope checks
+  - write confirmation
+  - replay guard
+  - simulation pass
+  - policy mode + policy recheck
+- `executeProposalAction` now runs the preflight bundle and blocks execution with explicit failed-check reasons.
+
+### Unit 137 — Bankr idempotency keys
+
+- Added per-proposal write idempotency key generation:
+  - `metadata.executionIdempotencyKey`
+- Key is set before write execution and propagated via:
+  - internal request header `x-idempotency-key`
+  - execution metadata/result evidence
+
+### Unit 138 — Write replay guard v2
+
+- Extended replay protection with tx/proof evidence:
+  - checks metadata markers (`writeTxHash`, `writeProofId`) and nested execution result evidence
+- Successful write executions now persist additional write evidence markers for deterministic replay blocking.
+
+### Unit 139 — Execution failure classifier
+
+- Added deterministic failure category classification:
+  - `policy | input | route | wallet | network | unknown`
+- Failure category now propagates in execution result envelopes for both:
+  - store execution path
+  - operator executor boundary path
+- Updated Bankr integrity checks to guard new validation/preflight/idempotency/classification markers.

@@ -1,5 +1,9 @@
 import { BankrLaunchRequest, createLaunchProposal } from "@/lib/bankr/launcher";
 import { tokenActionCatalog } from "@/lib/bankr/token";
+import {
+  deriveTokenRouteActionFromPayload,
+  validateBankrActionPayload,
+} from "@/lib/bankr/actionSchema";
 import { POST as kumbayaPost } from "@/app/api/agent/kumbaya/route";
 import { GET as bankrTokenInfoGet } from "@/app/api/bankr/token/info/route";
 import { POST as bankrTokenActionsPost } from "@/app/api/bankr/token/actions/route";
@@ -51,6 +55,33 @@ type OperatorState = {
   strategies: Record<string, Strategy>;
   walletProfiles: Record<string, OperatorWalletProfile>;
   activeWalletProfileId: string;
+};
+
+export type BankrPreflightCheck = {
+  key:
+    | "proposal"
+    | "approved"
+    | "intent_locked"
+    | "idle"
+    | "route_map"
+    | "payload"
+    | "wallet"
+    | "write_confirmation"
+    | "write_replay"
+    | "simulation"
+    | "policy_mode"
+    | "policy_gate";
+  ok: boolean;
+  detail?: string;
+};
+
+export type BankrExecutionPreflightBundle = {
+  ok: boolean;
+  proposalId: string;
+  action?: string;
+  route?: string;
+  checks: BankrPreflightCheck[];
+  normalizedBody?: Record<string, unknown>;
 };
 
 declare global {
@@ -345,6 +376,25 @@ export function appendAuditMessage(content: string, action: string, role: Messag
 }
 
 export function upsertProposal(proposal: SkillProposalEnvelope): SkillProposalEnvelope {
+  if (isBankrProposal(proposal)) {
+    const validation = validateBankrActionPayload({
+      route: proposal.route,
+      proposedBody: proposal.proposedBody,
+    });
+    if (!validation.ok || !validation.normalizedBody || !validation.actionId) {
+      throw new Error(
+        `Invalid Bankr proposal payload: ${validation.errors.join("; ") || "unknown validation error"}`
+      );
+    }
+    proposal.proposedBody = validation.normalizedBody;
+    proposal.metadata = {
+      ...(proposal.metadata || {}),
+      bankrActionId: validation.actionId,
+      ...(validation.routeAction
+        ? { bankrRouteAction: validation.routeAction }
+        : {}),
+    };
+  }
   getState().proposals[proposal.id] = proposal;
   return proposal;
 }
@@ -500,6 +550,91 @@ function toRecord(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+function classifyExecutionFailureMessage(
+  message: string
+): ExecutionResultEnvelope["failureCategory"] {
+  const normalized = String(message || "").toLowerCase();
+  if (!normalized) return "unknown";
+
+  if (normalized.includes("policy") || normalized.includes("denied")) {
+    return "policy";
+  }
+  if (
+    normalized.includes("wallet") ||
+    normalized.includes("privy") ||
+    normalized.includes("chain_caip2")
+  ) {
+    return "wallet";
+  }
+  if (
+    normalized.includes("invalid") ||
+    normalized.includes("bad_request") ||
+    normalized.includes("missing_") ||
+    normalized.includes("unknown_action") ||
+    normalized.includes("payload") ||
+    normalized.includes("_400")
+  ) {
+    return "input";
+  }
+  if (
+    normalized.includes("route") ||
+    normalized.includes("unmapped") ||
+    normalized.includes("_404") ||
+    normalized.includes("_405")
+  ) {
+    return "route";
+  }
+  if (
+    normalized.includes("timeout") ||
+    normalized.includes("network") ||
+    normalized.includes("econn") ||
+    normalized.includes("fetch failed") ||
+    normalized.includes("_502") ||
+    normalized.includes("_503") ||
+    normalized.includes("_504")
+  ) {
+    return "network";
+  }
+  return "unknown";
+}
+
+function extractWriteEvidence(
+  payload: unknown
+): { txHash?: string; proofId?: string } {
+  const root = toRecord(payload);
+  const execution = toRecord(root.execution);
+  const proof = toRecord(root.proof);
+  const nestedBody = toRecord(root.body);
+  const nestedExecution = toRecord(nestedBody.execution);
+  const nestedProof = toRecord(nestedBody.proof);
+  const txHashCandidates = [
+    root.txHash,
+    execution.txHash,
+    nestedBody.txHash,
+    nestedExecution.txHash,
+  ];
+  const proofCandidates = [
+    proof.id,
+    proof.hash,
+    nestedProof.id,
+    nestedProof.hash,
+    root.proofId,
+    nestedBody.proofId,
+  ];
+
+  const txHash = txHashCandidates.find(
+    (candidate) => typeof candidate === "string" && candidate.trim().length > 0
+  ) as string | undefined;
+  const proofId = proofCandidates.find(
+    (candidate) => typeof candidate === "string" && candidate.trim().length > 0
+  ) as string | undefined;
+
+  return {
+    txHash: txHash?.trim(),
+    proofId: proofId?.trim(),
+  };
+}
+
 const BANKR_READ_ACTIONS = new Set<string>([
   "bankr.wallet.read",
   "bankr.token.info",
@@ -581,13 +716,225 @@ function assertNoWriteReplay(
     typeof metadata.writeExecutedAt === "number"
       ? metadata.writeExecutedAt
       : undefined;
+  const priorWriteTxHash =
+    typeof metadata.writeTxHash === "string"
+      ? metadata.writeTxHash
+      : undefined;
+  const priorWriteProofId =
+    typeof metadata.writeProofId === "string"
+      ? metadata.writeProofId
+      : undefined;
+  const priorIdempotencyKey =
+    typeof metadata.executionIdempotencyKey === "string"
+      ? metadata.executionIdempotencyKey
+      : undefined;
   const priorSuccess = proposal.executionResult?.ok === true;
+  const evidence = extractWriteEvidence(proposal.executionResult?.result);
 
-  if (priorWriteExecutionId || priorWriteExecutedAt || priorSuccess) {
+  if (
+    priorWriteExecutionId ||
+    priorWriteExecutedAt ||
+    priorWriteTxHash ||
+    priorWriteProofId ||
+    priorIdempotencyKey ||
+    priorSuccess ||
+    evidence.txHash ||
+    evidence.proofId
+  ) {
     throw new Error(
       `Execution blocked: write action already executed (${action}).`
     );
   }
+}
+
+function ensureExecutionIdempotencyKey(
+  proposal: SkillProposalEnvelope,
+  action: string
+): string | undefined {
+  const body = toRecord(proposal.proposedBody);
+  const txBody =
+    body.transaction && typeof body.transaction === "object"
+      ? toRecord(body.transaction)
+      : {};
+  const hasTransactionPayload =
+    typeof txBody.to === "string" ||
+    typeof body.to === "string" ||
+    typeof body.data === "string";
+  const treatAsWrite = isWriteAction(action) || hasTransactionPayload;
+  if (!treatAsWrite) return undefined;
+
+  const metadata = toRecord(proposal.metadata);
+  const existing =
+    typeof metadata.executionIdempotencyKey === "string"
+      ? metadata.executionIdempotencyKey.trim()
+      : "";
+  if (existing) return existing;
+
+  const baseTimestamp = proposal.approvedAt ?? proposal.createdAt;
+  const key = `idem-${proposal.id}-${action}-${baseTimestamp}`;
+  proposal.metadata = {
+    ...(proposal.metadata || {}),
+    executionIdempotencyKey: key,
+  };
+  return key;
+}
+
+function simulationPassed(proposal: SkillProposalEnvelope): boolean {
+  const metadata = toRecord(proposal.metadata);
+  const simulation = toRecord(metadata.simulation);
+  return simulation.ok === true;
+}
+
+export function getBankrExecutionPreflightBundle(
+  id: string
+): BankrExecutionPreflightBundle {
+  const proposal = requireProposal(id);
+  const checks: BankrPreflightCheck[] = [];
+  const push = (check: BankrPreflightCheck) => checks.push(check);
+
+  if (!isBankrProposal(proposal)) {
+    push({
+      key: "proposal",
+      ok: false,
+      detail: "Proposal is not bound to bankr.agent.",
+    });
+    return {
+      ok: false,
+      proposalId: proposal.id,
+      route: proposal.route,
+      checks,
+    };
+  }
+
+  const payloadValidation = validateBankrActionPayload({
+    route: proposal.route,
+    proposedBody: proposal.proposedBody,
+  });
+  let action: PolicyAction = (payloadValidation.actionId ||
+    "bankr.token.actions") as PolicyAction;
+  try {
+    const target = getBankrExecutionTarget({ proposal });
+    action = target.actionId;
+  } catch {
+    // keep payload-derived fallback action for preflight reporting
+  }
+
+  push({ key: "proposal", ok: true, detail: "Bankr proposal detected." });
+  push({
+    key: "approved",
+    ok: proposal.status === "approved",
+    detail: proposal.status === "approved" ? "approved" : `status=${proposal.status}`,
+  });
+  push({
+    key: "intent_locked",
+    ok: proposal.executionIntent === "locked",
+    detail:
+      proposal.executionIntent === "locked"
+        ? "execution intent locked"
+        : `intent=${proposal.executionIntent}`,
+  });
+  push({
+    key: "idle",
+    ok: proposal.executionStatus === "idle",
+    detail:
+      proposal.executionStatus === "idle"
+        ? "execution idle"
+        : `executionStatus=${proposal.executionStatus}`,
+  });
+
+  try {
+    assertBankrExecutable(proposal);
+    push({ key: "route_map", ok: true, detail: `${action} -> ${proposal.route}` });
+  } catch (error) {
+    push({
+      key: "route_map",
+      ok: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  if (payloadValidation.ok && payloadValidation.normalizedBody) {
+    proposal.proposedBody = payloadValidation.normalizedBody;
+    push({
+      key: "payload",
+      ok: true,
+      detail: `validated for ${payloadValidation.actionId}`,
+    });
+  } else {
+    push({
+      key: "payload",
+      ok: false,
+      detail: payloadValidation.errors.join("; ") || "invalid bankr payload",
+    });
+  }
+
+  try {
+    assertProposalWalletScope(proposal, action);
+    push({ key: "wallet", ok: true, detail: "wallet scope allows action." });
+  } catch (error) {
+    push({
+      key: "wallet",
+      ok: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  try {
+    assertWriteConfirmation(proposal, action);
+    push({ key: "write_confirmation", ok: true, detail: "write confirmation satisfied." });
+  } catch (error) {
+    push({
+      key: "write_confirmation",
+      ok: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  try {
+    assertNoWriteReplay(proposal, action);
+    push({ key: "write_replay", ok: true, detail: "no replay evidence." });
+  } catch (error) {
+    push({
+      key: "write_replay",
+      ok: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  push({
+    key: "simulation",
+    ok: simulationPassed(proposal),
+    detail: simulationPassed(proposal) ? "simulation ok" : "simulation missing or failed",
+  });
+
+  const policy = getPolicy();
+  push({
+    key: "policy_mode",
+    ok: policy.autonomy === "EXECUTE_WITH_LIMITS",
+    detail:
+      policy.autonomy === "EXECUTE_WITH_LIMITS"
+        ? policy.autonomy
+        : `autonomy=${policy.autonomy}`,
+  });
+
+  const gate = enforcePolicy(
+    action,
+    policyContextForExecution(proposal, action, policy.autonomy)
+  );
+  push({
+    key: "policy_gate",
+    ok: gate.ok,
+    detail: gate.ok ? "ALLOW" : gate.reasons.join(", ") || "policy_denied",
+  });
+
+  return {
+    ok: checks.every((check) => check.ok),
+    proposalId: proposal.id,
+    action,
+    route: proposal.route,
+    checks,
+    normalizedBody: payloadValidation.normalizedBody,
+  };
 }
 
 function policyActionForExecution(proposal: SkillProposalEnvelope): PolicyAction {
@@ -765,6 +1112,20 @@ async function runBankrRouteExecution(
 ): Promise<Record<string, unknown>> {
   assertBankrExecutable(proposal);
   const target = getBankrExecutionTarget({ proposal });
+  const payloadValidation = validateBankrActionPayload({
+    route: proposal.route,
+    proposedBody: proposal.proposedBody,
+  });
+  if (!payloadValidation.ok || !payloadValidation.normalizedBody) {
+    throw new Error(
+      `bankr_payload_invalid:${payloadValidation.errors.join(", ") || "unknown"}`
+    );
+  }
+  proposal.proposedBody = payloadValidation.normalizedBody;
+  const idempotencyKey =
+    typeof proposal.metadata?.executionIdempotencyKey === "string"
+      ? proposal.metadata.executionIdempotencyKey.trim()
+      : "";
 
   if (target.route === "/api/bankr/token/actions") {
     const proposalBody = toRecord(proposal.proposedBody);
@@ -797,23 +1158,20 @@ async function runBankrRouteExecution(
     const hasTransactionPayload =
       typeof transaction.to === "string" || typeof params.to === "string";
 
-    const requestedAction =
-      typeof proposalBody.tokenAction === "string"
-        ? proposalBody.tokenAction
-        : typeof proposalBody.routeAction === "string"
-        ? proposalBody.routeAction
-        : typeof proposalBody.action === "string" &&
-          ["status", "launch", "fee_route", "execute_privy"].includes(
-            proposalBody.action
-          )
-        ? proposalBody.action
-        : hasTransactionPayload
-        ? "execute_privy"
-        : "status";
+    const requestedAction = deriveTokenRouteActionFromPayload({
+      ...params,
+      ...proposalBody,
+      ...(hasTransactionPayload ? { to: params.to || proposalBody.to } : {}),
+    });
+
+    const headers: Record<string, string> = { "content-type": "application/json" };
+    if (idempotencyKey) {
+      headers["x-idempotency-key"] = idempotencyKey;
+    }
 
     const req = new Request(`http://internal${target.route}`, {
       method: target.method,
-      headers: { "content-type": "application/json" },
+      headers,
       body: JSON.stringify({
         action: requestedAction,
         params: { ...params, bankrActionId: target.actionId },
@@ -822,11 +1180,16 @@ async function runBankrRouteExecution(
     const res = await bankrTokenActionsPost(req);
     const routeResult = await parseRouteResponse(res);
     if (!res.ok) {
-      throw new Error(`bankr_route_execution_failed_${res.status}`);
+      const body = toRecord(routeResult.body);
+      const errorCode = String(toRecord(body.error).code || "").trim();
+      throw new Error(
+        `bankr_route_execution_failed_${res.status}${errorCode ? `:${errorCode}` : ""}`
+      );
     }
     return {
       adapter: "bankr",
       actionId: target.actionId,
+      idempotencyKey: idempotencyKey || undefined,
       ...routeResult,
     };
   }
@@ -857,6 +1220,7 @@ async function runBankrRouteExecution(
     return {
       adapter: "bankr",
       actionId: target.actionId,
+      idempotencyKey: idempotencyKey || undefined,
       mode: "PROPOSE_ONLY",
       proposal: createLaunchProposal(parsed.data),
     };
@@ -875,7 +1239,11 @@ async function runBankrRouteExecution(
     const res = await bankrWalletGet(req);
     const routeResult = await parseRouteResponse(res);
     if (!res.ok) {
-      throw new Error(`bankr_route_execution_failed_${res.status}`);
+      const body = toRecord(routeResult.body);
+      const errorCode = String(toRecord(body.error).code || "").trim();
+      throw new Error(
+        `bankr_route_execution_failed_${res.status}${errorCode ? `:${errorCode}` : ""}`
+      );
     }
     return {
       adapter: "bankr",
@@ -897,7 +1265,11 @@ async function runBankrRouteExecution(
     )(req);
     const routeResult = await parseRouteResponse(res);
     if (!res.ok) {
-      throw new Error(`bankr_route_execution_failed_${res.status}`);
+      const body = toRecord(routeResult.body);
+      const errorCode = String(toRecord(body.error).code || "").trim();
+      throw new Error(
+        `bankr_route_execution_failed_${res.status}${errorCode ? `:${errorCode}` : ""}`
+      );
     }
     return {
       adapter: "bankr",
@@ -1106,6 +1478,28 @@ export async function executeProposal(id: string): Promise<SkillProposalEnvelope
   }
   if (isBankrProposal(proposal)) {
     assertBankrExecutable(proposal);
+    const preflight = getBankrExecutionPreflightBundle(proposal.id);
+    proposal.metadata = {
+      ...(proposal.metadata || {}),
+      preflight: {
+        ok: preflight.ok,
+        checkedAt: Date.now(),
+        action: preflight.action,
+        route: preflight.route,
+        checks: preflight.checks,
+      },
+    };
+    if (!preflight.ok) {
+      const failedChecks = preflight.checks
+        .filter((check) => !check.ok)
+        .map((check) => `${check.key}:${check.detail || "failed"}`);
+      throw new Error(
+        `Bankr preflight failed: ${failedChecks.join("; ") || "unknown"}`
+      );
+    }
+    if (preflight.normalizedBody) {
+      proposal.proposedBody = preflight.normalizedBody;
+    }
   }
   if (!canExecuteRoute(proposal.route)) {
     throw new Error(`Execution mapping is not available for route: ${proposal.route}`);
@@ -1120,6 +1514,7 @@ export async function executeProposal(id: string): Promise<SkillProposalEnvelope
   }
 
   const policyAction = policyActionForExecution(proposal);
+  const idempotencyKey = ensureExecutionIdempotencyKey(proposal, policyAction);
   assertProposalWalletScope(proposal, policyAction);
   assertWriteConfirmation(proposal, policyAction);
   assertNoWriteReplay(proposal, policyAction);
@@ -1152,10 +1547,26 @@ export async function executeProposal(id: string): Promise<SkillProposalEnvelope
     proposal.executionCompletedAt = Date.now();
     proposal.executionError = undefined;
     if (isWriteAction(policyAction)) {
+      const evidence = extractWriteEvidence(result);
       proposal.metadata = {
         ...(proposal.metadata || {}),
         writeExecutionId: executionId,
         writeExecutedAt: proposal.executionCompletedAt,
+        executionIdempotencyKey:
+          idempotencyKey ||
+          (typeof proposal.metadata?.executionIdempotencyKey === "string"
+            ? proposal.metadata.executionIdempotencyKey
+            : undefined),
+        writeTxHash:
+          evidence.txHash ||
+          (typeof proposal.metadata?.writeTxHash === "string"
+            ? proposal.metadata.writeTxHash
+            : undefined),
+        writeProofId:
+          evidence.proofId ||
+          (typeof proposal.metadata?.writeProofId === "string"
+            ? proposal.metadata.writeProofId
+            : undefined),
       };
     }
 
@@ -1197,6 +1608,7 @@ export async function executeProposal(id: string): Promise<SkillProposalEnvelope
       route: proposal.route,
       policyDecision: "failed",
       timestamp: Date.now(),
+      failureCategory: classifyExecutionFailureMessage(message),
       error: message,
     };
 

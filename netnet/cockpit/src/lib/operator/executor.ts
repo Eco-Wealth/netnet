@@ -14,6 +14,10 @@ import {
   getBankrActionId,
   isBankrProposal,
 } from "@/lib/operator/adapters/bankr";
+import {
+  deriveTokenRouteActionFromPayload,
+  validateBankrActionPayload,
+} from "@/lib/bankr/actionSchema";
 import { insertPnlEvent, loadProposal } from "@/lib/operator/db";
 
 type RouteHandler = (req: Request) => Promise<Response>;
@@ -52,6 +56,7 @@ export type ExecutionAuditEnvelope = {
   route: string;
   policyDecision: string;
   timestamp: number;
+  failureCategory?: "policy" | "input" | "route" | "wallet" | "network" | "unknown";
   result?: Record<string, unknown>;
   error?: string;
 };
@@ -189,6 +194,87 @@ function toRecord(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+function classifyExecutionFailureMessage(
+  message: string
+): ExecutionAuditEnvelope["failureCategory"] {
+  const normalized = String(message || "").toLowerCase();
+  if (!normalized) return "unknown";
+
+  if (normalized.includes("policy") || normalized.includes("denied")) {
+    return "policy";
+  }
+  if (
+    normalized.includes("wallet") ||
+    normalized.includes("privy") ||
+    normalized.includes("chain_caip2")
+  ) {
+    return "wallet";
+  }
+  if (
+    normalized.includes("invalid") ||
+    normalized.includes("bad_request") ||
+    normalized.includes("missing_") ||
+    normalized.includes("unknown_action") ||
+    normalized.includes("payload") ||
+    normalized.includes("_400")
+  ) {
+    return "input";
+  }
+  if (
+    normalized.includes("route") ||
+    normalized.includes("unmapped") ||
+    normalized.includes("_404") ||
+    normalized.includes("_405")
+  ) {
+    return "route";
+  }
+  if (
+    normalized.includes("timeout") ||
+    normalized.includes("network") ||
+    normalized.includes("econn") ||
+    normalized.includes("fetch failed") ||
+    normalized.includes("_502") ||
+    normalized.includes("_503") ||
+    normalized.includes("_504")
+  ) {
+    return "network";
+  }
+  return "unknown";
+}
+
+function extractWriteEvidence(payload: unknown): { txHash?: string; proofId?: string } {
+  const root = toRecord(payload);
+  const execution = toRecord(root.execution);
+  const proof = toRecord(root.proof);
+  const body = toRecord(root.body);
+  const nestedExecution = toRecord(body.execution);
+  const nestedProof = toRecord(body.proof);
+  const txHashCandidates = [
+    root.txHash,
+    execution.txHash,
+    body.txHash,
+    nestedExecution.txHash,
+  ];
+  const proofCandidates = [
+    proof.id,
+    proof.hash,
+    body.proofId,
+    nestedProof.id,
+    nestedProof.hash,
+  ];
+  const txHash = txHashCandidates.find(
+    (candidate) => typeof candidate === "string" && candidate.trim().length > 0
+  ) as string | undefined;
+  const proofId = proofCandidates.find(
+    (candidate) => typeof candidate === "string" && candidate.trim().length > 0
+  ) as string | undefined;
+
+  return {
+    txHash: txHash?.trim(),
+    proofId: proofId?.trim(),
+  };
+}
+
 type UsdFlow = {
   kind: "usd_in" | "usd_out";
   amountUsd: number;
@@ -239,8 +325,30 @@ function hasWriteReplay(proposal: SkillProposalEnvelope): boolean {
     typeof metadata.writeExecutedAt === "number"
       ? metadata.writeExecutedAt
       : undefined;
+  const priorWriteTxHash =
+    typeof metadata.writeTxHash === "string"
+      ? metadata.writeTxHash
+      : undefined;
+  const priorWriteProofId =
+    typeof metadata.writeProofId === "string"
+      ? metadata.writeProofId
+      : undefined;
+  const priorIdempotencyKey =
+    typeof metadata.executionIdempotencyKey === "string"
+      ? metadata.executionIdempotencyKey
+      : undefined;
   const priorSuccess = proposal.executionResult?.ok === true;
-  return Boolean(priorWriteExecutionId || priorWriteExecutedAt || priorSuccess);
+  const evidence = extractWriteEvidence(proposal.executionResult?.result);
+  return Boolean(
+    priorWriteExecutionId ||
+      priorWriteExecutedAt ||
+      priorWriteTxHash ||
+      priorWriteProofId ||
+      priorIdempotencyKey ||
+      priorSuccess ||
+      evidence.txHash ||
+      evidence.proofId
+  );
 }
 
 function policyContextFromProposal(
@@ -302,7 +410,11 @@ function policyContextFromProposal(
   };
 }
 
-function internalRequest(target: ExecutionTarget, body: Record<string, unknown>): Request {
+function internalRequest(
+  target: ExecutionTarget,
+  body: Record<string, unknown>,
+  idempotencyKey?: string
+): Request {
   if (target.method === "GET") {
     if (target.route === "/api/bankr/wallet") {
       const wallet =
@@ -328,14 +440,19 @@ function internalRequest(target: ExecutionTarget, body: Record<string, unknown>)
     target.action === "bankr.plan" ||
     target.action === "bankr.token.actions.plan"
       ? {
-          action: "status",
+          action: deriveTokenRouteActionFromPayload(body),
           params: { ...body, bankrActionId: target.action },
         }
       : body;
 
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (idempotencyKey) {
+    headers["x-idempotency-key"] = idempotencyKey;
+  }
+
   return new Request(`http://internal${target.route}`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers,
     body: JSON.stringify(nextBody),
   });
 }
@@ -450,7 +567,41 @@ export async function executeProposal(
     JSON.stringify(proposal)
   ) as SkillProposalEnvelope;
   const target = resolveExecutionTarget(frozenSnapshot);
-  const payload = toRecord(frozenSnapshot.proposedBody);
+  let payload = toRecord(frozenSnapshot.proposedBody);
+  if (target.route.startsWith("/api/bankr")) {
+    const payloadValidation = validateBankrActionPayload({
+      route: target.route,
+      proposedBody: payload,
+    });
+    if (!payloadValidation.ok || !payloadValidation.normalizedBody) {
+      return {
+        ok: false,
+        route: target.route,
+        policyDecision: "ALLOW",
+        timestamp: Date.now(),
+        failureCategory: "input",
+        error:
+          `bankr_payload_invalid:${payloadValidation.errors.join(", ") || "unknown"}`,
+      };
+    }
+    payload = payloadValidation.normalizedBody;
+  }
+
+  let idempotencyKey: string | undefined;
+  if (target.route.startsWith("/api/bankr") && isWriteAction(target.action)) {
+    const metadata = toRecord(frozenSnapshot.metadata);
+    const existing =
+      typeof metadata.executionIdempotencyKey === "string"
+        ? metadata.executionIdempotencyKey.trim()
+        : "";
+    idempotencyKey =
+      existing || `idem-${frozenSnapshot.id}-${target.action}-${frozenSnapshot.createdAt}`;
+    frozenSnapshot.metadata = {
+      ...(frozenSnapshot.metadata || {}),
+      executionIdempotencyKey: idempotencyKey,
+    };
+  }
+
   const gate = enforcePolicy(
     target.policyAction,
     policyContextFromProposal(frozenSnapshot, target, payload)
@@ -461,6 +612,7 @@ export async function executeProposal(
       route: target.route,
       policyDecision: "DENY",
       timestamp: Date.now(),
+      failureCategory: "policy",
       error: "policy_denied",
       result: {
         reasons: gate.reasons,
@@ -468,7 +620,7 @@ export async function executeProposal(
     };
   }
 
-  const req = internalRequest(target, payload);
+  const req = internalRequest(target, payload, idempotencyKey);
   try {
     const res = await target.handler(req);
     const routeResult = await parseRouteResponse(res);
@@ -480,16 +632,25 @@ export async function executeProposal(
         route: target.route,
         policyDecision: "ALLOW",
         timestamp: executionTimestamp,
+        failureCategory: classifyExecutionFailureMessage(
+          `route_execution_failed_${res.status}`
+        ),
         error: `route_execution_failed_${res.status}`,
         result: routeResult,
       };
     }
+    const evidence = extractWriteEvidence(routeResult);
     const successEnvelope: ExecutionAuditEnvelope = {
       ok: true,
       route: target.route,
       policyDecision: "ALLOW",
       timestamp: executionTimestamp,
-      result: routeResult,
+      result: {
+        ...routeResult,
+        ...(idempotencyKey ? { idempotencyKey } : {}),
+        ...(evidence.txHash ? { txHash: evidence.txHash } : {}),
+        ...(evidence.proofId ? { proofId: evidence.proofId } : {}),
+      },
     };
     const flows = deriveUsdFlows(frozenSnapshot, successEnvelope);
     for (const [index, flow] of flows.entries()) {
@@ -516,12 +677,14 @@ export async function executeProposal(
     }
     return successEnvelope;
   } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "execution_failed";
     return {
       ok: false,
       route: target.route,
       policyDecision: "ALLOW",
       timestamp: Date.now(),
-      error: error instanceof Error ? error.message : "execution_failed",
+      failureCategory: classifyExecutionFailureMessage(message),
+      error: message,
     };
   }
 }

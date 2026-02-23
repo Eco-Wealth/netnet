@@ -26,6 +26,13 @@ export type ExecutionResultEnvelope = {
   route: string;
   policyDecision: string;
   timestamp: number;
+  failureCategory?:
+    | "policy"
+    | "input"
+    | "route"
+    | "wallet"
+    | "network"
+    | "unknown";
   result?: Record<string, unknown>;
   error?: string;
 };
@@ -39,6 +46,13 @@ export type SkillProposalEnvelope = {
   proposedBody: Record<string, unknown>;
   metadata?: {
     confirmedWrite?: boolean;
+    executionIdempotencyKey?: string;
+    writeExecutionId?: string;
+    writeExecutedAt?: number;
+    writeTxHash?: string;
+    writeProofId?: string;
+    preflight?: Record<string, unknown>;
+    simulation?: Record<string, unknown>;
     [key: string]: unknown;
   };
   riskLevel: "low" | "medium" | "high";

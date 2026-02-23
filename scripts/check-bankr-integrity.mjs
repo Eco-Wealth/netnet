@@ -15,6 +15,7 @@ const files = {
   llm: path.join(cockpitRoot, "src/lib/operator/llm.ts"),
   proposal: path.join(cockpitRoot, "src/lib/operator/proposal.ts"),
   adapter: path.join(cockpitRoot, "src/lib/operator/adapters/bankr.ts"),
+  actionSchema: path.join(cockpitRoot, "src/lib/bankr/actionSchema.ts"),
   store: path.join(cockpitRoot, "src/lib/operator/store.ts"),
   executor: path.join(cockpitRoot, "src/lib/operator/executor.ts"),
   policyTypes: path.join(cockpitRoot, "src/lib/policy/types.ts"),
@@ -51,6 +52,7 @@ const registrySrc = read(files.registry);
 const llmSrc = read(files.llm);
 const proposalSrc = read(files.proposal);
 const adapterSrc = read(files.adapter);
+const actionSchemaSrc = read(files.actionSchema);
 const storeSrc = read(files.store);
 const executorSrc = read(files.executor);
 const policyTypesSrc = read(files.policyTypes);
@@ -119,6 +121,24 @@ check(function bankr_adapter_contains_canonical_action_route_map() {
   }
 }, results);
 
+check(function bankr_action_schema_enforces_canonical_payload_validation() {
+  mustContain(
+    actionSchemaSrc,
+    /BANKR_ACTION_ROUTE_MAP/,
+    "bankr action route map exists"
+  );
+  mustContain(
+    actionSchemaSrc,
+    /validateBankrActionPayload\(/,
+    "bankr action payload validator exists"
+  );
+  mustContain(
+    actionSchemaSrc,
+    /deriveTokenRouteActionFromPayload\(/,
+    "bankr token route-action resolver exists"
+  );
+}, results);
+
 check(function execution_store_has_write_confirmation_and_replay_guard() {
   mustContain(
     storeSrc,
@@ -128,8 +148,18 @@ check(function execution_store_has_write_confirmation_and_replay_guard() {
   mustContain(storeSrc, /assertNoWriteReplay\(/, "store execution replay guard");
   mustContain(
     storeSrc,
-    /writeExecutionId|writeExecutedAt/,
-    "store execution writes write-execution markers"
+    /writeExecutionId|writeExecutedAt|writeTxHash|writeProofId/,
+    "store execution writes write-execution markers/evidence"
+  );
+  mustContain(
+    storeSrc,
+    /executionIdempotencyKey|getBankrExecutionPreflightBundle/,
+    "store execution has idempotency + preflight bundle"
+  );
+  mustContain(
+    storeSrc,
+    /failureCategory|classifyExecutionFailureMessage/,
+    "store execution classifies failures"
   );
 }, results);
 
@@ -143,6 +173,11 @@ check(function execution_boundary_has_replay_guard() {
     executorSrc,
     /metadata\.confirmedWrite/,
     "executor confirmedWrite requirement"
+  );
+  mustContain(
+    executorSrc,
+    /executionIdempotencyKey|failureCategory/,
+    "executor includes idempotency and failure category support"
   );
 }, results);
 

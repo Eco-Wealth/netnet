@@ -26,6 +26,7 @@ import {
   createStrategy,
   ensureStrategyForProposal,
   executeProposal,
+  getBankrExecutionPreflightBundle,
   getProposal,
   getStrategy,
   generateExecutionPlan,
@@ -360,26 +361,32 @@ export async function executeProposalAction(id: string): Promise<OperatorStateRe
   try {
     const preflight = getProposal(id);
     const isBankrRoute = Boolean(preflight?.route.includes("/api/bankr/"));
-    const preflightMetadata =
-      preflight && preflight.metadata && typeof preflight.metadata === "object"
-        ? (preflight.metadata as Record<string, unknown>)
-        : undefined;
-    const simulationRecord =
-      preflightMetadata && typeof preflightMetadata.simulation === "object"
-        ? (preflightMetadata.simulation as Record<string, unknown>)
-        : undefined;
-    const simulationOk = Boolean(
-      simulationRecord &&
-        typeof simulationRecord.ok === "boolean" &&
-        simulationRecord.ok === true
-    );
-
-    if (isBankrRoute && !simulationOk) {
-      appendAuditMessage(
-        "Execution blocked: run Simulate first for Bankr proposals.",
-        "bankr.simulate.required"
-      );
-      return state();
+    if (isBankrRoute) {
+      const preflightBundle = getBankrExecutionPreflightBundle(id);
+      const failedChecks = preflightBundle.checks
+        .filter((check) => !check.ok)
+        .map((check) => `${check.key}${check.detail ? ` (${check.detail})` : ""}`);
+      const proposal = getProposal(id);
+      if (proposal) {
+        proposal.metadata = {
+          ...(proposal.metadata || {}),
+          preflight: {
+            ok: preflightBundle.ok,
+            checkedAt: Date.now(),
+            action: preflightBundle.action,
+            route: preflightBundle.route,
+            checks: preflightBundle.checks,
+          },
+        };
+        upsertProposal(proposal);
+      }
+      if (!preflightBundle.ok) {
+        appendAuditMessage(
+          `Execution blocked: Bankr preflight failed (${failedChecks.join(" | ") || "unknown"}).`,
+          "bankr.preflight.failed"
+        );
+        return state();
+      }
     }
 
     const proposal = await executeProposal(id);
