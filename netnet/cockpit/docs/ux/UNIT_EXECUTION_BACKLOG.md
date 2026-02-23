@@ -349,3 +349,25 @@ This backlog tracks machine-first Operator execution units.
 - Added Playwright boundary tests:
   - `tests/bankr-execution-boundary.spec.ts`
   - covers launch bad-request rejection and `execute_privy` write-lane guards.
+
+### Unit 131 — Bankr readiness lane in Ops Control
+
+- Added server action `runBankrReadinessCheckAction` in Ops Control:
+  - checks canonical Bankr routes exist
+  - checks write-lane env readiness (`PRIVY_APP_ID`, `PRIVY_APP_SECRET`)
+  - checks policy decisions for canonical Bankr actions
+- Added a dedicated Bankr readiness panel in `/ops/control` with one-click run + detailed env/route/policy output.
+- Added health command entries:
+  - `bankr_readiness` -> `npm run bankr:check`
+
+### Unit 132 — Bankr smoke suite lane
+
+- Added `scripts/health-bankr.mjs` to run deterministic Bankr checks:
+  - `bankr:check`
+  - cockpit build
+  - cockpit typecheck
+  - targeted Bankr Playwright smoke tests
+- Added `npm run health:bankr` in root package scripts.
+- Added Ops Control command:
+  - `bankr_smoke` -> `npm run health:bankr`
+- Extended goal-to-command planner with Bankr intent mapping for `bankr_readiness` and `bankr_smoke`.

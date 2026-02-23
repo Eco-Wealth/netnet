@@ -19,6 +19,7 @@ import {
   readAIEyesArtifactsAction,
   planOpsSequenceFromGoalAction,
   runMCPConnectorCheckAction,
+  runBankrReadinessCheckAction,
   runOpenClawBootstrapAction,
   runOpenClawConnectionCheckAction,
   runOpenClawPolicyCheckAction,
@@ -34,6 +35,7 @@ import {
   type OpenClawPolicyResult,
   type OpenClawSchedulerResult,
   type MCPConnectorCheckResult,
+  type BankrReadinessResult,
   type OpsAccessContext,
   type OpsPlanResult,
   type OpsRunResult,
@@ -399,6 +401,82 @@ function OpenClawSetupPanel({
   );
 }
 
+function BankrReadinessPanel({
+  pending,
+  readiness,
+  onRun,
+}: {
+  pending: boolean;
+  readiness: BankrReadinessResult | null;
+  onRun: () => void;
+}) {
+  return (
+    <section style={panelStyle}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 15 }}>Bankr readiness</h2>
+          <div style={{ marginTop: 6, fontSize: 13, opacity: 0.82 }}>
+            Validate Bankr routes, policy gates, and write-lane credentials.
+          </div>
+        </div>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={onRun}
+          style={{ padding: "6px 10px", borderRadius: 8 }}
+        >
+          Run Bankr readiness
+        </button>
+      </div>
+
+      <div style={{ marginTop: 10, fontSize: 12, opacity: 0.88 }}>
+        Status: {checkStatus(readiness?.ok)}
+        {readiness?.checkedAt ? ` • ${formatDate(readiness.checkedAt)}` : ""}
+      </div>
+
+      {readiness ? (
+        <>
+          <details style={{ marginTop: 10 }}>
+            <summary>Env</summary>
+            <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+              {readiness.env.map((row) => (
+                <div key={row.key} style={{ fontSize: 12, opacity: 0.9 }}>
+                  [{row.present ? "ok" : "missing"}] {row.key}
+                  {row.required ? ` (required-${row.lane})` : ` (optional-${row.lane})`}
+                  {row.hint ? ` — ${row.hint}` : ""}
+                </div>
+              ))}
+            </div>
+          </details>
+
+          <details style={{ marginTop: 10 }}>
+            <summary>Routes</summary>
+            <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+              {readiness.routes.map((row) => (
+                <div key={row.route} style={{ fontSize: 12, opacity: 0.9 }}>
+                  [{row.exists ? "ok" : "missing"}] {row.route}
+                </div>
+              ))}
+            </div>
+          </details>
+
+          <details style={{ marginTop: 10 }}>
+            <summary>Policy</summary>
+            <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+              {readiness.policy.map((row) => (
+                <div key={row.action} style={{ fontSize: 12, opacity: 0.9 }}>
+                  [{row.ok ? "ok" : "deny"}] {row.action}
+                  {row.reasons.length ? ` — ${row.reasons.join("; ")}` : ""}
+                </div>
+              ))}
+            </div>
+          </details>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
 export default function ControlCenterClient() {
   const [role, setRole] = useState<OpsRole>("operator");
   const [accessContext, setAccessContext] = useState<OpsAccessContext | null>(null);
@@ -452,6 +530,8 @@ export default function ControlCenterClient() {
     useState<OpenClawPolicyResult | null>(null);
   const [openClawMcp, setOpenClawMcp] =
     useState<MCPConnectorCheckResult | null>(null);
+  const [bankrReadiness, setBankrReadiness] =
+    useState<BankrReadinessResult | null>(null);
   const [openClawBootstrap, setOpenClawBootstrap] =
     useState<OpenClawBootstrapResult | null>(null);
   const [pending, startTransition] = useTransition();
@@ -863,6 +943,13 @@ export default function ControlCenterClient() {
     });
   }
 
+  function runBankrReadiness() {
+    startTransition(async () => {
+      const result = await runBankrReadinessCheckAction({ role });
+      setBankrReadiness(result);
+    });
+  }
+
   return (
     <main style={{ padding: 16, display: "grid", gap: 12 }}>
       <header style={panelStyle}>
@@ -916,6 +1003,12 @@ export default function ControlCenterClient() {
         onPolicy={runOpenClawPolicy}
         onMcp={runOpenClawMcp}
         onBootstrap={runOpenClawBootstrap}
+      />
+
+      <BankrReadinessPanel
+        pending={pending}
+        readiness={bankrReadiness}
+        onRun={runBankrReadiness}
       />
 
       <section style={panelStyle}>

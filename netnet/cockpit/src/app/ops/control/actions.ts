@@ -23,6 +23,8 @@ import {
   type WorkPriority,
   type WorkStatus,
 } from "@/lib/work";
+import { enforcePolicy } from "@/lib/policy/enforce";
+import type { PolicyAction } from "@/lib/policy/types";
 
 const COCKPIT_ROOT = process.cwd();
 const REPO_ROOT = path.resolve(COCKPIT_ROOT, "..", "..");
@@ -362,6 +364,28 @@ export type MCPConnectorCheckResult = {
   error?: string;
 };
 
+export type BankrEnvCheckItem = {
+  key: string;
+  required: boolean;
+  present: boolean;
+  lane: "propose" | "execute";
+  hint?: string;
+};
+
+export type BankrReadinessResult = {
+  ok: boolean;
+  role: OpsRole;
+  checkedAt: number;
+  env: BankrEnvCheckItem[];
+  routes: Array<{ route: string; exists: boolean }>;
+  policy: Array<{
+    action: PolicyAction;
+    ok: boolean;
+    reasons: string[];
+  }>;
+  error?: string;
+};
+
 export type OpenClawBootstrapResult = {
   ok: boolean;
   role: OpsRole;
@@ -477,6 +501,39 @@ function toEnvCheck(): OpenClawEnvCheckItem[] {
   return list;
 }
 
+function toBankrEnvCheck(): BankrEnvCheckItem[] {
+  return [
+    {
+      key: "BANKR_API_BASE_URL",
+      required: false,
+      present: Boolean(String(process.env.BANKR_API_BASE_URL || "").trim()),
+      lane: "propose",
+      hint: "Optional remote proposal relay endpoint.",
+    },
+    {
+      key: "BANKR_WALLET_API_BASE_URL",
+      required: false,
+      present: Boolean(String(process.env.BANKR_WALLET_API_BASE_URL || "").trim()),
+      lane: "propose",
+      hint: "Optional wallet read relay endpoint.",
+    },
+    {
+      key: "PRIVY_APP_ID",
+      required: true,
+      present: Boolean(String(process.env.PRIVY_APP_ID || "").trim()),
+      lane: "execute",
+      hint: "Required for execute_privy write lane.",
+    },
+    {
+      key: "PRIVY_APP_SECRET",
+      required: true,
+      present: Boolean(String(process.env.PRIVY_APP_SECRET || "").trim()),
+      lane: "execute",
+      hint: "Required for execute_privy write lane.",
+    },
+  ];
+}
+
 function requiredEnvPass(list: OpenClawEnvCheckItem[]): boolean {
   for (const row of list) {
     if (row.required && !row.present) return false;
@@ -533,6 +590,14 @@ function deriveCommandsFromGoal(goal: string): {
     commandSet.add("mcp_connectors");
     rationale.push("Added MCP connector checks from goal intent.");
   }
+  if (/(bankr|wallet|launch|token actions|token info|privy)/.test(normalized)) {
+    commandSet.add("bankr_readiness");
+    rationale.push("Added Bankr readiness checks from goal intent.");
+  }
+  if (/(bankr).*(smoke|test)|bankr smoke|bankr suite/.test(normalized)) {
+    commandSet.add("bankr_smoke");
+    rationale.push("Added Bankr smoke suite from goal intent.");
+  }
   if (/(policy|guard|drift|contract|health|safe|readiness|ops)/.test(normalized)) {
     commandSet.add("health_fast");
     rationale.push("Added health-fast guard lane from goal intent.");
@@ -550,6 +615,8 @@ function deriveCommandsFromGoal(goal: string): {
   const ordered = [
     "repo_status",
     "mcp_connectors",
+    "bankr_readiness",
+    "bankr_smoke",
     "health_fast",
     "cockpit_build",
     "cockpit_types",
@@ -2569,6 +2636,58 @@ export async function runMCPConnectorCheckAction(input: {
     checkedAt,
     connectors,
     error: ok ? undefined : "mcp_connectors_check_failed",
+  };
+}
+
+export async function runBankrReadinessCheckAction(input: {
+  role?: OpsRole;
+}): Promise<BankrReadinessResult> {
+  void input;
+  const effectiveRole = resolveServerRole();
+  const checkedAt = Date.now();
+  const env = toBankrEnvCheck();
+  const routes = [
+    "/api/bankr/wallet",
+    "/api/bankr/token/info",
+    "/api/bankr/token/actions",
+    "/api/bankr/launch",
+  ].map((route) => ({ route, exists: routeExists(route) }));
+
+  const policyTargets: Array<{ action: PolicyAction; route: string }> = [
+    { action: "bankr.wallet.read", route: "/api/bankr/wallet" },
+    { action: "bankr.token.info", route: "/api/bankr/token/info" },
+    { action: "bankr.token.actions", route: "/api/bankr/token/actions" },
+    { action: "bankr.launch", route: "/api/bankr/launch" },
+  ];
+
+  const policy = policyTargets.map((target) => {
+    const gate = enforcePolicy(target.action, {
+      venue: "bankr",
+      action: target.action,
+      route: target.route,
+      amountUsd: target.action === "bankr.launch" ? 25 : 0,
+    });
+    return {
+      action: target.action,
+      ok: gate.ok,
+      reasons: gate.reasons,
+    };
+  });
+
+  const envOk = requiredEnvPass(env);
+  const routeOk = routes.every((row) => row.exists);
+  const policyOk = policy.every((row) => row.ok);
+  const ok = envOk && routeOk && policyOk;
+
+  revalidatePath("/ops/control");
+  return {
+    ok,
+    role: effectiveRole,
+    checkedAt,
+    env,
+    routes,
+    policy,
+    error: ok ? undefined : "bankr_readiness_check_failed",
   };
 }
 

@@ -42,6 +42,22 @@ export const OPS_COMMANDS: OpsCommandSpec[] = [
     steps: [{ cwd: "repo", args: ["npm", "run", "mcp:check"] }],
   },
   {
+    id: "bankr_readiness",
+    title: "Bankr Readiness Check",
+    description: "Validate Bankr routes, policy gates, and required env lanes.",
+    category: "health",
+    roles: ["operator", "admin"],
+    steps: [{ cwd: "repo", args: ["npm", "run", "bankr:check"] }],
+  },
+  {
+    id: "bankr_smoke",
+    title: "Bankr Smoke Suite",
+    description: "Run deterministic Bankr integrity + API surface smoke tests.",
+    category: "health",
+    roles: ["operator", "admin"],
+    steps: [{ cwd: "repo", args: ["npm", "run", "health:bankr"] }],
+  },
+  {
     id: "cockpit_build",
     title: "Cockpit Build",
     description: "Deterministic Next.js production build.",
