@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { getOpsCommandById, type OpsCommandSpec, type OpsRole } from "./commands";
 import { createStubMCPClient } from "@/mcp";
 import type { MCPChain, MCPResponse } from "@/mcp/types";
+import { appendWorkEvent, createWork, type WorkItem, type WorkPriority } from "@/lib/work";
 
 const COCKPIT_ROOT = process.cwd();
 const REPO_ROOT = path.resolve(COCKPIT_ROOT, "..", "..");
@@ -50,6 +51,37 @@ export type OpsPlanResult = {
   goal: string;
   commandIds: string[];
   rationale: string[];
+};
+
+export type OpsWorkOrderContract = {
+  version: "netnet.workorder.v1";
+  goal: string;
+  commandIds: string[];
+  rationale: string[];
+  acceptanceChecks: Array<{
+    commandId: string;
+    required: boolean;
+  }>;
+  constraints: {
+    policyMode: "proposal_first";
+    requireApproval: true;
+    requireIntentLock: true;
+    roleBoundary: OpsRole;
+    maxBudgetUsd: number;
+  };
+  outputs: {
+    required: string[];
+  };
+};
+
+export type OpsWorkOrderResult = {
+  ok: boolean;
+  role: OpsRole;
+  checkedAt: number;
+  workId?: string;
+  title?: string;
+  contract?: OpsWorkOrderContract;
+  error?: string;
 };
 
 export type AIEyesArtifacts = {
@@ -251,6 +283,66 @@ function parseStub(response: MCPResponse): boolean {
     return false;
   }
   return (response.data as Record<string, unknown>).stub === true;
+}
+
+function deriveCommandsFromGoal(goal: string): {
+  goal: string;
+  commandIds: string[];
+  rationale: string[];
+} {
+  const trimmed = String(goal || "").trim();
+  const normalized = trimmed.toLowerCase();
+  const commandSet = new Set<string>();
+  const rationale: string[] = [];
+
+  if (!trimmed) {
+    commandSet.add("health_fast");
+    rationale.push("No goal provided, defaulted to fast health check.");
+  }
+
+  if (/(build|compile|next build|ship)/.test(normalized)) {
+    commandSet.add("cockpit_build");
+    rationale.push("Added build check from goal intent.");
+  }
+  if (/(type|tsc|typescript)/.test(normalized)) {
+    commandSet.add("cockpit_types");
+    rationale.push("Added typecheck from goal intent.");
+  }
+  if (/(visual|ui|screenshot|ai eyes)/.test(normalized)) {
+    commandSet.add("ui_eyes");
+    rationale.push("Added visual smoke from goal intent.");
+  }
+  if (/(mcp|regen mcp|registry review|koi|python mcp)/.test(normalized)) {
+    commandSet.add("mcp_connectors");
+    rationale.push("Added MCP connector checks from goal intent.");
+  }
+  if (/(policy|guard|drift|contract|health|safe|readiness|ops)/.test(normalized)) {
+    commandSet.add("health_fast");
+    rationale.push("Added health-fast guard lane from goal intent.");
+  }
+  if (/(repo|git|status)/.test(normalized)) {
+    commandSet.add("repo_status");
+    rationale.push("Added repo status from goal intent.");
+  }
+
+  if (commandSet.size === 0) {
+    commandSet.add("health_fast");
+    rationale.push("No specific command match, defaulted to fast health check.");
+  }
+
+  const ordered = [
+    "repo_status",
+    "mcp_connectors",
+    "health_fast",
+    "cockpit_build",
+    "cockpit_types",
+    "ui_eyes",
+  ];
+  return {
+    goal: trimmed,
+    commandIds: ordered.filter((id) => commandSet.has(id)),
+    rationale,
+  };
 }
 
 function routeExists(route: string): boolean {
@@ -478,56 +570,146 @@ export async function planOpsSequenceFromGoalAction(input: {
   goal: string;
 }): Promise<OpsPlanResult> {
   const effectiveRole = resolveServerRole();
-  const goal = String(input.goal || "").trim();
-  const normalized = goal.toLowerCase();
-  const commandSet = new Set<string>();
-  const rationale: string[] = [];
-
-  if (!goal) {
-    commandSet.add("health_fast");
-    rationale.push("No goal provided, defaulted to fast health check.");
-  }
-
-  if (/(build|compile|next build|ship)/.test(normalized)) {
-    commandSet.add("cockpit_build");
-    rationale.push("Added build check from goal intent.");
-  }
-  if (/(type|tsc|typescript)/.test(normalized)) {
-    commandSet.add("cockpit_types");
-    rationale.push("Added typecheck from goal intent.");
-  }
-  if (/(visual|ui|screenshot|ai eyes)/.test(normalized)) {
-    commandSet.add("ui_eyes");
-    rationale.push("Added visual smoke from goal intent.");
-  }
-  if (/(mcp|regen mcp|registry review|koi|python mcp)/.test(normalized)) {
-    commandSet.add("mcp_connectors");
-    rationale.push("Added MCP connector checks from goal intent.");
-  }
-  if (/(policy|guard|drift|contract|health|safe|readiness|ops)/.test(normalized)) {
-    commandSet.add("health_fast");
-    rationale.push("Added health-fast guard lane from goal intent.");
-  }
-  if (/(repo|git|status)/.test(normalized)) {
-    commandSet.add("repo_status");
-    rationale.push("Added repo status from goal intent.");
-  }
-
-  if (commandSet.size === 0) {
-    commandSet.add("health_fast");
-    rationale.push("No specific command match, defaulted to fast health check.");
-  }
-
-  const ordered = ["repo_status", "mcp_connectors", "health_fast", "cockpit_build", "cockpit_types", "ui_eyes"];
-  const commandIds = ordered.filter((id) => commandSet.has(id));
+  const plan = deriveCommandsFromGoal(input.goal);
 
   revalidatePath("/ops/control");
   return {
     ok: true,
     role: effectiveRole,
-    goal,
-    commandIds,
-    rationale,
+    goal: plan.goal,
+    commandIds: plan.commandIds,
+    rationale: plan.rationale,
+  };
+}
+
+function readPriority(value: unknown): WorkPriority {
+  if (value === "LOW" || value === "MEDIUM" || value === "HIGH" || value === "CRITICAL") {
+    return value;
+  }
+  return "MEDIUM";
+}
+
+function readBudget(value: unknown): number {
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(0, Math.round(numeric * 100) / 100);
+}
+
+function toWorkOrderTitle(goal: string): string {
+  const single = String(goal || "").replace(/\s+/g, " ").trim() || "Untitled work order";
+  const short = single.length > 72 ? `${single.slice(0, 72)}...` : single;
+  return `Vealth Work Order: ${short}`;
+}
+
+function buildWorkOrderContract(args: {
+  goal: string;
+  role: OpsRole;
+  budgetUsd: number;
+  commandIds: string[];
+  rationale: string[];
+}): OpsWorkOrderContract {
+  return {
+    version: "netnet.workorder.v1",
+    goal: args.goal,
+    commandIds: args.commandIds,
+    rationale: args.rationale,
+    acceptanceChecks: args.commandIds.map((commandId) => ({
+      commandId,
+      required: true,
+    })),
+    constraints: {
+      policyMode: "proposal_first",
+      requireApproval: true,
+      requireIntentLock: true,
+      roleBoundary: args.role,
+      maxBudgetUsd: args.budgetUsd,
+    },
+    outputs: {
+      required: [
+        "code_diff_or_noop_note",
+        "verification_results_with_exit_codes",
+        "proof_or_audit_event_reference",
+      ],
+    },
+  };
+}
+
+function createAcceptanceCriteria(contract: OpsWorkOrderContract): string {
+  const checks = contract.acceptanceChecks
+    .map((check) => `- ${check.commandId}: pass`)
+    .join("\n");
+  return [
+    "Execute with proposal-first guardrails and return deterministic evidence.",
+    "Required checks:",
+    checks,
+    "Attach proof/audit reference and include real exit codes.",
+  ].join("\n");
+}
+
+export async function createVealthWorkOrderAction(input: {
+  role?: OpsRole;
+  goal: string;
+  owner?: string;
+  budgetUsd?: number;
+  priority?: WorkPriority;
+}): Promise<OpsWorkOrderResult> {
+  const effectiveRole = resolveServerRole();
+  const checkedAt = Date.now();
+  const goal = String(input.goal || "").trim();
+  if (!goal) {
+    return {
+      ok: false,
+      role: effectiveRole,
+      checkedAt,
+      error: "goal_required",
+    };
+  }
+
+  const plan = deriveCommandsFromGoal(goal);
+  const budgetUsd = readBudget(input.budgetUsd);
+  const contract = buildWorkOrderContract({
+    goal: plan.goal,
+    role: effectiveRole,
+    budgetUsd,
+    commandIds: plan.commandIds,
+    rationale: plan.rationale,
+  });
+
+  const work = createWork({
+    title: toWorkOrderTitle(goal),
+    description: [
+      "Machine-dispatched work order for Vealth/OpenClaw execution.",
+      `Goal: ${plan.goal}`,
+      `Command lane: ${plan.commandIds.join(" -> ")}`,
+      `Budget cap (USD): ${contract.constraints.maxBudgetUsd}`,
+    ].join("\n"),
+    owner: String(input.owner || "vealth").trim() || "vealth",
+    priority: readPriority(input.priority),
+    acceptanceCriteria: createAcceptanceCriteria(contract),
+    escalationPolicy:
+      "If any required check fails, report blocker + context and request operator review.",
+    actor: "operator",
+    tags: ["vealth", "work-order", "ops-control"],
+  });
+
+  const withEvent: WorkItem | null = appendWorkEvent(work.id, {
+    type: "APPROVAL_REQUESTED",
+    by: "operator",
+    note: "Vealth work order created from ops control.",
+    patch: {
+      workOrderContract: contract,
+    },
+  });
+
+  revalidatePath("/ops/control");
+  revalidatePath("/work");
+  return {
+    ok: true,
+    role: effectiveRole,
+    checkedAt,
+    workId: withEvent?.id || work.id,
+    title: withEvent?.title || work.title,
+    contract,
   };
 }
 

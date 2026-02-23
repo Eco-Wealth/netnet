@@ -207,6 +207,16 @@ This backlog tracks machine-first Operator execution units.
   - Run through existing guarded sequence execution
 - Keeps server-authoritative role boundary and existing command allowlist.
 
+### Unit 117 — Vealth work-order contract intake
+
+- Added `/ops/control` action to create machine-readable work orders from goal input.
+- Work order contract includes:
+  - deterministic command lane
+  - acceptance checks
+  - proposal-first constraints (approval + intent lock required)
+  - budget cap and required output artifacts
+- Contract is persisted in Work event audit trail (`APPROVAL_REQUESTED` patch).
+
 ## Proposed
 
 ### Unit 121 — Social autopublish sequence (YouTube -> X -> Instagram -> Facebook)

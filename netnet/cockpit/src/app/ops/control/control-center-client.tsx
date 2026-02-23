@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition, type CSSProperties } from "react";
 import {
+  createVealthWorkOrderAction,
   getOpsAccessContextAction,
   readAIEyesArtifactsAction,
   planOpsSequenceFromGoalAction,
@@ -22,6 +23,7 @@ import {
   type OpsPlanResult,
   type OpsRunResult,
   type OpsSequenceResult,
+  type OpsWorkOrderResult,
 } from "./actions";
 import { OPS_COMMANDS, OPS_ROLES, type OpsRole } from "./commands";
 
@@ -377,7 +379,12 @@ export default function ControlCenterClient() {
   const [lastResult, setLastResult] = useState<OpsRunResult | null>(null);
   const [lastSequence, setLastSequence] = useState<OpsSequenceResult | null>(null);
   const [plannedSequence, setPlannedSequence] = useState<OpsPlanResult | null>(null);
+  const [lastWorkOrder, setLastWorkOrder] = useState<OpsWorkOrderResult | null>(null);
   const [goalDraft, setGoalDraft] = useState("");
+  const [workOrderOwner, setWorkOrderOwner] = useState("vealth");
+  const [workOrderBudget, setWorkOrderBudget] = useState("0");
+  const [workOrderPriority, setWorkOrderPriority] =
+    useState<"LOW" | "MEDIUM" | "HIGH" | "CRITICAL">("MEDIUM");
   const [artifacts, setArtifacts] = useState<AIEyesArtifacts | null>(null);
   const [openClawConnection, setOpenClawConnection] =
     useState<OpenClawConnectionResult | null>(null);
@@ -450,6 +457,19 @@ export default function ControlCenterClient() {
       const plan = await planOpsSequenceFromGoalAction({ role, goal: goalDraft });
       setPlannedSequence(plan);
       setSelectedIds(plan.commandIds);
+    });
+  }
+
+  function createWorkOrder() {
+    startTransition(async () => {
+      const result = await createVealthWorkOrderAction({
+        role,
+        goal: goalDraft,
+        owner: workOrderOwner,
+        budgetUsd: Number(workOrderBudget || 0),
+        priority: workOrderPriority,
+      });
+      setLastWorkOrder(result);
     });
   }
 
@@ -654,6 +674,111 @@ export default function ControlCenterClient() {
             <div style={{ fontSize: 12, opacity: 0.8 }}>
               {plannedSequence.rationale.join(" ")}
             </div>
+          ) : null}
+        </div>
+      </section>
+
+      <section style={panelStyle}>
+        <div style={{ display: "grid", gap: 8 }}>
+          <strong>Vealth Work Order</strong>
+          <div style={{ fontSize: 13, opacity: 0.86 }}>
+            Create a machine-readable work order from the goal for Vealth/OpenClaw dispatch.
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gap: 8,
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            }}
+          >
+            <label style={{ display: "grid", gap: 4, fontSize: 12, opacity: 0.9 }}>
+              Owner
+              <input
+                value={workOrderOwner}
+                onChange={(event) => setWorkOrderOwner(event.target.value)}
+                style={{
+                  borderRadius: 8,
+                  padding: "6px 10px",
+                  border: "1px solid var(--nn-border-subtle, #1f2b45)",
+                  background: "var(--nn-surface-0, rgba(3, 8, 18, 0.8))",
+                  color: "inherit",
+                }}
+              />
+            </label>
+            <label style={{ display: "grid", gap: 4, fontSize: 12, opacity: 0.9 }}>
+              Budget USD
+              <input
+                value={workOrderBudget}
+                onChange={(event) => setWorkOrderBudget(event.target.value)}
+                style={{
+                  borderRadius: 8,
+                  padding: "6px 10px",
+                  border: "1px solid var(--nn-border-subtle, #1f2b45)",
+                  background: "var(--nn-surface-0, rgba(3, 8, 18, 0.8))",
+                  color: "inherit",
+                }}
+              />
+            </label>
+            <label style={{ display: "grid", gap: 4, fontSize: 12, opacity: 0.9 }}>
+              Priority
+              <select
+                value={workOrderPriority}
+                onChange={(event) =>
+                  setWorkOrderPriority(
+                    event.target.value as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
+                  )
+                }
+                style={{
+                  borderRadius: 8,
+                  padding: "6px 10px",
+                  border: "1px solid var(--nn-border-subtle, #1f2b45)",
+                  background: "var(--nn-surface-0, rgba(3, 8, 18, 0.8))",
+                  color: "inherit",
+                }}
+              >
+                <option value="LOW">LOW</option>
+                <option value="MEDIUM">MEDIUM</option>
+                <option value="HIGH">HIGH</option>
+                <option value="CRITICAL">CRITICAL</option>
+              </select>
+            </label>
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              disabled={pending || !goalDraft.trim()}
+              onClick={createWorkOrder}
+              style={{ padding: "6px 10px", borderRadius: 8 }}
+            >
+              Create Work Order
+            </button>
+            {lastWorkOrder?.workId ? (
+              <a
+                href={`/work?q=${encodeURIComponent(lastWorkOrder.workId)}`}
+                style={{ fontSize: 12, opacity: 0.9, alignSelf: "center" }}
+              >
+                Open Work: {lastWorkOrder.workId}
+              </a>
+            ) : null}
+          </div>
+          {lastWorkOrder?.error ? (
+            <div style={{ fontSize: 12, color: "#f5b6b6" }}>Error: {lastWorkOrder.error}</div>
+          ) : null}
+          {lastWorkOrder?.contract ? (
+            <details>
+              <summary style={{ fontSize: 12 }}>Work order contract (json)</summary>
+              <pre
+                style={{
+                  marginTop: 8,
+                  maxHeight: 200,
+                  overflow: "auto",
+                  whiteSpace: "pre-wrap",
+                  fontSize: 12,
+                }}
+              >
+                {JSON.stringify(lastWorkOrder.contract, null, 2)}
+              </pre>
+            </details>
           ) : null}
         </div>
       </section>
