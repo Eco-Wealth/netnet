@@ -199,6 +199,14 @@ This backlog tracks machine-first Operator execution units.
   - YouTube -> X -> Instagram -> Facebook
 - Kept flow proposal-first (prompt insertion only, no execution wiring changes).
 
+### Unit 116 — Codex unit runner bridge in ops control
+
+- Added prompt-driven planning in `/ops/control`:
+  - Enter a goal
+  - Generate deterministic command sequence
+  - Run through existing guarded sequence execution
+- Keeps server-authoritative role boundary and existing command allowlist.
+
 ## Proposed
 
 ### Unit 121 — Social autopublish sequence (YouTube -> X -> Instagram -> Facebook)

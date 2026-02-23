@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition, type CSSProperties } from 
 import {
   getOpsAccessContextAction,
   readAIEyesArtifactsAction,
+  planOpsSequenceFromGoalAction,
   runMCPConnectorCheckAction,
   runOpenClawBootstrapAction,
   runOpenClawConnectionCheckAction,
@@ -18,6 +19,7 @@ import {
   type OpenClawSchedulerResult,
   type MCPConnectorCheckResult,
   type OpsAccessContext,
+  type OpsPlanResult,
   type OpsRunResult,
   type OpsSequenceResult,
 } from "./actions";
@@ -374,6 +376,8 @@ export default function ControlCenterClient() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [lastResult, setLastResult] = useState<OpsRunResult | null>(null);
   const [lastSequence, setLastSequence] = useState<OpsSequenceResult | null>(null);
+  const [plannedSequence, setPlannedSequence] = useState<OpsPlanResult | null>(null);
+  const [goalDraft, setGoalDraft] = useState("");
   const [artifacts, setArtifacts] = useState<AIEyesArtifacts | null>(null);
   const [openClawConnection, setOpenClawConnection] =
     useState<OpenClawConnectionResult | null>(null);
@@ -438,6 +442,14 @@ export default function ControlCenterClient() {
         commandIds: selectedIds,
       });
       setLastSequence(sequence);
+    });
+  }
+
+  function planFromGoal() {
+    startTransition(async () => {
+      const plan = await planOpsSequenceFromGoalAction({ role, goal: goalDraft });
+      setPlannedSequence(plan);
+      setSelectedIds(plan.commandIds);
     });
   }
 
@@ -601,6 +613,49 @@ export default function ControlCenterClient() {
             </div>
           </div>
         ))}
+      </section>
+
+      <section style={panelStyle}>
+        <div style={{ display: "grid", gap: 8 }}>
+          <strong>Codex Unit Runner</strong>
+          <div style={{ fontSize: 13, opacity: 0.86 }}>
+            Enter a unit goal, generate a deterministic command plan, then run the selected sequence.
+          </div>
+          <textarea
+            value={goalDraft}
+            onChange={(event) => setGoalDraft(event.target.value)}
+            rows={2}
+            placeholder="Example: validate MCP readiness and ship build-safe changes"
+            style={{
+              width: "100%",
+              borderRadius: 8,
+              padding: "8px 10px",
+              border: "1px solid var(--nn-border-subtle, #1f2b45)",
+              background: "var(--nn-surface-0, rgba(3, 8, 18, 0.8))",
+              color: "inherit",
+            }}
+          />
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={planFromGoal}
+              style={{ padding: "6px 10px", borderRadius: 8 }}
+            >
+              Plan from goal
+            </button>
+            {plannedSequence ? (
+              <span style={{ fontSize: 12, opacity: 0.85 }}>
+                Planned: {plannedSequence.commandIds.join(" -> ")}
+              </span>
+            ) : null}
+          </div>
+          {plannedSequence?.rationale?.length ? (
+            <div style={{ fontSize: 12, opacity: 0.8 }}>
+              {plannedSequence.rationale.join(" ")}
+            </div>
+          ) : null}
+        </div>
       </section>
 
       <section style={panelStyle}>

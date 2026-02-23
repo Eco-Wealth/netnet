@@ -44,6 +44,14 @@ export type OpsSequenceResult = {
   error?: string;
 };
 
+export type OpsPlanResult = {
+  ok: boolean;
+  role: OpsRole;
+  goal: string;
+  commandIds: string[];
+  rationale: string[];
+};
+
 export type AIEyesArtifacts = {
   ok: boolean;
   updatedAt?: number;
@@ -462,6 +470,64 @@ export async function runOpsSequenceAction(input: {
     startedAt,
     endedAt: Date.now(),
     runs,
+  };
+}
+
+export async function planOpsSequenceFromGoalAction(input: {
+  role?: OpsRole;
+  goal: string;
+}): Promise<OpsPlanResult> {
+  const effectiveRole = resolveServerRole();
+  const goal = String(input.goal || "").trim();
+  const normalized = goal.toLowerCase();
+  const commandSet = new Set<string>();
+  const rationale: string[] = [];
+
+  if (!goal) {
+    commandSet.add("health_fast");
+    rationale.push("No goal provided, defaulted to fast health check.");
+  }
+
+  if (/(build|compile|next build|ship)/.test(normalized)) {
+    commandSet.add("cockpit_build");
+    rationale.push("Added build check from goal intent.");
+  }
+  if (/(type|tsc|typescript)/.test(normalized)) {
+    commandSet.add("cockpit_types");
+    rationale.push("Added typecheck from goal intent.");
+  }
+  if (/(visual|ui|screenshot|ai eyes)/.test(normalized)) {
+    commandSet.add("ui_eyes");
+    rationale.push("Added visual smoke from goal intent.");
+  }
+  if (/(mcp|regen mcp|registry review|koi|python mcp)/.test(normalized)) {
+    commandSet.add("mcp_connectors");
+    rationale.push("Added MCP connector checks from goal intent.");
+  }
+  if (/(policy|guard|drift|contract|health|safe|readiness|ops)/.test(normalized)) {
+    commandSet.add("health_fast");
+    rationale.push("Added health-fast guard lane from goal intent.");
+  }
+  if (/(repo|git|status)/.test(normalized)) {
+    commandSet.add("repo_status");
+    rationale.push("Added repo status from goal intent.");
+  }
+
+  if (commandSet.size === 0) {
+    commandSet.add("health_fast");
+    rationale.push("No specific command match, defaulted to fast health check.");
+  }
+
+  const ordered = ["repo_status", "mcp_connectors", "health_fast", "cockpit_build", "cockpit_types", "ui_eyes"];
+  const commandIds = ordered.filter((id) => commandSet.has(id));
+
+  revalidatePath("/ops/control");
+  return {
+    ok: true,
+    role: effectiveRole,
+    goal,
+    commandIds,
+    rationale,
   };
 }
 
