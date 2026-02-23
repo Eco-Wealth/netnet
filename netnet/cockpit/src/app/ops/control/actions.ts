@@ -386,6 +386,17 @@ export type BankrReadinessResult = {
   error?: string;
 };
 
+export type BankrBootstrapResult = {
+  ok: boolean;
+  role: OpsRole;
+  checkedAt: number;
+  steps: {
+    readiness: BankrReadinessResult;
+    smoke: OpsRunResult;
+  };
+  error?: string;
+};
+
 export type OpenClawBootstrapResult = {
   ok: boolean;
   role: OpsRole;
@@ -2688,6 +2699,43 @@ export async function runBankrReadinessCheckAction(input: {
     routes,
     policy,
     error: ok ? undefined : "bankr_readiness_check_failed",
+  };
+}
+
+export async function runBankrBootstrapAction(input: {
+  role?: OpsRole;
+}): Promise<BankrBootstrapResult> {
+  const effectiveRole = resolveServerRole();
+  const readiness = await runBankrReadinessCheckAction(input);
+
+  const startedAt = Date.now();
+  let smoke: OpsRunResult;
+  if (!readiness.ok) {
+    smoke = {
+      ok: false,
+      commandId: "bankr_smoke",
+      role: effectiveRole,
+      startedAt,
+      endedAt: Date.now(),
+      steps: [],
+      error: "readiness_failed_skip_smoke",
+    };
+  } else {
+    smoke = await executeCommand({ role: effectiveRole, commandId: "bankr_smoke" });
+  }
+
+  const ok = readiness.ok && smoke.ok;
+  revalidatePath("/ops/control");
+  return {
+    ok,
+    role: effectiveRole,
+    checkedAt: Date.now(),
+    steps: { readiness, smoke },
+    error: ok
+      ? undefined
+      : !readiness.ok
+      ? "bankr_readiness_check_failed"
+      : "bankr_smoke_failed",
   };
 }
 

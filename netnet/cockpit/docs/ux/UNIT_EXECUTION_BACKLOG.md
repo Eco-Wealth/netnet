@@ -371,3 +371,26 @@ This backlog tracks machine-first Operator execution units.
 - Added Ops Control command:
   - `bankr_smoke` -> `npm run health:bankr`
 - Extended goal-to-command planner with Bankr intent mapping for `bankr_readiness` and `bankr_smoke`.
+
+### Unit 133 — Bankr full bootstrap action in Ops Control
+
+- Added server action `runBankrBootstrapAction`:
+  - runs Bankr readiness check first
+  - runs `bankr_smoke` command lane only when readiness passes
+  - returns structured step output for readiness + smoke status
+- Extended `/ops/control` Bankr panel with:
+  - `Run full Bankr bootstrap` button
+  - bootstrap status line + step result details
+- Kept role boundary and existing command allowlist behavior (no policy/executor changes).
+
+### Unit 134 — Bankr ops lane drift guard
+
+- Added `scripts/check-bankr-ops-lane.mjs` to enforce Bankr Ops lane wiring across:
+  - Ops command registry (`bankr_readiness`, `bankr_smoke`)
+  - Ops control actions (`runBankrReadinessCheckAction`, `runBankrBootstrapAction`)
+  - Ops control client panel wiring (`Run full Bankr bootstrap`)
+- Added `npm run bankr:ops:check`.
+- Wired `bankr:ops:check` into:
+  - `drift:check`
+  - `health:fast`
+  - `health:bankr`

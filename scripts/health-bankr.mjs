@@ -26,6 +26,7 @@ function run(cmd, args, options = {}) {
 }
 
 console.log(`HEALTH BANKR: cockpit=${cockpitRel}`);
+run("node", ["scripts/check-bankr-ops-lane.mjs"]);
 run("node", ["scripts/check-bankr-integrity.mjs"]);
 run("npm", ["-C", cockpitRel, "run", "build"]);
 run("npx", ["tsc", "--noEmit"], { cwd: cockpitRoot });

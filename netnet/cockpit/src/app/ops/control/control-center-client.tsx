@@ -20,6 +20,7 @@ import {
   planOpsSequenceFromGoalAction,
   runMCPConnectorCheckAction,
   runBankrReadinessCheckAction,
+  runBankrBootstrapAction,
   runOpenClawBootstrapAction,
   runOpenClawConnectionCheckAction,
   runOpenClawPolicyCheckAction,
@@ -36,6 +37,7 @@ import {
   type OpenClawSchedulerResult,
   type MCPConnectorCheckResult,
   type BankrReadinessResult,
+  type BankrBootstrapResult,
   type OpsAccessContext,
   type OpsPlanResult,
   type OpsRunResult,
@@ -404,11 +406,15 @@ function OpenClawSetupPanel({
 function BankrReadinessPanel({
   pending,
   readiness,
+  bootstrap,
   onRun,
+  onBootstrap,
 }: {
   pending: boolean;
   readiness: BankrReadinessResult | null;
+  bootstrap: BankrBootstrapResult | null;
   onRun: () => void;
+  onBootstrap: () => void;
 }) {
   return (
     <section style={panelStyle}>
@@ -427,12 +433,43 @@ function BankrReadinessPanel({
         >
           Run Bankr readiness
         </button>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={onBootstrap}
+          style={{ padding: "6px 10px", borderRadius: 8 }}
+        >
+          Run full Bankr bootstrap
+        </button>
       </div>
 
       <div style={{ marginTop: 10, fontSize: 12, opacity: 0.88 }}>
         Status: {checkStatus(readiness?.ok)}
         {readiness?.checkedAt ? ` • ${formatDate(readiness.checkedAt)}` : ""}
       </div>
+      <div style={{ marginTop: 6, fontSize: 12, opacity: 0.88 }}>
+        Bootstrap: {checkStatus(bootstrap?.ok)}
+        {bootstrap?.checkedAt ? ` • ${formatDate(bootstrap.checkedAt)}` : ""}
+      </div>
+
+      {bootstrap ? (
+        <details style={{ marginTop: 10 }}>
+          <summary>Bootstrap run</summary>
+          <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+            <div style={{ fontSize: 12, opacity: 0.9 }}>
+              Readiness: {checkStatus(bootstrap.steps.readiness.ok)}
+            </div>
+            <div style={{ fontSize: 12, opacity: 0.9 }}>
+              Smoke command: [{bootstrap.steps.smoke.ok ? "ok" : "fail"}] {bootstrap.steps.smoke.commandId}
+            </div>
+            {bootstrap.steps.smoke.error ? (
+              <div style={{ fontSize: 12, color: "#f5b6b6" }}>
+                Error: {bootstrap.steps.smoke.error}
+              </div>
+            ) : null}
+          </div>
+        </details>
+      ) : null}
 
       {readiness ? (
         <>
@@ -532,6 +569,8 @@ export default function ControlCenterClient() {
     useState<MCPConnectorCheckResult | null>(null);
   const [bankrReadiness, setBankrReadiness] =
     useState<BankrReadinessResult | null>(null);
+  const [bankrBootstrap, setBankrBootstrap] =
+    useState<BankrBootstrapResult | null>(null);
   const [openClawBootstrap, setOpenClawBootstrap] =
     useState<OpenClawBootstrapResult | null>(null);
   const [pending, startTransition] = useTransition();
@@ -950,6 +989,14 @@ export default function ControlCenterClient() {
     });
   }
 
+  function runBankrBootstrap() {
+    startTransition(async () => {
+      const result = await runBankrBootstrapAction({ role });
+      setBankrBootstrap(result);
+      setBankrReadiness(result.steps.readiness);
+    });
+  }
+
   return (
     <main style={{ padding: 16, display: "grid", gap: 12 }}>
       <header style={panelStyle}>
@@ -1008,7 +1055,9 @@ export default function ControlCenterClient() {
       <BankrReadinessPanel
         pending={pending}
         readiness={bankrReadiness}
+        bootstrap={bankrBootstrap}
         onRun={runBankrReadiness}
+        onBootstrap={runBankrBootstrap}
       />
 
       <section style={panelStyle}>

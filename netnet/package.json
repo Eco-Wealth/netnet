@@ -17,7 +17,8 @@
     "policy:integrity": "node scripts/check-policy-integrity.mjs",
     "policy:routes": "node scripts/check-route-policy-enforcement.mjs",
     "bankr:check": "node scripts/check-bankr-integrity.mjs",
-    "drift:check": "npm run contracts:check && npm run policy:integrity && npm run policy:routes && npm run bankr:check",
+    "bankr:ops:check": "node scripts/check-bankr-ops-lane.mjs",
+    "drift:check": "npm run contracts:check && npm run policy:integrity && npm run policy:routes && npm run bankr:check && npm run bankr:ops:check",
     "health:bankr": "node scripts/health-bankr.mjs"
   },
   "dependencies": {
