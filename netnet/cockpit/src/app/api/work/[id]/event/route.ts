@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { addWorkEvent } from "../../../../../vealth/work/workStore";
+import { addWorkEvent } from "@/vealth/work/workStore";
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const id = params.id;

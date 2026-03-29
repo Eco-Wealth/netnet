@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { updateWorkStatus } from "../../../../../vealth/work/workStore";
+import { updateWorkStatus } from "@/vealth/work/workStore";
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   const id = params.id;

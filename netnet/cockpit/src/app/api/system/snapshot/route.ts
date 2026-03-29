@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import path from 'path';
 import fs from 'fs';
-import { listWorkItems } from '../../../../vealth/work/workStore';
+import { listWorkItems } from '../../@/vealth/work/workStore';
 
 export async function GET() {
   try {
